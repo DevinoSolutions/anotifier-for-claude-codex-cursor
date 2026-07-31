@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // cli/index.mjs
 import { createRequire } from 'node:module';
-import { checkForUpdate } from './update-check.mjs';
+import { checkForUpdate } from '../src/update-check.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');

@@ -74,6 +74,7 @@ function validateUserConfig(user) {
   checkBlock('terminalBell', { enabled: 'boolean' });
   checkBlock('webhook', { enabled: 'boolean', url: 'string', format: 'string', chatId: 'string', authorization: 'string', richContent: 'boolean' });
   checkBlock('sentry', { enabled: 'boolean', dsn: 'string' });
+  checkBlock('updateCheck', { enabled: 'boolean' });
 
   // Webhook format is a fixed preset enum (like event priority): an invalid
   // value is dropped so the 'generic' default wins. Telegram addresses the
@@ -153,7 +154,7 @@ function validateUserConfig(user) {
     }
   }
 
-  const knownTop = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'events', 'sources'];
+  const knownTop = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'events', 'sources'];
   for (const key of Object.keys(user)) {
     if (!knownTop.includes(key)) issues.push(`unknown key "${key}"`);
   }
