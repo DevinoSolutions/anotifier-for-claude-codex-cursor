@@ -84,6 +84,8 @@ function printHelp(c, banner) {
   console.log(`    ${c.muted('$')} ${c.white('anotifier test toast')}`);
   console.log(`    ${c.muted('$')} ${c.white('anotifier config ntfy')}`);
   console.log();
+  console.log(`  ${c.muted('Docs & guides:')} ${c.accent('https://anotifier.io')}`);
+  console.log();
 }
 
 main().catch((err) => {

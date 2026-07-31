@@ -105,8 +105,14 @@ async function main() {
 
   if (!done) fail('approved in the TUI but the guarded command never ran (turn did not complete).');
 
+  // The killed TUI process dies asynchronously and can still be flushing into the
+  // temp home while we delete it — retry, and never fail a passed proof on cleanup.
   killSession(SESSION);
-  fs.rmSync(codexHome, { recursive: true, force: true });
+  try {
+    fs.rmSync(codexHome, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+  } catch (err) {
+    console.log(`F2: temp-home cleanup failed (${err.code}) — runner temp dir, ignoring.`);
+  }
   console.log('PASS (hard): real codex TUI approval → command executed after our approve keystroke.');
   process.exit(0);
 }

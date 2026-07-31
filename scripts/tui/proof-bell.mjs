@@ -135,8 +135,14 @@ async function main() {
   if (flag !== '1') fail('window_bell_flag never became 1 — claude TUI did not ring the terminal bell.');
 
   // Success only: clean up. (Failure leaves the session for the workflow diag step.)
+  // The killed TUI process dies asynchronously and can still be flushing into the
+  // temp home while we delete it — retry, and never fail a passed proof on cleanup.
   killSession(SESSION);
-  fs.rmSync(home, { recursive: true, force: true });
+  try {
+    fs.rmSync(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+  } catch (err) {
+    console.log(`F1: temp-home cleanup failed (${err.code}) — runner temp dir, ignoring.`);
+  }
   console.log('PASS (hard): real interactive claude TUI rang the terminal bell (window_bell_flag=1).');
   process.exit(0);
 }

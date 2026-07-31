@@ -258,7 +258,8 @@ export async function run() {
   }
 
   // 9. Summary — only reached when every detected tool patched cleanly.
-  log('\n  ✓ Setup complete. Restart your AI tools to activate.\n', 'green');
+  log('\n  ✓ Setup complete. Restart your AI tools to activate.', 'green');
+  log('    Docs & guides: https://anotifier.io\n', 'dim');
 
   rl.close();
 }
