@@ -13,6 +13,7 @@ import { deriveRichViews } from './transcript.mjs';
 import { sendBell } from './bell.mjs';
 import { resolveToastBackend } from './platforms/index.mjs';
 import { enableSentryMirror, logHookError, flushErrorReporting } from './error-log.mjs';
+import { maybeNotifyUpdate } from './update-check.mjs';
 
 // Some tools (Cursor) fire the same hook twice simultaneously. Exclusive file
 // creation is the atomic lock that lets only one invocation notify. The key
@@ -189,6 +190,13 @@ async function main() {
     if (event.source === 'claude' && config.terminalBell?.enabled !== false && eventConfig.terminalBellEnabled !== false) {
       responseBody = JSON.stringify({ terminalSequence: '\x07' }) + '\n';
     }
+
+    // Dead last, and only after the real notification has already been
+    // dispatched: announce a newly published anotifier once per version through
+    // whichever channels are already on. Hits the network at most once per 24h
+    // (every other run is a cached file read), is internally capped, and never
+    // throws — so it can neither delay hook exit nor fail a successful run.
+    await maybeNotifyUpdate(config);
   } catch (err) {
     // Never crash — hooks must not block the AI tool. But never hide it
     // either: errors.log + `status` (+ Sentry when enabled) make it visible.

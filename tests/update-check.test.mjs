@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { resolveUpdate, UPDATE_TTL_MS, isNewer } from '../cli/update-check.mjs';
+import { resolveUpdate, UPDATE_TTL_MS, isNewer } from '../src/update-check.mjs';
 
 const tmpDir = path.join(os.tmpdir(), 'update-check-test-' + Date.now());
 const cachePath = () => path.join(tmpDir, `.update-check-${Math.random().toString(36).slice(2)}.json`);
@@ -51,6 +51,16 @@ describe('resolveUpdate caching', () => {
     assert.equal(cached.checkedAt, 5000);
     assert.equal(cached.latest, null);
   });
+
+  it('preserves lastNotifiedVersion, which the hook path owns in the same file', async () => {
+    // A CLI-side check must not wipe the hook's "already told them" marker, or
+    // the next hook run would re-announce a version the user has already seen.
+    const cp = cachePath();
+    fs.writeFileSync(cp, JSON.stringify({ checkedAt: 1000, latest: '9.9.9', lastNotifiedVersion: '9.9.9' }));
+    await resolveUpdate(cp, async () => '9.9.9', 1000 + UPDATE_TTL_MS + 1);
+    const cached = JSON.parse(fs.readFileSync(cp, 'utf8'));
+    assert.equal(cached.lastNotifiedVersion, '9.9.9');
+  });
 });
 
 describe('isNewer — semver "should we nag?" gate', () => {
@@ -66,5 +76,17 @@ describe('isNewer — semver "should we nag?" gate', () => {
   });
   it('unparseable input is treated as not-newer (stays quiet)', () => {
     assert.equal(isNewer('garbage', '1.2.1'), false);
+    assert.equal(isNewer('', '1.2.1'), false);
+    assert.equal(isNewer(undefined, '1.2.1'), false);
+    assert.equal(isNewer('1.2.1', 'garbage'), true, 'garbage parses to 0.0.0, so anything real beats it');
+  });
+
+  it('compares the numeric core of a prerelease, ignoring the tag', () => {
+    // Documented contract: pre-release/build metadata is stripped before the
+    // compare. npm's `latest` dist-tag points at stable releases, so this only
+    // matters for hand-published tags — 1.3.0-beta.1 and 1.3.0 rank EQUAL.
+    assert.equal(isNewer('1.3.0-beta.1', '1.2.2'), true);
+    assert.equal(isNewer('1.3.0', '1.3.0-beta.1'), false);
+    assert.equal(isNewer('1.2.2+build.5', '1.2.2'), false);
   });
 });

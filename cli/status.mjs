@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { loadConfigResult } from '../src/config-loader.mjs';
 import { readRecentHookErrors, getErrorLogPath } from '../src/error-log.mjs';
 import { detectManagedEvents } from '../setup/patch-config.mjs';
-import { checkForUpdate } from './update-check.mjs';
+import { checkForUpdate } from '../src/update-check.mjs';
 import { c, box, kv, sectionHeader } from './ui.mjs';
 
 const require = createRequire(import.meta.url);

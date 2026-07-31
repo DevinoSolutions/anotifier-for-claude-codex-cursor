@@ -24,6 +24,9 @@
     "enabled": false,
     "dsn": ""
   },
+  "updateCheck": {
+    "enabled": true
+  },
   "events": {
     "task_complete": {
       "toastSound": "IM",
