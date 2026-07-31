@@ -193,12 +193,24 @@ describe('maybeNotifyUpdate resilience (a hook must never crash)', () => {
     assert.equal(announced, null);
   });
 
+  // The two hang cases below inject never-settling promises that — unlike the
+  // real fetch, which always holds a live socket — carry no libuv handle. The
+  // production budget timer is deliberately unref'd, so during the race NOTHING
+  // keeps the event loop alive and on node <= 22 the test child process simply
+  // drains and exits, cancelling the rest of the file (node 24's runner holds
+  // its own handle, masking it). A ref'd keep-alive timer restores the handle
+  // the real socket would provide.
+  const whileHeldOpen = async (fn) => {
+    const keepAlive = setInterval(() => {}, 1000);
+    try { return await fn(); } finally { clearInterval(keepAlive); }
+  };
+
   it('a hung check resolves null at the budget instead of holding the hook open', async () => {
     const { sent, notify } = recorder();
-    const announced = await maybeNotifyUpdate({}, {
+    const announced = await whileHeldOpen(() => maybeNotifyUpdate({}, {
       cachePath, notify, now: NOW, currentVersion: '1.2.2', budgetMs: 20,
       fetchImpl: () => new Promise(() => {}), // never settles
-    });
+    }));
     assert.equal(announced, null);
     assert.equal(sent.length, 0);
   });
@@ -209,9 +221,11 @@ describe('maybeNotifyUpdate resilience (a hook must never crash)', () => {
     let attempts = 0;
     const hang = { cachePath, now: NOW, currentVersion: '1.2.2', budgetMs: 20, fetchImpl: async () => '1.3.0' };
     const notify = () => { attempts++; return new Promise(() => {}); }; // never settles
-    await maybeNotifyUpdate({}, { ...hang, notify });
-    assert.equal(JSON.parse(fs.readFileSync(cachePath, 'utf8')).lastNotifiedVersion, '1.3.0');
-    await maybeNotifyUpdate({}, { ...hang, notify, now: NOW + 1 });
+    await whileHeldOpen(async () => {
+      await maybeNotifyUpdate({}, { ...hang, notify });
+      assert.equal(JSON.parse(fs.readFileSync(cachePath, 'utf8')).lastNotifiedVersion, '1.3.0');
+      await maybeNotifyUpdate({}, { ...hang, notify, now: NOW + 1 });
+    });
     assert.equal(attempts, 1, 'the second run must not re-dispatch');
   });
 });
