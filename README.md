@@ -35,6 +35,10 @@
   <img src="https://img.shields.io/badge/iOS-000000?style=flat-square&logo=ios&logoColor=white" alt="iOS" />
 </p>
 
+<p align="center">
+  <img src="assets/media/hero.png" alt="Desktop toasts on the laptop and ntfy push notifications on the phone — Claude Code task complete, Codex needs input, Cursor agent finished" width="660" />
+</p>
+
 ---
 
 ## Demo
@@ -460,7 +464,7 @@ CI goes further than "the call returned 0." On **Linux** it reads the payload ba
 
 ## Contributing
 
-Contributions are welcome. Please open an issue first to discuss what you'd like to change.
+Contributions are welcome. Please open an issue first to discuss what you'd like to change — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Changelog
 
