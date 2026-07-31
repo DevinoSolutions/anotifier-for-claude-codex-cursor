@@ -21,6 +21,7 @@
   <a href="https://anotifier.io"><img src="https://img.shields.io/badge/website-anotifier.io-6c5ce7" alt="anotifier.io" /></a>
   <a href="https://www.npmjs.com/package/anotifier"><img src="https://img.shields.io/npm/v/anotifier?color=cb3837&label=npm" alt="npm version" /></a>
   <a href="https://www.npmjs.com/package/anotifier"><img src="https://img.shields.io/npm/dm/anotifier?color=blue" alt="npm downloads" /></a>
+  <a href="https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/actions/workflows/unit.yml"><img src="https://img.shields.io/github/actions/workflow/status/DevinoSolutions/anotifier-for-claude-codex-cursor/unit.yml?branch=main&label=tests" alt="Unit tests" /></a>
   <a href="https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0" /></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node.js >= 18" /></a>
   <img src="https://img.shields.io/badge/dependencies-zero-success" alt="Zero Dependencies" />
@@ -45,7 +46,7 @@ https://github.com/user-attachments/assets/5714b528-7e04-478e-abfd-2a3d05db562c
 ## Quick Start
 
 ```bash
-npx anotifier setup
+npx anotifier@latest setup
 ```
 
 That's it. The setup wizard detects your platform and installed AI tools, wires the hooks, and optionally configures phone push notifications. Restart your AI tools to activate.
@@ -117,7 +118,7 @@ Claude Code, Codex, and Cursor all run inside VS Code. **anotifier** hooks direc
 
 ```bash
 # One-shot setup (no install needed)
-npx anotifier setup
+npx anotifier@latest setup
 
 # Or install globally
 npm i -g anotifier
@@ -126,8 +127,11 @@ anotifier setup
 
 ### Claude Code Plugin
 
+Add the marketplace, then install the plugin from it:
+
 ```
-/install-plugin https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor
+/plugin marketplace add DevinoSolutions/anotifier-for-claude-codex-cursor
+/plugin install anotifier@anotifier
 ```
 
 Hooks auto-register. Use `/anotifier:setup` to wire other tools.
@@ -147,16 +151,17 @@ curl -fsSL https://raw.githubusercontent.com/DevinoSolutions/anotifier-for-claud
 ## CLI Commands
 
 ```
-anotifier setup          # First-time setup wizard
-anotifier status         # Show wired tools, config, backends
-anotifier test [channel] # Fire test notification (toast | ntfy | webhook | bell | both)
-anotifier config         # Interactive settings menu
-anotifier uninstall      # Remove hooks from all tools
+anotifier setup            # First-time setup wizard
+anotifier status           # Show wired tools, config, backends
+anotifier test [channel]   # Fire test notification (toast | ntfy | webhook | bell | both)
+anotifier config [section] # Interactive settings (ntfy | webhook | sounds | events | sentry)
+anotifier doctor [--deep]  # Diagnose delivery per channel (--deep verifies real delivery)
+anotifier uninstall        # Remove hooks from all tools
 ```
 
 ## Configuration
 
-Config lives at `~/.anotifier/config.json`:
+Config lives at `~/.anotifier/config.json`. Abbreviated — see [config/default-config.json](config/default-config.json) for every key and default:
 
 ```json
 {
@@ -185,7 +190,13 @@ Config lives at `~/.anotifier/config.json`:
   "events": {
     "task_complete": { "toastSound": "IM", "priority": "default" },
     "needs_input": { "toastSound": "Reminder", "priority": "urgent" },
-    "session_start": { "toastSound": "Default", "priority": "low", "terminalBellEnabled": false }
+    "session_start": {
+      "toastSound": "Default",
+      "priority": "low",
+      "toastEnabled": false,
+      "ntfyEnabled": false,
+      "terminalBellEnabled": false
+    }
   }
 }
 ```
@@ -450,6 +461,10 @@ CI goes further than "the call returned 0." On **Linux** it reads the payload ba
 ## Contributing
 
 Contributions are welcome. Please open an issue first to discuss what you'd like to change.
+
+## Changelog
+
+Release history is in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
