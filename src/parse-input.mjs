@@ -23,6 +23,24 @@ const EVENT_MAP = {
   },
 };
 
+// Claude Code's Stop payload carries `background_tasks`: the ledger of subagents
+// and background shells still running past the main agent's turn ([] when the
+// turn really is done, ABSENT on older Claude Code). An entry counts as LIVE
+// unless it explicitly says otherwise — only a string status that isn't
+// 'running' (e.g. 'completed', 'failed') settles it, so an unrecognized shape
+// fails toward "still live". The two errors are not symmetric: a premature
+// "Task complete" ping actively misleads, while a suppressed one self-corrects
+// when the work drains and Claude re-invokes the agent for a final Stop.
+// Absent / non-list => false, which keeps older Claude Code (and every other
+// tool, none of which send this) on exactly today's behavior.
+function detectLiveBackgroundWork(raw) {
+  if (!Array.isArray(raw.background_tasks)) return false;
+  return raw.background_tasks.some(
+    (task) => task !== null && typeof task === 'object'
+      && (typeof task.status !== 'string' || task.status === 'running'),
+  );
+}
+
 export function parseInput(raw, source, eventOverride) {
   // --event CLI arg takes priority (used by Codex/Cursor which don't send hook_event_name on stdin).
   // Claude and Gemini include hook_event_name in stdin JSON.
@@ -42,6 +60,10 @@ export function parseInput(raw, source, eventOverride) {
     // structured payload can never smuggle newlines/objects downstream.
     transcriptPath: raw.transcript_path || '',
     message: typeof raw.message === 'string' ? raw.message : '',
+    // True when this Stop fired with work still pending behind it — notify.mjs
+    // holds the "Task complete" ping back rather than announcing a turn that
+    // isn't over. See detectLiveBackgroundWork above.
+    hasLiveBackgroundWork: detectLiveBackgroundWork(raw),
     // Kept even when unmapped: the hook logs unrecognized events by this name
     // so misconfigured wiring (or a tool's new event type) is visible in
     // errors.log instead of vanishing.
