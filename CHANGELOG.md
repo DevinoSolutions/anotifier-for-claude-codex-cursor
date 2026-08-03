@@ -4,6 +4,24 @@ All notable changes to `anotifier` are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [1.2.4] — 2026-08-03
+
+### Fixed
+- **"Task complete" no longer fires while background work is still running.**
+  Claude Code's `Stop` hook fires when the main agent's *turn* ends — which is
+  seconds after it dispatches background subagents or long background shell
+  commands, minutes before the work actually finishes. anotifier pinged "Task
+  complete" at that first moment. The `Stop` payload carries Claude Code's own
+  pending-work ledger (`background_tasks`, verified against the live CLI); the
+  hook now holds the ping back while any entry is still running and lets the
+  final `Stop` — the one whose ledger is drained — deliver the real "Task
+  complete". Self-correcting by design: Claude Code re-invokes the agent when
+  background work finishes, so that final `Stop` always arrives. Unknown ledger
+  shapes count as still-running (a premature ping misleads; a held-back one
+  self-corrects), and older Claude Code versions without the field — plus every
+  other tool — keep exactly today's behavior. Claude-only: Cursor's
+  `subagentStop` ping is per-subagent by design and is untouched.
+
 ## [1.2.3] — 2026-08-03
 
 ### Added
