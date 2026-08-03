@@ -4,6 +4,37 @@ All notable changes to `anotifier` are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [1.2.3] — 2026-08-03
+
+### Added
+- **Update notifications through your own channels.** When a newer anotifier is
+  published, the notify hook announces it **once per version** through whichever
+  channels you already have enabled (toast / ntfy / webhook — never the terminal
+  bell), with the upgrade command and a link to the release notes (ntfy gets it
+  as the tap target). At most one registry check per 24h, sharing the CLI
+  banner's cache; the whole check is hard-capped and fail-open so it can never
+  delay or fail a hook run. Opt out with `updateCheck.enabled: false`.
+- **`anotifier snooze <duration>`.** Silence every channel for `30m`, `2h`,
+  `90s`, or a bare number of minutes; `snooze off` cancels early, bare `snooze`
+  reports the current state. Also available as the `/snooze` plugin command.
+- **Quiet hours.** `quietHours: { "enabled": false, "from": "22:00", "to": "08:00" }`
+  silences every channel during a recurring local-time window (midnight-spanning
+  windows supported). A malformed time disables the block entirely rather than
+  falling back to a default window — a typo must never silence you by surprise.
+- **Snooze and quiet-hours rows in `anotifier status`.**
+
+### Fixed
+- **Stale CLI update banner.** After upgrading, `anotifier` commands could show
+  `vX → vX` ("update available" to the version already installed) for up to 24h,
+  because the cached `latest` was trusted without re-checking. Both call sites
+  now re-assert the version comparison.
+
+### Changed
+- **Docs & community.** The README documents the real Claude Code plugin install
+  two-step (`/plugin marketplace add` + `/plugin install anotifier@anotifier`)
+  and gains a hero image; added SECURITY.md, CONTRIBUTING.md, and GitHub issue
+  forms; `anotifier --help` and setup now point to https://anotifier.io.
+
 ## [1.2.2] — 2026-07-20
 
 Release-infrastructure only — **no functional or behavioral changes from 1.2.1**;
