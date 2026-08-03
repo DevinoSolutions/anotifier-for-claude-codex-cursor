@@ -160,8 +160,12 @@ anotifier status           # Show wired tools, config, backends
 anotifier test [channel]   # Fire test notification (toast | ntfy | webhook | bell | both)
 anotifier config [section] # Interactive settings (ntfy | webhook | sounds | events | sentry)
 anotifier doctor [--deep]  # Diagnose delivery per channel (--deep verifies real delivery)
+anotifier snooze [dur]     # Silence every channel for a while (30m | 2h | 90s | 45 = 45 minutes)
+anotifier snooze off       # Cancel the snooze early
 anotifier uninstall        # Remove hooks from all tools
 ```
+
+`anotifier snooze` with no argument prints the current state (`Snoozed until 14:32` or `Not snoozed`); `anotifier status` shows the same thing. A snooze silences **every** channel -- toast, ntfy, webhook and the terminal bell -- until it expires on its own, and it survives across sessions because the deadline is stored in `~/.anotifier/.snooze.json`.
 
 ## Configuration
 
@@ -194,6 +198,11 @@ Config lives at `~/.anotifier/config.json`. Abbreviated — see [config/default-
   "updateCheck": {
     "enabled": true
   },
+  "quietHours": {
+    "enabled": false,
+    "from": "22:00",
+    "to": "08:00"
+  },
   "events": {
     "task_complete": { "toastSound": "IM", "priority": "default" },
     "needs_input": { "toastSound": "Reminder", "priority": "urgent" },
@@ -208,7 +217,31 @@ Config lives at `~/.anotifier/config.json`. Abbreviated — see [config/default-
 }
 ```
 
-`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent -- for Claude Code (>=2.1.141) it rings through Claude Code's own terminal write path (hook JSON `terminalSequence`), which is safe in tmux, GNU screen, and on Windows per Claude Code's docs; other agents get a direct TTY/console bell. `webhook` posts to Slack, Discord, Telegram, or any URL (see below). `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). `updateCheck` announces a newly published anotifier through whichever of your toast / ntfy / webhook channels are already on (never the terminal bell) -- it asks the npm registry at most once per day, tells you at most once per version, and stays silent on any error; set `enabled` to `false` to turn it off entirely, and no check or state write happens at all. Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound; on macOS the name is mapped to the closest built-in system sound (Windows names like `IM`/`Reminder` are translated, and `Default` or unrecognized names fall back to the system default), while on Linux it is ignored; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
+`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent -- for Claude Code (>=2.1.141) it rings through Claude Code's own terminal write path (hook JSON `terminalSequence`), which is safe in tmux, GNU screen, and on Windows per Claude Code's docs; other agents get a direct TTY/console bell. `webhook` posts to Slack, Discord, Telegram, or any URL (see below). `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). `updateCheck` announces a newly published anotifier through whichever of your toast / ntfy / webhook channels are already on (never the terminal bell) -- it asks the npm registry at most once per day, tells you at most once per version, and stays silent on any error; set `enabled` to `false` to turn it off entirely, and no check or state write happens at all. `quietHours` is a recurring nightly version of `snooze` (see [Quiet hours](#quiet-hours)). Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound; on macOS the name is mapped to the closest built-in system sound (Windows names like `IM`/`Reminder` are translated, and `Default` or unrecognized names fall back to the system default), while on Linux it is ignored; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
+
+### Quiet hours
+
+Off by default. Set `quietHours.enabled` to `true` and every channel goes silent inside the window, every day:
+
+```json
+{
+  "quietHours": {
+    "enabled": true,
+    "from": "22:00",
+    "to": "08:00"
+  }
+}
+```
+
+- Times are `"HH:MM"` on a 24-hour clock, in your machine's **local** time.
+- The start is inclusive and the end is exclusive: `22:00` is silenced, `08:00` is not.
+- Windows may span midnight. `22:00` -> `08:00` covers 22:00-23:59 **and** 00:00-07:59. A same-day window like `08:00` -> `22:00` works the same way.
+- `from` equal to `to` is a zero-length window and turns the feature **off**, rather than silencing you for a full 24 hours.
+- A time that isn't a valid `HH:MM` disables the whole block instead of falling back to the default window -- a typo should never silence you -- and the problem is reported by `anotifier status`.
+
+`anotifier status` shows the window and whether you are currently inside it.
+
+**How quiet hours and `snooze` interact:** they are independent, and either one alone silences the run -- there is no per-channel scoping, it is all channels or none. A silenced run is silenced completely: no toast, no ntfy push, no webhook POST, no terminal bell, and no update notice either. What does *not* change is the hook contract -- the hook still exits successfully and still returns the response its agent expects, so silencing notifications can never stall or break Claude Code, Codex, Cursor or Gemini CLI. The daily update check simply runs on the next un-silenced run.
 
 ### ntfy -- Phone Push Notifications
 

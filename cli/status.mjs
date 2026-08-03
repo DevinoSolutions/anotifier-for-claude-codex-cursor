@@ -6,7 +6,8 @@ import { createRequire } from 'node:module';
 import { loadConfigResult } from '../src/config-loader.mjs';
 import { readRecentHookErrors, getErrorLogPath } from '../src/error-log.mjs';
 import { detectManagedEvents } from '../setup/patch-config.mjs';
-import { checkForUpdate } from '../src/update-check.mjs';
+import { checkForUpdate, isNewer } from '../src/update-check.mjs';
+import { readSnoozeUntil, quietHoursWindow, inQuietHours, formatClock } from '../src/suppress.mjs';
 import { c, box, kv, sectionHeader } from './ui.mjs';
 
 const require = createRequire(import.meta.url);
@@ -52,6 +53,19 @@ export async function run() {
     : c.muted('disabled');
   const sentryValue = config.sentry?.enabled ? c.success('enabled') : c.muted('disabled');
 
+  // Both suppression sources, since either one alone silences every channel and
+  // "why did nothing fire?" is exactly the question `status` exists to answer.
+  const snoozedUntil = readSnoozeUntil();
+  const snoozeValue = snoozedUntil ? c.warn(`until ${formatClock(snoozedUntil)}`) : c.muted('off');
+  // quietHoursWindow is null for every reason the window is inert — disabled, a
+  // malformed time, or from === to — so all of them honestly read as 'disabled'.
+  const quietWindow = quietHoursWindow(config.quietHours);
+  const quietValue = !quietWindow
+    ? c.muted('disabled')
+    : inQuietHours(config.quietHours)
+      ? c.warn(`${quietWindow.from}-${quietWindow.to} (active now)`)
+      : c.white(`${quietWindow.from}-${quietWindow.to}`);
+
   // Tools
   const tools = [
     checkTool('.claude', 'Claude Code', 'settings.json'),
@@ -85,6 +99,8 @@ export async function run() {
     kv('Platform', platLabel),
     kv('Toast', `${toastLabel}${toastExtra}`),
     kv('Sentry', sentryValue),
+    kv('Snooze', snoozeValue),
+    kv('Quiet hours', quietValue),
     kv('ntfy', ''),
     `${''.padEnd(15)} ${ntfyValue}`,
     ...(config.webhook?.enabled && config.webhook?.url
@@ -116,9 +132,11 @@ export async function run() {
     console.log(`    ${c.muted('see')} ${c.white(getErrorLogPath())}`);
   }
 
-  // Update check (shares the memoized, cached result with index.mjs)
+  // Update check (shares the memoized, cached result with index.mjs). The
+  // cached hit can predate an upgrade, so the semver gate is re-asserted here
+  // too — otherwise this reads "v1.3.0 → v1.3.0" until the 24h TTL expires.
   const latest = await checkForUpdate();
-  if (latest) {
+  if (latest && isNewer(latest, pkg.version)) {
     console.log();
     console.log(`  ${c.warn('↑')} ${c.warn(`Update available: v${pkg.version} → v${latest}`)}`);
     console.log(`    ${c.muted('npm i -g anotifier@latest')}`);

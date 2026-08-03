@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // cli/index.mjs
 import { createRequire } from 'node:module';
-import { checkForUpdate } from '../src/update-check.mjs';
+import { checkForUpdate, isNewer } from '../src/update-check.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -15,12 +15,17 @@ const COMMANDS = {
   test: () => import('./test.mjs'),
   config: () => import('./config.mjs'),
   doctor: () => import('./doctor.mjs'),
+  snooze: () => import('./snooze.mjs'),
   uninstall: () => import('./uninstall.mjs'),
 };
 
 async function printUpdateBanner(c, updatePromise) {
   const latest = await updatePromise;
-  if (latest) {
+  // Re-assert the semver gate instead of trusting the cached hit: the shared
+  // .update-check.json can hold a version recorded BEFORE the user upgraded,
+  // and for the rest of the 24h TTL that would render as "v1.3.0 → v1.3.0".
+  // Same guard maybeNotifyUpdate applies on the hook path.
+  if (latest && isNewer(latest, pkg.version)) {
     console.log(`  ${c.warn('↑')} ${c.warn(`Update available: v${pkg.version} → v${latest}`)}`);
     console.log(`    ${c.muted('npm i -g anotifier@latest')}\n`);
   }
@@ -76,6 +81,7 @@ function printHelp(c, banner) {
   console.log(`    ${c.accent('test')} ${c.muted('[channel]')}    ${c.white('Fire test notification')} ${c.muted('(toast | ntfy | webhook | bell | both)')}`);
   console.log(`    ${c.accent('config')} ${c.muted('[section]')}  ${c.white('Interactive settings')} ${c.muted('(ntfy | webhook | sounds | events | sentry)')}`);
   console.log(`    ${c.accent('doctor')} ${c.muted('[--deep]')}   ${c.white('Diagnose delivery per channel')} ${c.muted('(--deep verifies real delivery)')}`);
+  console.log(`    ${c.accent('snooze')} ${c.muted('<dur|off>')}  ${c.white('Silence every channel for a while')} ${c.muted('(30m | 2h | 90s | 45)')}`);
   console.log(`    ${c.accent('uninstall')}         ${c.white('Remove hooks from all tools')}`);
   console.log(`    ${c.muted('--version, -v')}     ${c.white('Show version and check for updates')}`);
   console.log();
