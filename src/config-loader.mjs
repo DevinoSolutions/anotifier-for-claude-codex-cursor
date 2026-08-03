@@ -46,6 +46,16 @@ const RENAMED_KEYS = {
 const PRIORITY_VALUES = ['min', 'low', 'default', 'high', 'urgent'];
 const FORMAT_VALUES = ['generic', 'slack', 'discord', 'telegram'];
 
+// "HH:MM" on a 24-hour clock → minutes since midnight, or null when unusable.
+// Exported because the quiet-hours window is evaluated at notify time in
+// src/suppress.mjs: one definition keeps the validator and the runtime from
+// disagreeing about what counts as a time.
+export function parseHHMM(value) {
+  if (typeof value !== 'string') return null;
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value.trim());
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
 // Shallow schema check. Wrong-typed keys are DELETED from the user object
 // (defaults win) and reported, so a bad value can never poison the runtime.
 // Unknown keys are reported but kept — they are usually typos.
@@ -75,6 +85,24 @@ function validateUserConfig(user) {
   checkBlock('webhook', { enabled: 'boolean', url: 'string', format: 'string', chatId: 'string', authorization: 'string', richContent: 'boolean' });
   checkBlock('sentry', { enabled: 'boolean', dsn: 'string' });
   checkBlock('updateCheck', { enabled: 'boolean' });
+
+  // Quiet hours is the one block where a bad value must NOT fall through to the
+  // defaults: silently silencing every channel from 22:00 to 08:00 because a
+  // time string had a typo is the worst failure mode this config has. So an
+  // unusable from/to drops `enabled` too, landing on the default `false`. Runs
+  // BEFORE the checkBlock below, which would otherwise delete a wrong-typed
+  // time before this pass could see it (and let the default window win).
+  const quiet = user.quietHours;
+  if (quiet && typeof quiet === 'object' && !Array.isArray(quiet)) {
+    for (const key of ['from', 'to']) {
+      if (quiet[key] !== undefined && parseHHMM(quiet[key]) === null) {
+        issues.push(`"quietHours.${key}" must be a "HH:MM" 24-hour time, got ${JSON.stringify(quiet[key])} — quiet hours disabled`);
+        delete quiet[key];
+        delete quiet.enabled;
+      }
+    }
+  }
+  checkBlock('quietHours', { enabled: 'boolean', from: 'string', to: 'string' });
 
   // Webhook format is a fixed preset enum (like event priority): an invalid
   // value is dropped so the 'generic' default wins. Telegram addresses the
@@ -154,7 +182,7 @@ function validateUserConfig(user) {
     }
   }
 
-  const knownTop = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'events', 'sources'];
+  const knownTop = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'quietHours', 'events', 'sources'];
   for (const key of Object.keys(user)) {
     if (!knownTop.includes(key)) issues.push(`unknown key "${key}"`);
   }

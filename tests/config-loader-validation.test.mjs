@@ -156,6 +156,60 @@ describe('loadConfigResult', () => {
     assert.equal(config.sources.claude.label, 'My Claude');
   });
 
+  it('quietHours: a valid window produces no problem', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      quietHours: { enabled: true, from: '23:30', to: '07:15' },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem, null);
+    assert.deepEqual(config.quietHours, { enabled: true, from: '23:30', to: '07:15' });
+  });
+
+  it('quietHours: defaults to OFF with a 22:00-08:00 window', () => {
+    const { config } = loadConfigResult(configPath);
+    assert.deepEqual(config.quietHours, { enabled: false, from: '22:00', to: '08:00' });
+  });
+
+  it('quietHours: a malformed time DISABLES the block rather than falling back to the default window', () => {
+    // The dangerous alternative: drop the bad "from", keep enabled:true, and
+    // silence every channel 22:00-08:00 because of a typo the user never saw.
+    fs.writeFileSync(configPath, JSON.stringify({
+      quietHours: { enabled: true, from: '25:00', to: '08:00' },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem.type, 'validate');
+    assert.match(problem.message, /"quietHours\.from" must be a "HH:MM" 24-hour time, got "25:00" — quiet hours disabled/);
+    assert.equal(config.quietHours.enabled, false, 'the whole block degrades to disabled');
+    assert.equal(config.quietHours.from, '22:00', 'bad value reverted to default');
+  });
+
+  it('quietHours: a wrong-typed time disables the block too', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      quietHours: { enabled: true, from: '22:00', to: 8 },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.match(problem.message, /"quietHours\.to" must be a "HH:MM" 24-hour time, got 8/);
+    assert.equal(config.quietHours.enabled, false);
+  });
+
+  it('quietHours: a wrong-typed enabled is reported AND reverted to the default', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      quietHours: { enabled: 'yes', from: '22:00', to: '08:00' },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.match(problem.message, /"quietHours\.enabled" must be a boolean/);
+    assert.equal(config.quietHours.enabled, false);
+  });
+
+  it('quietHours: an unknown key is reported but kept', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      quietHours: { enabled: true, from: '22:00', to: '08:00', channels: ['toast'] },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.match(problem.message, /unknown key "quietHours\.channels"/);
+    assert.equal(config.quietHours.enabled, true, 'a typo must not silently change behaviour');
+  });
+
   it('a fully valid user config produces no problem', () => {
     fs.writeFileSync(configPath, JSON.stringify({
       ntfy: { enabled: true, topic: 'aan-test' },

@@ -14,6 +14,7 @@ import { sendBell } from './bell.mjs';
 import { resolveToastBackend } from './platforms/index.mjs';
 import { enableSentryMirror, logHookError, flushErrorReporting } from './error-log.mjs';
 import { maybeNotifyUpdate } from './update-check.mjs';
+import { isSuppressed } from './suppress.mjs';
 
 // Some tools (Cursor) fire the same hook twice simultaneously. Exclusive file
 // creation is the atomic lock that lets only one invocation notify. The key
@@ -115,6 +116,19 @@ async function main() {
     const event = parseInput(raw, args.source, args.event);
     const config = loadConfig();
     enableSentryMirror(config.sentry);
+
+    // An active snooze or quiet-hours window silences EVERY channel. Checked
+    // before the dedup lock and before routing so a suppressed run does the
+    // least possible work, and — the part that matters — falls through to the
+    // plain '{}\n' response below: no toast, no ntfy, no webhook, no bell, and
+    // no claude terminalSequence (which is only set on the successful path
+    // further down). The update notice goes quiet with everything else; its
+    // check simply runs on a later un-suppressed run.
+    if (isSuppressed(config)) {
+      await flushErrorReporting();
+      process.stdout.write('{}\n');
+      process.exit(0);
+    }
 
     // Deduplicate AFTER parsing so the lock can key on source+event+session
     if (!acquireNotifyLock(dedupKey(event))) {

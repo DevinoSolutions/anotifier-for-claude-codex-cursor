@@ -27,6 +27,11 @@
   "updateCheck": {
     "enabled": true
   },
+  "quietHours": {
+    "enabled": false,
+    "from": "22:00",
+    "to": "08:00"
+  },
   "events": {
     "task_complete": {
       "toastSound": "IM",

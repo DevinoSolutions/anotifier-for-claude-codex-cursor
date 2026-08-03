@@ -15,6 +15,7 @@
     "./commands/status.md",
     "./commands/test.md",
     "./commands/config.md",
+    "./commands/snooze.md",
     "./commands/uninstall.md"
   ]
 }
