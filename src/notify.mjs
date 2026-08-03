@@ -130,6 +130,24 @@ async function main() {
       process.exit(0);
     }
 
+    // A claude Stop can fire while the turn's background subagents and shells are
+    // still grinding — Claude Code's own background_tasks ledger says so. Pinging
+    // "Task complete" at that moment is simply wrong, so leave exactly like the
+    // suppression gate above: plain '{}\n', no channel, no terminalSequence. And
+    // like it, BEFORE the dedup lock — a held-back run should do the least work
+    // and must not burn the lock the real completion will need. This is expected
+    // behavior, not a fault, so nothing goes to errors.log (unlike the unmapped
+    // event below). Self-correcting by design: when the work drains, Claude Code
+    // re-invokes the agent and its final Stop carries an empty ledger, which
+    // notifies for real — no timers or bookkeeping on our side. Claude-only:
+    // codex/gemini send no such field, and cursor's subagentStop -> task_complete
+    // is per-subagent by design, so neither may be gated on it.
+    if (event.source === 'claude' && event.event === 'task_complete' && event.hasLiveBackgroundWork) {
+      await flushErrorReporting();
+      process.stdout.write('{}\n');
+      process.exit(0);
+    }
+
     // Deduplicate AFTER parsing so the lock can key on source+event+session
     if (!acquireNotifyLock(dedupKey(event))) {
       await flushErrorReporting();
