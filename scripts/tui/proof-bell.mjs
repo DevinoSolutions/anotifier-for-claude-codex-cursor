@@ -100,7 +100,13 @@ async function main() {
   // `claude` and `node` (for the hook) resolve; we still pass claude's absolute
   // path for good measure.
   const claudeBin = resolveBin('claude');
-  const cmd = `env HOME='${home}' USERPROFILE='${home}' bash -c "cd '${workDir}' && exec '${claudeBin}'"`;
+  // This lane bills a real key, so it runs on the cheapest model that proves the
+  // same thing: the proof is model-agnostic — a completed turn fires the Stop hook
+  // → BEL → tmux bell flag regardless of which model answered.
+  // CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC additionally mutes the auto-updater,
+  // telemetry, error reporting, and the extra billed helper calls that are pure
+  // cost here. The interactive recipe itself is unchanged (pinned CLI, same keys).
+  const cmd = `env HOME='${home}' USERPROFILE='${home}' CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1' bash -c "cd '${workDir}' && exec '${claudeBin}' --model haiku"`;
   const win = newDetachedWindow(SESSION, cmd);
   console.log(`F1: agent window = ${SESSION}:${win} (claude bin: ${claudeBin})`);
 
