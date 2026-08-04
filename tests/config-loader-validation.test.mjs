@@ -75,6 +75,25 @@ describe('loadConfigResult', () => {
     assert.equal(config.events.needs_input.priority, 'urgent', 'default kept');
   });
 
+  it('idleReminderPriority is a known key validated on the same priority scale', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      events: { needs_input: { idleReminderPriority: 'low' } },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem, null, 'a valid idleReminderPriority is not a problem');
+    assert.equal(config.events.needs_input.idleReminderPriority, 'low');
+  });
+
+  it('invalid idleReminderPriority is rejected, leaving the downgrade default in force', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      events: { needs_input: { idleReminderPriority: 'LOUD' } },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.match(problem.message, /"events\.needs_input\.idleReminderPriority" must be one of min\|low\|default\|high\|urgent/);
+    assert.equal(config.events.needs_input.idleReminderPriority, undefined, 'bad value dropped, router falls back to default');
+    assert.equal(config.events.needs_input.priority, 'urgent', 'real prompts still urgent');
+  });
+
   it('webhook: unknown keys are reported but kept', () => {
     fs.writeFileSync(configPath, JSON.stringify({
       webhook: { enabled: true, url: 'https://example.com/hook', foo: 'bar' },

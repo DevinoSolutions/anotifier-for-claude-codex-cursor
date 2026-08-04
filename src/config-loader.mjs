@@ -33,6 +33,11 @@ export function getConfigPath() {
 const EVENT_OVERRIDE_TYPES = {
   toastSound: 'string',
   priority: 'string',
+  // Opt-in override for the priority of Claude's idle "waiting for your input"
+  // nag, which src/router.mjs delivers at 'default' instead of the urgent
+  // needs_input value. Absent on purpose from default-config.json: only an
+  // explicit user value beats the downgrade.
+  idleReminderPriority: 'string',
   ntfyTags: 'string',
   toastEnabled: 'boolean',
   ntfyEnabled: 'boolean',
@@ -44,6 +49,9 @@ const RENAMED_KEYS = {
   ntfyPriority: 'priority',
 };
 const PRIORITY_VALUES = ['min', 'low', 'default', 'high', 'urgent'];
+// Every event override validated against the ntfy 5-level scale. One list, so a
+// new priority-shaped key can never quietly skip the enum check.
+const PRIORITY_KEYS = ['priority', 'idleReminderPriority'];
 const FORMAT_VALUES = ['generic', 'slack', 'discord', 'telegram'];
 
 // "HH:MM" on a 24-hour clock → minutes since midnight, or null when unusable.
@@ -140,8 +148,8 @@ function validateUserConfig(user) {
           if (typeof val !== expected) {
             issues.push(`"events.${eventName}.${key}" must be a ${expected}, got ${typeof val}`);
             delete overrides[key];
-          } else if (key === 'priority' && !PRIORITY_VALUES.includes(val)) {
-            issues.push(`"events.${eventName}.priority" must be one of ${PRIORITY_VALUES.join('|')}, got "${val}"`);
+          } else if (PRIORITY_KEYS.includes(key) && !PRIORITY_VALUES.includes(val)) {
+            issues.push(`"events.${eventName}.${key}" must be one of ${PRIORITY_VALUES.join('|')}, got "${val}"`);
             delete overrides[key];
           }
         }
