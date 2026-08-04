@@ -328,6 +328,18 @@ Controlled per channel:
 | `needs_input` | Reminder | urgent | Agent needs your input or permission |
 | `session_start` | Default | low | New session started (all channels off by default) |
 
+**Claude's idle reminder is quieter than a real prompt.** About a minute after a turn ends, Claude Code sends a second notification along the lines of *"Claude is waiting for your input"*. Nothing is blocked -- the work is done -- so anotifier delivers that one at `default` priority with a calm tag instead of the urgent `needs_input` treatment. A genuine permission prompt is untouched and still arrives urgent. The reminder is never suppressed, only turned down, and if Claude ever changes that wording the reminder simply goes back to being urgent -- it can never go silent. To pick your own level for it, set `idleReminderPriority` on the event:
+
+```json
+{
+  "events": {
+    "needs_input": { "idleReminderPriority": "low" }
+  }
+}
+```
+
+It takes the same `min` / `low` / `default` / `high` / `urgent` scale as `priority`, and applies only to the idle reminder.
+
 ### Error visibility
 
 Hook and channel errors never interrupt your agent -- they're appended to `~/.anotifier/errors.log` and surfaced by `npx anotifier status`, so a misconfigured toast backend or unreachable ntfy topic shows up as a logged error instead of a silent no-op. Set `sentry.enabled` to `true` (with a `sentry.dsn`) to also mirror those errors to [Sentry](https://sentry.io) through a built-in, zero-dependency envelope client: no SDK is bundled, no telemetry is collected, and nothing leaves your machine unless you opt in -- only error data is sent.
