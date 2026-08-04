@@ -26,8 +26,19 @@ async function main() {
   const home = setupIsolatedHomeWithToast({ prefix: 'aan-live-claude-', dir: '.claude', topic, seedSettingsFile: 'settings.json' });
   patchClaude(path.join(home, '.claude'), NOTIFY);
 
-  const env = { ...process.env, HOME: home, USERPROFILE: home };
-  const res = spawnSync('claude', ['-p', `Reply with exactly this token and nothing else: ${marker}`], {
+  // This lane bills a real key, so it runs on the cheapest model that proves the
+  // same thing: every assertion below is model-agnostic — any model can echo a
+  // token and fire the Stop hook — so haiku exercises the identical wiring.
+  // CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC additionally mutes the auto-updater,
+  // telemetry, error reporting, and the extra billed helper calls (e.g. haiku-powered
+  // summarization) that are pure cost here.
+  const env = {
+    ...process.env,
+    HOME: home,
+    USERPROFILE: home,
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  };
+  const res = spawnSync('claude', ['--model', 'haiku', '-p', `Reply with exactly this token and nothing else: ${marker}`], {
     encoding: 'utf8', env, timeout: 120000,
   });
   console.log('claude exit:', res.status);
