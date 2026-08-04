@@ -4,6 +4,24 @@ All notable changes to `anotifier` are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [1.2.5] — 2026-08-04
+
+### Changed
+- **Claude's idle "waiting for your input" reminder no longer pings at urgent
+  priority.** About a minute after a turn ends, Claude Code fires a second
+  Notification whose text is an idle nag, not a real request — nobody is
+  blocked. Routed as a plain `needs_input`, it earned the urgent-priority
+  "Needs your input" push (alarm tags and all) that exists for genuine
+  permission prompts, so every task you walked away from ended in the loudest
+  ping the product can send. The reminder now goes out at `default` priority
+  with an hourglass tag; it keeps its channels, title, and rich body — it just
+  stops shouting. Real permission prompts are untouched, byte-identical.
+  Detection matches Claude's own reminder copy and deliberately fails toward
+  loud: if that copy ever drifts, the nag goes back to urgent rather than a
+  permission prompt ever going quiet. `events.needs_input.idleReminderPriority`
+  is the escape hatch to tune it (`urgent` restores the old behavior, `min`
+  makes it near-silent).
+
 ## [1.2.4] — 2026-08-03
 
 ### Fixed
