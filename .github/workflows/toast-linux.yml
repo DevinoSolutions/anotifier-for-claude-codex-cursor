@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   toast-linux:
+    permissions: write-all # GITHUB_TOKEN defaults + id-token for DevinoSolutions/artifact (OIDC)
     name: Live Toast Linux (notify-send → dunst capture)
     runs-on: ubuntu-latest
     steps:
@@ -48,7 +49,7 @@ jobs:
         run: xvfb-run -a dbus-run-session -- node scripts/live-toast-linux-render.mjs
       - name: Upload rendered banner (proof a human can see)
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: DevinoSolutions/artifact/upload@v1
         with:
           name: linux-render-proof
           path: /tmp/linux-render-proof

@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   live-claude:
+    permissions: write-all # GITHUB_TOKEN defaults + id-token for DevinoSolutions/artifact (OIDC)
     name: Live Claude E2E (required, paid)
     strategy:
       fail-fast: false
@@ -37,7 +38,7 @@ jobs:
         run: node scripts/live-claude.mjs
       - name: Diagnostics (always, macOS)
         if: always() && runner.os == 'macOS'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: DevinoSolutions/artifact/upload@v1
         with:
           name: live-claude-macos-diag
           path: ${{ runner.temp }}/diag
