@@ -62,7 +62,9 @@ async function main() {
   // it is safe; the assistant's rich text is proven on the toast lane, not here.
   await pollForPush({
     topic,
-    match: (m) => m.title === 'Claude Code',
+    // Title is "<project> · Claude Code" where <project> is the runner's cwd
+    // basename (src/router.mjs) — anchor on the label, not the checkout name.
+    match: (m) => /(^| · )Claude Code$/.test(m.title || ''),
     assertBody: (m) => typeof m.message === 'string' && m.message.endsWith('Task complete'),
     failMessage: 'FAIL: Stop hook did not deliver an ntfy push within the poll window',
     bodyFailMessage: 'FAIL: ntfy body was not the expected task_complete message ("…: Task complete")',

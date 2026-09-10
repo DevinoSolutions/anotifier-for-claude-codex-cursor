@@ -9,19 +9,25 @@ import { seedTempHome, writeUserConfig, runNode, ntfyPoll, randomTopic } from '.
 // JSON), 2 = low. tags arrive as an array of strings.
 const isDefaultPriority = (p) => p === undefined || p === 3;
 
+// The router titles every push "<project> · <label>" (src/router.mjs). The "·"
+// is non-ASCII, so it leaves node RFC 2047-encoded (src/ntfy.mjs) and ntfy.sh
+// decodes it server-side — matching on the exact decoded title here is the live
+// proof that round-trip works, not just the unit-tested encoder.
+const expectedTitle = (c) => `proj-${c.source} · ${c.label}`;
+
 // task_complete: default priority + white_check_mark tag.
 const TASK_COMPLETE_CASES = [
-  { source: 'claude', args: [], stdin: { hook_event_name: 'Stop', session_id: 'x' }, title: 'Claude Code' },
-  { source: 'gemini', args: [], stdin: { hook_event_name: 'AfterAgent', session_id: 'x' }, title: 'Gemini' },
-  { source: 'codex', args: ['--event', 'Stop'], stdin: { session_id: 'x' }, title: 'Codex' },
-  { source: 'cursor', args: ['--event', 'stop'], stdin: { status: 'completed', loop_count: 0 }, title: 'Cursor' },
+  { source: 'claude', args: [], stdin: { hook_event_name: 'Stop', session_id: 'x' }, label: 'Claude Code' },
+  { source: 'gemini', args: [], stdin: { hook_event_name: 'AfterAgent', session_id: 'x' }, label: 'Gemini' },
+  { source: 'codex', args: ['--event', 'Stop'], stdin: { session_id: 'x' }, label: 'Codex' },
+  { source: 'cursor', args: ['--event', 'stop'], stdin: { status: 'completed', loop_count: 0 }, label: 'Cursor' },
 ];
 
 // needs_input: urgent priority + bell,warning tags. (cursor has no needs_input event.)
 const NEEDS_INPUT_CASES = [
-  { source: 'claude', args: [], stdin: { hook_event_name: 'Notification', session_id: 'x' }, title: 'Claude Code' },
-  { source: 'gemini', args: [], stdin: { hook_event_name: 'Notification', session_id: 'x' }, title: 'Gemini' },
-  { source: 'codex', args: ['--event', 'PermissionRequest'], stdin: { session_id: 'x' }, title: 'Codex' },
+  { source: 'claude', args: [], stdin: { hook_event_name: 'Notification', session_id: 'x' }, label: 'Claude Code' },
+  { source: 'gemini', args: [], stdin: { hook_event_name: 'Notification', session_id: 'x' }, label: 'Gemini' },
+  { source: 'codex', args: ['--event', 'PermissionRequest'], stdin: { session_id: 'x' }, label: 'Codex' },
 ];
 
 describe('hook invocation: real notify.mjs → real ntfy push', () => {
@@ -44,7 +50,7 @@ describe('hook invocation: real notify.mjs → real ntfy push', () => {
   for (const c of TASK_COMPLETE_CASES) {
     it(`${c.source} task_complete delivers a default-priority push with the check tag`, async () => {
       const topic = fire(c, 'done');
-      const msg = await ntfyPoll({ topic, match: (m) => m.title === c.title });
+      const msg = await ntfyPoll({ topic, match: (m) => m.title === expectedTitle(c) });
       assert.ok(msg, `expected an ntfy push for ${c.source}`);
       assert.match(msg.message, /Task complete/);
       assert.ok(isDefaultPriority(msg.priority), `expected default priority, got ${msg.priority}`);
@@ -55,7 +61,7 @@ describe('hook invocation: real notify.mjs → real ntfy push', () => {
   for (const c of NEEDS_INPUT_CASES) {
     it(`${c.source} needs_input delivers an URGENT push with bell+warning tags`, async () => {
       const topic = fire(c, 'input');
-      const msg = await ntfyPoll({ topic, match: (m) => m.title === c.title });
+      const msg = await ntfyPoll({ topic, match: (m) => m.title === expectedTitle(c) });
       assert.ok(msg, `expected an ntfy push for ${c.source}`);
       assert.match(msg.message, /Needs your input/);
       assert.equal(msg.priority, 5, `expected urgent priority (5), got ${msg.priority}`);
