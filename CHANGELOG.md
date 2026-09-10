@@ -4,6 +4,23 @@ All notable changes to `anotifier` are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [1.2.6] — 2026-09-10
+
+### Fixed
+- **Notifications name the project again.** The project name lived only in the
+  body prefix (`my-app: Task complete`), and rich content — on by default for
+  toasts and webhooks — replaces the whole body with the assistant's actual
+  words. So a desktop toast read "Claude Code" plus a chat snippet, with no clue
+  *which* project had finished; with several agents running in different repos
+  that made toasts nearly useless. The project name now leads the **title** on
+  every channel (`my-app · Claude Code`), where nothing rewrites it. The body
+  is unchanged, byte for byte; events with no project keep the bare label.
+- **ntfy titles with non-ASCII characters are RFC 2047-encoded.** HTTP headers
+  are bytes, so the new `·` separator — and any non-ASCII project directory
+  name — would have arrived as mojibake or thrown before the push was sent.
+  ntfy decodes the `=?UTF-8?B?…?=` form server-side; pure-ASCII titles are
+  sent exactly as before.
+
 ## [1.2.5] — 2026-08-04
 
 ### Changed

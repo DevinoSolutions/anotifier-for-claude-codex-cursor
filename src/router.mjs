@@ -43,6 +43,20 @@ export function route(event, config) {
   const label = sourceConfig.label || event.source;
   const prefix = event.projectName ? `${event.projectName}: ` : '';
 
+  // The project name goes in the TITLE, not only the body prefix. Rich content
+  // (toast/webhook default ON) replaces the whole body with the assistant's
+  // words, and the body prefix went with it — so a rich toast read
+  // "Claude Code" + a chat snippet with no clue WHICH project finished. The
+  // title is the one field every channel renders and nothing rewrites.
+  // The body keeps its "<project>: Task complete" shape byte-identical: CI live
+  // lanes and the ntfy privacy default (generic body on public topics) assert
+  // on it. Whitespace is collapsed so a pathological directory name can never
+  // push a newline into a toast argv.
+  const projectLabel = event.projectName
+    ? String(event.projectName).replace(/\s+/g, ' ').trim()
+    : '';
+  const title = projectLabel ? `${projectLabel} · ${label}` : label;
+
   // Volume only: the idle nag keeps its channels, title and rich body (the nag
   // text is still the ntfy body via transcript.mjs) — it just stops shouting.
   // `events.needs_input.idleReminderPriority` is the escape hatch for users who
@@ -50,7 +64,7 @@ export function route(event, config) {
   const idleReminder = isIdleReminder(event);
 
   return {
-    title: label,
+    title,
     message: `${prefix}${messageTemplate}`,
     toastSound: eventConfig.toastSound || 'Default',
     priority: idleReminder

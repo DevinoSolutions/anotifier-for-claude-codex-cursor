@@ -25,7 +25,8 @@ describe('dedup lock under real concurrency', () => {
     assert.equal(r1.status, 0, `proc1 stderr: ${r1.stderr}`);
     assert.equal(r2.status, 0, `proc2 stderr: ${r2.stderr}`);
 
-    const msgs = await ntfyCollect({ topic, match: (m) => m.title === 'Claude Code' });
+    // Title is "<project> · <label>" (cwd basename above is "dedup").
+    const msgs = await ntfyCollect({ topic, match: (m) => m.title === 'dedup · Claude Code' });
     assert.equal(msgs.length, 1, `expected exactly one push, got ${msgs.length}`);
   });
 });

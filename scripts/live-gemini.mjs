@@ -53,7 +53,9 @@ async function main() {
   // every sampled macOS run (body="…: Task complete"), so gating on it is safe.
   await pollForPush({
     topic,
-    match: (m) => m.title === 'Gemini',
+    // Title is "<project> · Gemini" where <project> is the runner's cwd
+    // basename (src/router.mjs) — anchor on the label, not the checkout name.
+    match: (m) => /(^| · )Gemini$/.test(m.title || ''),
     assertBody: (m) => typeof m.message === 'string' && m.message.endsWith('Task complete'),
     failMessage: 'FAIL: AfterAgent hook did not deliver an ntfy push within the poll window',
     bodyFailMessage: 'FAIL: ntfy body was not the expected task_complete message ("…: Task complete")',
