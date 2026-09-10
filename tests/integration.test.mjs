@@ -20,7 +20,7 @@ describe('full pipeline: stdin → notification', () => {
     const event = parseInput(stdin, 'claude');
     const notification = route(event, config);
 
-    assert.equal(notification.title, 'Claude Code');
+    assert.equal(notification.title, 'my-app · Claude Code');
     assert.equal(notification.message, 'my-app: Task complete');
     assert.equal(notification.toastSound, 'IM');
     assert.equal(notification.source, 'claude');
@@ -32,7 +32,7 @@ describe('full pipeline: stdin → notification', () => {
     const event = parseInput(stdin, 'codex');
     const notification = route(event, config);
 
-    assert.equal(notification.title, 'Codex');
+    assert.equal(notification.title, 'backend · Codex');
     assert.equal(notification.message, 'backend: Needs your input');
     assert.equal(notification.priority, 'urgent');
   });
@@ -52,7 +52,7 @@ describe('full pipeline: stdin → notification', () => {
     const event = parseInput(stdin, 'gemini');
     const notification = route(event, config);
 
-    assert.equal(notification.title, 'Gemini');
+    assert.equal(notification.title, 'frontend · Gemini');
     assert.equal(notification.message, 'frontend: Task complete');
   });
 
@@ -86,7 +86,11 @@ describe('full pipeline: notification → ntfy request', () => {
     const req = buildNtfyRequest(ntfyConfig, notification);
 
     assert.equal(req.url, 'https://ntfy.sh/test-integration-xyz');
-    assert.equal(req.headers.Title, 'Claude Code');
+    // The "·" separator is non-ASCII, so the Title header goes out RFC 2047-encoded
+    // (ntfy decodes it). Decode here to assert on what the phone will display.
+    const m = /^=\?UTF-8\?B\?([A-Za-z0-9+/=]+)\?=$/.exec(req.headers.Title);
+    assert.ok(m, `Title header should be RFC 2047-encoded, got ${req.headers.Title}`);
+    assert.equal(Buffer.from(m[1], 'base64').toString('utf8'), 'app · Claude Code');
     assert.equal(req.headers.Priority, 'default');
     assert.ok(req.body.includes('app'));
     assert.ok(req.body.includes('Task complete'));
@@ -110,6 +114,7 @@ describe('edge cases', () => {
     assert.equal(event.projectName, 'project-name');
     const notification = route(event, config);
     assert.equal(notification.message, 'project-name: Task complete');
+    assert.equal(notification.title, 'project-name · Claude Code');
   });
 
   it('handles cwd with spaces in path', () => {

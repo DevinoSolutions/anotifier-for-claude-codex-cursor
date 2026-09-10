@@ -2,12 +2,24 @@ import https from 'node:https';
 import http from 'node:http';
 import { logHookError } from './error-log.mjs';
 
+// HTTP header values are bytes, not text: node writes them as latin-1 and
+// throws ERR_INVALID_CHAR on anything above U+00FF, so a title carrying the
+// "project · label" separator (U+00B7) or a non-ASCII project name would either
+// arrive as mojibake or kill the whole request. ntfy documents RFC 2047 for
+// exactly this: `=?UTF-8?B?<base64>?=` is decoded server-side before display.
+// Pure-ASCII titles are sent verbatim so existing wire assertions hold.
+export function encodeHeaderValue(value) {
+  const str = String(value ?? '');
+  if (/^[\x20-\x7e]*$/.test(str)) return str;
+  return `=?UTF-8?B?${Buffer.from(str, 'utf8').toString('base64')}?=`;
+}
+
 export function buildNtfyRequest(ntfyConfig, notification) {
   const server = (ntfyConfig.server || 'https://ntfy.sh').replace(/\/+$/, '');
   const url = `${server}/${ntfyConfig.topic}`;
 
   const headers = {
-    Title: notification.title,
+    Title: encodeHeaderValue(notification.title),
     Priority: notification.priority || 'default',
   };
 

@@ -19,7 +19,7 @@ describe('route', () => {
   it('routes task_complete from claude', () => {
     const event = { source: 'claude', event: 'task_complete', projectName: 'my-app' };
     const notif = route(event, defaultConfig);
-    assert.equal(notif.title, 'Claude Code');
+    assert.equal(notif.title, 'my-app · Claude Code');
     assert.equal(notif.message, 'my-app: Task complete');
     assert.equal(notif.toastSound, 'IM');
     assert.equal(notif.priority, 'default');
@@ -29,7 +29,7 @@ describe('route', () => {
   it('routes needs_input from codex', () => {
     const event = { source: 'codex', event: 'needs_input', projectName: 'backend' };
     const notif = route(event, defaultConfig);
-    assert.equal(notif.title, 'Codex');
+    assert.equal(notif.title, 'backend · Codex');
     assert.equal(notif.message, 'backend: Needs your input');
     assert.equal(notif.toastSound, 'Reminder');
     assert.equal(notif.priority, 'urgent');
@@ -38,7 +38,7 @@ describe('route', () => {
   it('routes session_start with low priority and rocket tag', () => {
     const event = { source: 'claude', event: 'session_start', projectName: 'app' };
     const notif = route(event, defaultConfig);
-    assert.equal(notif.title, 'Claude Code');
+    assert.equal(notif.title, 'app · Claude Code');
     assert.equal(notif.message, 'app: Session started');
     assert.equal(notif.priority, 'low');
     assert.equal(notif.ntfyTags, 'rocket');
@@ -47,13 +47,45 @@ describe('route', () => {
   it('uses source name as title fallback for unknown sources', () => {
     const event = { source: 'future-tool', event: 'task_complete', projectName: 'app' };
     const notif = route(event, defaultConfig);
-    assert.equal(notif.title, 'future-tool');
+    assert.equal(notif.title, 'app · future-tool');
   });
 
   it('handles missing projectName', () => {
     const event = { source: 'claude', event: 'task_complete', projectName: '' };
     const notif = route(event, defaultConfig);
+    assert.equal(notif.title, 'Claude Code', 'no project → bare label, no dangling separator');
     assert.equal(notif.message, 'Task complete');
+  });
+
+  // Regression: the project name used to live ONLY in the body prefix
+  // ("my-app: Task complete"). Rich content replaces the whole body with the
+  // assistant's words, so a rich toast showed "Claude Code" + a chat snippet and
+  // no clue WHICH project it was about. The title is the one field every channel
+  // renders and nothing rewrites, so the project name has to live there.
+  it('keeps the project name visible when rich content replaces the body', () => {
+    const config = {
+      ...defaultConfig,
+      toast: { enabled: true, richContent: true },
+      webhook: { enabled: true, richContent: true },
+      ntfy: { enabled: false },
+    };
+    const event = {
+      source: 'claude', event: 'task_complete', projectName: 'my-app',
+      transcriptPath: '/nonexistent.jsonl',
+    };
+    const notif = route(event, config);
+    const views = deriveRichViews(event, config, config.events.task_complete, notif,
+      () => 'All 42 tests pass, ready to merge.');
+    assert.equal(views.toast.message, 'All 42 tests pass, ready to merge.', 'body IS the rich text');
+    assert.equal(views.toast.title, 'my-app · Claude Code', 'toast title still names the project');
+    assert.equal(views.webhook.title, 'my-app · Claude Code', 'webhook title still names the project');
+    assert.equal(views.toast.projectName, 'my-app', 'structured field survives too');
+  });
+
+  it('never lets a project name push newlines into the title', () => {
+    const event = { source: 'claude', event: 'task_complete', projectName: 'weird\nname' };
+    const notif = route(event, defaultConfig);
+    assert.equal(notif.title, 'weird name · Claude Code');
   });
 
   it('returns null for unknown events', () => {
