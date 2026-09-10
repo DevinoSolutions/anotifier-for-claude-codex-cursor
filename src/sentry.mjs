@@ -57,13 +57,16 @@ export function buildErrorEvent({ context, error, extra }) {
   return event;
 }
 
-// Fire one error event at the configured DSN. Resolves true on 2xx, false on
-// anything else (bad DSN, network failure, timeout). Never throws — Sentry is
-// an observability mirror, not a dependency of the notification path.
-export function sendSentryErrorEvent(sentryConfig, { context, error, extra }) {
+// Fire one error event at the configured DSN and report what the server said:
+// `{ ok, status }` where `ok` is a 2xx and `status` is the HTTP status, or 0
+// when no response was obtained (bad DSN, network failure, timeout). Never
+// throws — Sentry is an observability mirror, not a dependency of the
+// notification path. The status lets a caller tell "our client failed" apart
+// from "the server is up but refusing" (5xx), which the live test needs.
+export function sendSentryEnvelope(sentryConfig, { context, error, extra }) {
   return new Promise((resolve) => {
     const dsn = parseSentryDsn(sentryConfig?.dsn || '');
-    if (!dsn) { resolve(false); return; }
+    if (!dsn) { resolve({ ok: false, status: 0 }); return; }
 
     const event = buildErrorEvent({ context, error, extra });
     const envelope =
@@ -72,7 +75,7 @@ export function sendSentryErrorEvent(sentryConfig, { context, error, extra }) {
       JSON.stringify(event) + '\n';
 
     let parsed;
-    try { parsed = new URL(dsn.envelopeUrl); } catch { resolve(false); return; }
+    try { parsed = new URL(dsn.envelopeUrl); } catch { resolve({ ok: false, status: 0 }); return; }
     const transport = parsed.protocol === 'https:' ? https : http;
 
     const req = transport.request(parsed, {
@@ -85,11 +88,17 @@ export function sendSentryErrorEvent(sentryConfig, { context, error, extra }) {
       timeout: SEND_TIMEOUT_MS,
     }, (res) => {
       res.resume(); // drain
-      res.on('end', () => resolve(res.statusCode >= 200 && res.statusCode < 300));
+      const status = res.statusCode || 0;
+      res.on('end', () => resolve({ ok: status >= 200 && status < 300, status }));
     });
 
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('error', () => resolve({ ok: false, status: 0 }));
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, status: 0 }); });
     req.end(envelope);
   });
+}
+
+// Boolean convenience used by error-log.mjs: true on 2xx, false on anything else.
+export function sendSentryErrorEvent(sentryConfig, payload) {
+  return sendSentryEnvelope(sentryConfig, payload).then((r) => r.ok);
 }
