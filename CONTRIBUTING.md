@@ -17,6 +17,12 @@ built into Node.
 The commands for running the suites are in the README's
 [Run it yourself](README.md#run-it-yourself) section.
 
+The website (anotifier.io) is the one exception: its source is in `landing/`
+and has its own `package.json`. See the README's [Website](README.md#website)
+section for how to run and check it. Site facts (commands, config keys,
+defaults) must match this package exactly — the Honesty Rule below applies to
+`landing/lib/docs.ts` as much as to the README.
+
 ## Before Opening a Pull Request
 
 Run the unit suite — it's offline and fast:

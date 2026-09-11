@@ -1,0 +1,10 @@
+# Build output
+.next/
+out/
+node_modules/
+
+# Generated / lockfiles (let npm own formatting)
+package-lock.json
+
+# Static assets
+public/

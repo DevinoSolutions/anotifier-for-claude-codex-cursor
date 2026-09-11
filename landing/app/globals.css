@@ -1,0 +1,109 @@
+:root {
+  --bg: #07080a;
+  --ink: #f4f4f6;
+  --dim: #9c9c9d;
+  --faint: #838a92;
+  --green: #59d499;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+  --font-mono-stack: var(--font-mono), Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  font-feature-settings: "calt", "kern", "liga", "ss03";
+  color: #cdcdcd;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--ink);
+  text-decoration: none;
+}
+a:hover {
+  color: #ffffff;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: rgba(89, 212, 153, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Hero agent rotator */
+.agentRoll {
+  display: inline-flex;
+  overflow: hidden;
+  height: 1.14em;
+  vertical-align: bottom;
+}
+.agentRoll ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  animation: agentRoll 12s cubic-bezier(0.3, 0.8, 0.25, 1) infinite;
+}
+.agentRoll li {
+  display: flex;
+  align-items: center;
+  gap: 0.24em;
+  height: 1.14em;
+  color: var(--green);
+  white-space: nowrap;
+}
+.agentRoll img {
+  height: 0.72em;
+  width: 0.72em;
+  border-radius: 0.14em;
+  display: block;
+}
+@keyframes agentRoll {
+  0%,
+  20% {
+    transform: translateY(0);
+  }
+  25%,
+  45% {
+    transform: translateY(-1.14em);
+  }
+  50%,
+  70% {
+    transform: translateY(-2.28em);
+  }
+  75%,
+  95% {
+    transform: translateY(-3.42em);
+  }
+  100% {
+    transform: translateY(-4.56em);
+  }
+}
