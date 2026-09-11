@@ -42,6 +42,10 @@
     "url": "git+https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor.git"
   },
   "homepage": "https://anotifier.io",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/DevinoSolutions"
+  },
   "license": "AGPL-3.0-or-later",
   "engines": {
     "node": ">=18.0.0"

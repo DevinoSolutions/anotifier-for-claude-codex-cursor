@@ -8,6 +8,7 @@ import { readRecentHookErrors, getErrorLogPath } from '../src/error-log.mjs';
 import { detectManagedEvents } from '../setup/patch-config.mjs';
 import { checkForUpdate, isNewer } from '../src/update-check.mjs';
 import { readSnoozeUntil, quietHoursWindow, inQuietHours, formatClock } from '../src/suppress.mjs';
+import { SUPPORT_LINE } from '../src/support.mjs';
 import { c, box, kv, sectionHeader } from './ui.mjs';
 
 const require = createRequire(import.meta.url);
@@ -141,5 +142,9 @@ export async function run() {
     console.log(`  ${c.warn('↑')} ${c.warn(`Update available: v${pkg.version} → v${latest}`)}`);
     console.log(`    ${c.muted('npm i -g anotifier@latest')}`);
   }
+
+  // Gentle, one-line ask at the very end of the command people run most.
+  console.log();
+  console.log(`  ${c.muted(SUPPORT_LINE)}`);
   console.log();
 }
