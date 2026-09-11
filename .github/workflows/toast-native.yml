@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   toast-native:
+    permissions: write-all # GITHUB_TOKEN defaults + id-token for DevinoSolutions/artifact (OIDC)
     name: Live Toast Native (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -47,7 +48,7 @@ jobs:
 
       - name: Upload read-back evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: DevinoSolutions/artifact/upload@v1
         with:
           name: win-readback-proof
           path: ${{ runner.temp }}/win-readback-proof
