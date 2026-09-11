@@ -15,6 +15,10 @@
 
 <p align="center">
   <a href="https://anotifier.io"><strong>anotifier.io</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://anotifier.io/docs/"><strong>Documentation</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/sponsors/DevinoSolutions"><strong>Support the project</strong></a>
 </p>
 
 <p align="center">
@@ -509,6 +513,10 @@ npm run toast:demo  # fire real desktop toasts, every event
 ### The one thing CI can't prove
 
 CI goes further than "the call returned 0." On **Linux** it reads the payload back out of a real `dunst` daemon **and** captures the X display to OCR the banner's text off the screen — pixels, not just a database row. On **macOS** it reads the delivery back out of Notification Center's own database, and on **Windows** out of the notification platform's `wpndatabase.db` — so a notification that was silently dropped for lack of permission records nothing and turns CI **red** instead of green. What no headless runner can prove is the last millimetre: a human's eyes actually seeing the banner. On macOS and Windows the on-screen banner can't be captured in CI at all (the hosted runner records the notification but never presents it — layer 2 is the ceiling ² ³), and everywhere Do Not Disturb / Focus can suppress the on-screen banner while the notification is still recorded as delivered. So "reached the notification store" is not always "a person saw it." To confirm with your own eyes — and to check your own machine's notification setup — run `npm run toast:demo` and `anotifier doctor --deep`. `--deep` fires a real test notification and reads it back where the OS allows: on **macOS** from Notification Center's database, on **Linux** from the `dunst` daemon's history (where `dunstctl` is present; other daemons honestly report dispatched-but-unverified). On **Windows**, `anotifier doctor` runs a static backend check (PowerShell + BurntToast + execution-policy).
+
+## Support the project
+
+anotifier is free, open source, and has no telemetry, no account, and no paid tier. It is built and maintained by [DevinoSolutions](https://github.com/DevinoSolutions). If it saves you time, consider supporting its development: **[github.com/sponsors/DevinoSolutions](https://github.com/sponsors/DevinoSolutions)**. The same link is printed once at the end of `anotifier setup` and `anotifier status`; it never appears in a notification or on the hook path.
 
 ## Contributing
 

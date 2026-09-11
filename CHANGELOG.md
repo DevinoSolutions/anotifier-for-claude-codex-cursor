@@ -4,6 +4,20 @@ All notable changes to `anotifier` are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [Unreleased]
+
+### Added
+- **Documentation URL.** `anotifier --help` and the end of `anotifier setup` now
+  point at the full reference at `https://anotifier.io/docs/` instead of the
+  bare home page.
+- **Support link.** `package.json` carries the npm-standard `funding` field
+  (`npm fund` surfaces it), the repo has a `.github/FUNDING.yml`, and the CLI
+  prints a single muted line — "consider supporting it" — at the end of
+  `anotifier setup` and `anotifier status`, plus a footer line in `--help`. The
+  URL lives in exactly one place (`src/support.mjs` reads `funding.url`). It is
+  never printed on the hook path, never inside a notification, and never in
+  `doctor --json`.
+
 ## [1.2.6] — 2026-09-10
 
 ### Fixed

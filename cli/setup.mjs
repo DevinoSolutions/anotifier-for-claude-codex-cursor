@@ -8,6 +8,7 @@ import { execSync } from 'node:child_process';
 import { getConfigDir, getConfigPath, loadConfigResult, saveConfig } from '../src/config-loader.mjs';
 import { patchClaude, patchCodex, patchCursor, patchGemini } from '../setup/patch-config.mjs';
 import { ask, askYN, log } from './ui.mjs';
+import { DOCS_URL, SUPPORT_LINE } from '../src/support.mjs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -259,7 +260,10 @@ export async function run() {
 
   // 9. Summary — only reached when every detected tool patched cleanly.
   log('\n  ✓ Setup complete. Restart your AI tools to activate.', 'green');
-  log('    Docs & guides: https://anotifier.io\n', 'dim');
+  log(`    Docs & guides: ${DOCS_URL}`, 'dim');
+  // The only place besides `status` where we ask for support — interactive
+  // CLI output only, never the hook path and never inside a notification.
+  log(`    ${SUPPORT_LINE}\n`, 'dim');
 
   rl.close();
 }

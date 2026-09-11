@@ -2,6 +2,7 @@
 // cli/index.mjs
 import { createRequire } from 'node:module';
 import { checkForUpdate, isNewer } from '../src/update-check.mjs';
+import { DOCS_URL, SUPPORT_URL } from '../src/support.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -90,7 +91,8 @@ function printHelp(c, banner) {
   console.log(`    ${c.muted('$')} ${c.white('anotifier test toast')}`);
   console.log(`    ${c.muted('$')} ${c.white('anotifier config ntfy')}`);
   console.log();
-  console.log(`  ${c.muted('Docs & guides:')} ${c.accent('https://anotifier.io')}`);
+  console.log(`  ${c.muted('Docs & guides:')} ${c.accent(DOCS_URL)}`);
+  console.log(`  ${c.muted('Support the project:')} ${c.accent(SUPPORT_URL)}`);
   console.log();
 }
 
