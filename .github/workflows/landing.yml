@@ -1,0 +1,62 @@
+# Landing site (anotifier.io) — source lives in landing/.
+#
+# Runs only when the site changes. Dokploy builds and deploys landing/ from
+# main on its own; this workflow is the pre-merge gate (lint, format, unused
+# code, types, static export). Every check step carries `if: ${{ !cancelled() }}`
+# so one red check never hides the others.
+name: Landing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'landing/**'
+      - '.github/workflows/landing.yml'
+  pull_request:
+    paths:
+      - 'landing/**'
+      - '.github/workflows/landing.yml'
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  # Supersede runs on PRs and feature branches; let a run against main finish.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+defaults:
+  run:
+    working-directory: landing
+
+jobs:
+  site:
+    name: Landing (lint · format · knip · typecheck · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: landing/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (oxlint)
+        if: ${{ !cancelled() }}
+        run: npm run lint
+
+      - name: Format check (prettier)
+        if: ${{ !cancelled() }}
+        run: npm run format:check
+
+      - name: Unused code & deps (knip)
+        if: ${{ !cancelled() }}
+        run: npm run knip
+
+      - name: Typecheck
+        if: ${{ !cancelled() }}
+        run: npm run typecheck
+
+      - name: Build (static export)
+        if: ${{ !cancelled() }}
+        run: npm run build

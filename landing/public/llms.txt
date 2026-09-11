@@ -1,0 +1,48 @@
+# anotifier
+
+> anotifier is a free, open-source (AGPL-3.0), zero-dependency CLI that sends
+> notifications when AI coding agents finish a task or need input. It wires into
+> each agent's native hook system — Claude Code, Codex CLI, Cursor, Gemini CLI,
+> and any of them inside VS Code — and delivers desktop toasts (Windows/macOS/
+> Linux/WSL), phone push via ntfy (Android/iOS, no account), webhooks (Slack,
+> Discord, Telegram, any HTTP endpoint), and a terminal bell. Setup is one
+> command: `npx anotifier@latest setup`. Config lives at ~/.anotifier/config.json.
+> Everything runs locally; nothing is sent anywhere except the channels you
+> configure, and phone push is generic text by default.
+
+## Full documentation
+
+- [Complete docs, plain text](https://anotifier.io/llms-full.txt): the entire reference plus every guide and the comparison, as markdown — read this first
+- [Docs (HTML)](https://anotifier.io/docs/): install, setup wizard, all 7 CLI commands, every config key with defaults, events, channels, privacy, troubleshooting, FAQ
+
+## Guides (how to get notified when an agent finishes)
+
+- [Claude Code](https://anotifier.io/guides/claude-code-notifications/): built-in terminal setting, Stop/Notification hook, ntfy phone push, anotifier
+- [Codex CLI](https://anotifier.io/guides/codex-cli-notifications/): notify command, Stop/PermissionRequest hooks, approval alerts
+- [Cursor](https://anotifier.io/guides/cursor-agent-notifications/): completion sound, stop hook in ~/.cursor/hooks.json
+- [Gemini CLI](https://anotifier.io/guides/gemini-cli-notifications/): AfterAgent/Notification hooks in ~/.gemini/settings.json
+- [All guides](https://anotifier.io/guides/)
+
+## Compared with alternatives
+
+- [anotifier vs code-notify, agent-notify, claude-ntfy-hook, Pushary, AI Done Now, DIY hooks](https://anotifier.io/compare/): agents, channels, platforms, remote approval, price — from each project's own README
+
+## Agent and channel pages
+
+- [Home](https://anotifier.io/): feature tour, live demo, install options, FAQ
+- [Claude Code notifications](https://anotifier.io/claude-code/)
+- [Codex CLI notifications](https://anotifier.io/codex/)
+- [Cursor notifications](https://anotifier.io/cursor/)
+- [Gemini CLI notifications](https://anotifier.io/gemini-cli/)
+- [VS Code agent alerts](https://anotifier.io/vscode/)
+- [Slack notifications](https://anotifier.io/slack/)
+- [Discord notifications](https://anotifier.io/discord/)
+- [Telegram notifications](https://anotifier.io/telegram/)
+- [Phone push notifications](https://anotifier.io/phone/)
+
+## Project
+
+- [GitHub](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor): source, README, issues
+- [npm](https://www.npmjs.com/package/anotifier): package (`npm i -g anotifier`)
+- [Demo video](https://www.youtube.com/watch?v=QVVOIIud4-I)
+- [Support the project](https://github.com/sponsors/DevinoSolutions)

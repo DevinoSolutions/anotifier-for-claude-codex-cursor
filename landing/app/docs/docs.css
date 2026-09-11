@@ -1,0 +1,265 @@
+/* Long-form reference layout shared by /docs, /guides/* and /compare.
+   Builds on agent-page.css (nav, header, footer, .wrap, h1/h2, .kicker). */
+
+.docLayout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 48px;
+  align-items: start;
+}
+.docToc {
+  position: sticky;
+  top: 72px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.docToc .kicker {
+  margin-bottom: 12px;
+}
+.docToc ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-left: 1px solid var(--line);
+}
+.docToc li a {
+  display: block;
+  padding: 5px 0 5px 14px;
+  color: var(--faint);
+  border-left: 1px solid transparent;
+  margin-left: -1px;
+}
+.docToc li a:hover {
+  color: var(--ink);
+  border-left-color: var(--green);
+}
+.docBody {
+  min-width: 0;
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: #cdcdcd;
+}
+.docBody section {
+  padding: 40px 0;
+  border-top: 1px solid #121316;
+}
+.docBody section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.docBody h2 {
+  font-size: 26px;
+  margin: 0 0 6px;
+  scroll-margin-top: 80px;
+}
+.docBody h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 30px 0 6px;
+  scroll-margin-top: 80px;
+}
+.docBody .lead {
+  font-size: 17px;
+  color: var(--ink);
+  margin: 0 0 16px;
+  max-width: 68ch;
+}
+.docBody p {
+  margin: 12px 0;
+  max-width: 72ch;
+}
+.docBody ul,
+.docBody ol {
+  margin: 12px 0;
+  padding-left: 22px;
+  max-width: 72ch;
+}
+.docBody li {
+  margin: 6px 0;
+}
+.docBody li::marker {
+  color: var(--green);
+}
+.docBody a {
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.docBody code {
+  font-family: var(--font-mono-stack);
+  font-size: 0.88em;
+  color: var(--green);
+  background: rgba(89, 212, 153, 0.07);
+  border: 1px solid #1d3527;
+  border-radius: 5px;
+  padding: 1px 6px;
+  overflow-wrap: anywhere;
+}
+.docBody pre {
+  position: relative;
+  background: #0d0d0d;
+  border: 1px solid #242728;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin: 16px 0;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.docBody pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink);
+  font-size: inherit;
+}
+.docBody pre[data-lang]::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-family: var(--font-mono-stack);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.docBody .note {
+  border-left: 3px solid var(--green);
+  background: var(--panel);
+  border-radius: 0 10px 10px 0;
+  padding: 12px 16px;
+  margin: 16px 0;
+  max-width: 72ch;
+  font-size: 14.5px;
+}
+.tableWrap {
+  overflow-x: auto;
+  margin: 16px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.docBody table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+  min-width: 560px;
+}
+.cmpTable table {
+  min-width: 1040px;
+  font-size: 13.5px;
+}
+.docBody th,
+.docBody td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.docBody th {
+  color: var(--ink);
+  font-weight: 600;
+  background: var(--panel);
+  white-space: nowrap;
+}
+.docBody tr:last-child td {
+  border-bottom: 0;
+}
+.docBody .faq details {
+  margin-top: 12px;
+}
+.docMeta {
+  font-family: var(--font-mono-stack);
+  font-size: 12px;
+  color: var(--faint);
+  margin-top: 16px;
+}
+.docMeta a {
+  color: var(--dim);
+  text-decoration: underline;
+}
+.docCtaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+.docCtaRow a {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.docCtaRow .primary {
+  background: #ffffff;
+  color: #000000;
+}
+.docCtaRow .secondary {
+  border: 1px solid #2a3038;
+  color: var(--ink);
+}
+.docCtaRow .support {
+  border: 1px solid #3a2530;
+  color: #f4a6bd;
+}
+
+/* Comparison grid */
+.cmpGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  margin-top: 18px;
+}
+.cmpCard {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 18px;
+  font-size: 14px;
+}
+.cmpCard h3 {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+.cmpCard .meta {
+  font-family: var(--font-mono-stack);
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-bottom: 10px;
+}
+.cmpCard ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.cmpCard li {
+  margin: 4px 0;
+}
+.cmpCard .verdict {
+  margin-top: 10px;
+  color: var(--dim);
+}
+
+@media (max-width: 900px) {
+  .docLayout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .docToc {
+    position: static;
+  }
+  .docToc ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    border-left: 0;
+  }
+  .docToc li a {
+    padding: 4px 0;
+    border-left: 0;
+    margin: 0;
+  }
+}

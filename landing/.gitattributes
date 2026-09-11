@@ -1,0 +1,12 @@
+# Normalize line endings to LF in the repo and on checkout so Prettier's
+# `--check` is deterministic across macOS/Linux/Windows and CI.
+* text=auto eol=lf
+
+# Binary assets: never touch line endings.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
