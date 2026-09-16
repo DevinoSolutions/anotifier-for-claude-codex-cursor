@@ -23,6 +23,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-15]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:

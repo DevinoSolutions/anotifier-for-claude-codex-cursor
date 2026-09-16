@@ -18,6 +18,7 @@ jobs:
   live-cursor:
     name: Live Cursor (key + hook wiring validation)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:

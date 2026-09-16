@@ -19,8 +19,11 @@ on:
 
 concurrency:
   group: '${{ github.workflow }}-${{ github.ref }}'
-  # Supersede runs on PRs and feature branches; let a run against main finish.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  # Supersede runs on every ref, main included. This workflow is the pre-merge
+  # gate and nothing else — Dokploy builds and deploys landing/ from main on its
+  # own — so a run against a commit that a newer push has already replaced is
+  # holding a runner for a result nobody reads.
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -30,6 +33,7 @@ jobs:
   site:
     name: Landing (lint · format · knip · typecheck · build)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
