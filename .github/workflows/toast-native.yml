@@ -25,6 +25,7 @@ jobs:
       matrix:
         os: [windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     env:
       AAN_TOAST_LIVE: '1'
     steps:
