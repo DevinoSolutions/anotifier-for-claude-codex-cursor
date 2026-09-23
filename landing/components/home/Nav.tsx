@@ -1,6 +1,7 @@
 import Link from "next/link";
 import LogoMark from "../LogoMark";
-import { GITHUB_URL, SUPPORT_URL } from "@/lib/site";
+import StarButton from "../StarButton";
+import { SUPPORT_URL } from "@/lib/site";
 
 const linkStyle: React.CSSProperties = {
   fontSize: "14px",
@@ -54,9 +55,7 @@ export default function Nav() {
           <Link href="/docs/" style={linkStyle}>
             Docs
           </Link>
-          <a href={GITHUB_URL} style={linkStyle}>
-            GitHub
-          </a>
+          <StarButton variant="nav" />
           <a
             href={SUPPORT_URL}
             className="navSupport"
