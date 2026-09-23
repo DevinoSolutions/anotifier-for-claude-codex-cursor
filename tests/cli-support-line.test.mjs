@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { SUPPORT_URL, DOCS_URL } from '../src/support.mjs';
+import { SUPPORT_URL, DOCS_URL, STAR_LINE } from '../src/support.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -63,6 +63,18 @@ describe('support & docs URLs in CLI output', () => {
     assert.ok(Array.isArray(parsed.checks));
     assert.ok(!res.stdout.includes(SUPPORT_URL), res.stdout);
     assert.ok(!res.stdout.includes(DOCS_URL), res.stdout);
+  });
+
+  it('the star ask is setup-only: not in status, --help or doctor --json', () => {
+    for (const args of [['status'], ['--help'], ['doctor', '--json']]) {
+      const res = runCli(args);
+      assert.ok(!res.stdout.includes(STAR_LINE), `${args.join(' ')} printed the star line:\n${res.stdout}`);
+    }
+    // setup is interactive, so assert on its source: the line is printed once,
+    // in the success summary (after "Setup complete").
+    const setup = fs.readFileSync(path.join(repoRoot, 'cli', 'setup.mjs'), 'utf8');
+    assert.equal(count(setup, '${STAR_LINE}'), 1);
+    assert.ok(setup.indexOf('${STAR_LINE}') > setup.indexOf('Setup complete'));
   });
 
   it('the hook path never imports or prints the support line', () => {

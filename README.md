@@ -528,7 +528,7 @@ The `Landing` workflow runs those same checks on every PR that touches `landing/
 
 ## Support the project
 
-anotifier is free, open source, and has no telemetry, no account, and no paid tier. It is built and maintained by [DevinoSolutions](https://github.com/DevinoSolutions). If it saves you time, consider supporting its development: **[github.com/sponsors/DevinoSolutions](https://github.com/sponsors/DevinoSolutions)**. The same link is printed once at the end of `anotifier setup` and `anotifier status`; it never appears in a notification or on the hook path.
+anotifier is free, open source, and has no telemetry, no account, and no paid tier. It is built and maintained by [DevinoSolutions](https://github.com/DevinoSolutions). If it saves you time, consider supporting its development: **[github.com/sponsors/DevinoSolutions](https://github.com/sponsors/DevinoSolutions)**. The same link is printed once at the end of `anotifier setup` and `anotifier status`; it never appears in a notification or on the hook path. A successful `setup` also ends with one line asking for a [GitHub star](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor), since that is how other developers find the project. That line is printed nowhere else.
 
 ## Contributing
 

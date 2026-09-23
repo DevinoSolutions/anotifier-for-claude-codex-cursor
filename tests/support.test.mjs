@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SUPPORT_URL, DOCS_URL, SUPPORT_LINE } from '../src/support.mjs';
+import { SUPPORT_URL, DOCS_URL, SUPPORT_LINE, STAR_URL, STAR_LINE } from '../src/support.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
@@ -29,6 +29,17 @@ describe('src/support.mjs', () => {
 
   it('DOCS_URL points at the anotifier.io docs page', () => {
     assert.equal(DOCS_URL, 'https://anotifier.io/docs/');
+  });
+
+  it('STAR_URL is the package.json repository as a plain https repo URL', () => {
+    assert.equal(STAR_URL, pkg.repository.url.replace(/^git\+/, '').replace(/\.git$/, ''));
+    assert.match(STAR_URL, /^https:\/\/github\.com\/[^/]+\/[^/]+$/);
+  });
+
+  it('STAR_LINE is one line and carries the repo URL verbatim', () => {
+    assert.ok(STAR_LINE.includes(STAR_URL));
+    assert.match(STAR_LINE, /star/i);
+    assert.ok(!/\n/.test(STAR_LINE), 'single line');
   });
 
   it('SUPPORT_LINE asks gently and carries the URL verbatim', () => {

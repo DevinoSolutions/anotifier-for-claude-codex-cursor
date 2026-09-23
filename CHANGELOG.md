@@ -17,6 +17,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
   URL lives in exactly one place (`src/support.mjs` reads `funding.url`). It is
   never printed on the hook path, never inside a notification, and never in
   `doctor --json`.
+- **Star ask after setup.** A successful `anotifier setup` ends with one muted
+  line pointing at the GitHub repo ("A GitHub star helps other developers find
+  anotifier"). It appears only there — not in `status`, `--help`, `doctor`, the
+  hook path, or any notification. The URL comes from package.json
+  `repository.url`.
 
 ## [1.2.6] — 2026-09-10
 
