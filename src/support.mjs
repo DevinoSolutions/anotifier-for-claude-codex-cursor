@@ -13,6 +13,16 @@ const pkg = require('../package.json');
 export const SUPPORT_URL = pkg.funding?.url ?? 'https://github.com/sponsors/DevinoSolutions';
 export const DOCS_URL = 'https://anotifier.io/docs/';
 
+// The repo page, derived from package.json `repository.url`
+// ("git+https://github.com/o/r.git" → "https://github.com/o/r").
+export const STAR_URL = String(pkg.repository?.url ?? 'https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor')
+  .replace(/^git\+/, '')
+  .replace(/\.git$/, '');
+
 // One sentence, reused verbatim by setup and status so the ask reads the same
 // everywhere and stays easy to grep for.
 export const SUPPORT_LINE = `♥ anotifier is free & open source. If it saves you time, consider supporting it: ${SUPPORT_URL}`;
+
+// The zero-cost ask, printed once at the end of a successful `setup` only —
+// setup is the one moment a user has just chosen the tool.
+export const STAR_LINE = `★ A GitHub star helps other developers find anotifier: ${STAR_URL}`;
