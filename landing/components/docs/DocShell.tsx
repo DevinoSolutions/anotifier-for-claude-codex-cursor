@@ -29,7 +29,9 @@ export default function DocShell({
           <div className="links">
             <Link href="/docs/">Docs</Link>
             <Link href="/guides/">Guides</Link>
-            <Link href="/compare/">Compare</Link>
+            <Link href="/compare/" className="navOptional">
+              Compare
+            </Link>
             <StarButton variant="nav" />
           </div>
         </div>

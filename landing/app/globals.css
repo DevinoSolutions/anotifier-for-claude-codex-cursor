@@ -117,9 +117,11 @@ a:focus-visible {
 .starBtn:hover {
   border-color: #4a4d52 !important;
 }
-/* Small phones: the nav pill keeps the star and the count, drops the word. */
+/* Small phones: the nav pill keeps the star and the count, drops the word, and
+   the docs nav drops Compare (still linked from the footer) so the pill fits. */
 @media (max-width: 420px) {
-  .navStar .starLabel {
+  .navStar .starLabel,
+  .navOptional {
     display: none;
   }
 }
