@@ -1,6 +1,7 @@
 import CopyButton from "./CopyButton";
 import HeroDemo from "./HeroDemo";
 import SoundToggle from "./SoundToggle";
+import StarButton from "../StarButton";
 import { VERSION } from "@/lib/site";
 
 const wireIcon: React.CSSProperties = {
@@ -144,6 +145,7 @@ export default function Hero() {
             </span>
             <CopyButton text="npx anotifier@latest setup" />
           </div>
+          <StarButton />
         </div>
         <div
           style={{

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import LogoMark from "@/components/LogoMark";
+import StarButton from "@/components/StarButton";
 import { GITHUB_URL, NPM_URL, SUPPORT_URL } from "@/lib/site";
 
 /**
@@ -29,7 +30,7 @@ export default function DocShell({
             <Link href="/docs/">Docs</Link>
             <Link href="/guides/">Guides</Link>
             <Link href="/compare/">Compare</Link>
-            <a href={GITHUB_URL}>GitHub</a>
+            <StarButton variant="nav" />
           </div>
         </div>
       </nav>

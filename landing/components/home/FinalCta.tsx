@@ -1,4 +1,5 @@
-import { GITHUB_URL, NPM_URL, SUPPORT_URL } from "@/lib/site";
+import StarButton from "../StarButton";
+import { NPM_URL, SUPPORT_URL } from "@/lib/site";
 
 export default function FinalCta() {
   return (
@@ -45,20 +46,7 @@ export default function FinalCta() {
             flexWrap: "wrap",
           }}
         >
-          <a
-            href={GITHUB_URL}
-            className="hovWhite"
-            style={{
-              background: "#ffffff",
-              color: "#000000",
-              fontSize: "14px",
-              fontWeight: 500,
-              padding: "11px 22px",
-              borderRadius: "8px",
-            }}
-          >
-            View on GitHub
-          </a>
+          <StarButton label="Star it on GitHub" />
           <a
             href={NPM_URL}
             className="hovBorder"

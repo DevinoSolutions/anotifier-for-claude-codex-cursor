@@ -1,7 +1,8 @@
 /** Site-wide constants. One place to bump the version or swap the support URL. */
 export const SITE_URL = "https://anotifier.io";
-export const GITHUB_URL =
-  "https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor";
+/** owner/name. The star button reads its live count from the GitHub API. */
+export const GITHUB_REPO = "DevinoSolutions/anotifier-for-claude-codex-cursor";
+export const GITHUB_URL = `https://github.com/${GITHUB_REPO}`;
 export const NPM_URL = "https://www.npmjs.com/package/anotifier";
 export const DEMO_VIDEO_URL = "https://www.youtube.com/watch?v=QVVOIIud4-I";
 /** Devino-wide sponsor profile — the same link the CLI and README point at. */

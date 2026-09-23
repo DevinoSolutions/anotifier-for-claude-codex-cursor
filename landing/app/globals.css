@@ -107,3 +107,19 @@ a:focus-visible {
     transform: translateY(-4.56em);
   }
 }
+
+/* Star-on-GitHub button (components/StarButton.tsx). Lives here, not in
+   home.css, because it renders on the home page and every docs/guide page. */
+.starBtn {
+  align-self: center;
+  transition: border-color 0.15s;
+}
+.starBtn:hover {
+  border-color: #4a4d52 !important;
+}
+/* Small phones: the nav pill keeps the star and the count, drops the word. */
+@media (max-width: 420px) {
+  .navStar .starLabel {
+    display: none;
+  }
+}
