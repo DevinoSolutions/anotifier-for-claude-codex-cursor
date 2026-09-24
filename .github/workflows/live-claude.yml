@@ -16,7 +16,9 @@ concurrency:
 
 jobs:
   live-claude:
-    permissions: write-all # GITHUB_TOKEN defaults + id-token for DevinoSolutions/artifact (OIDC)
+    permissions:
+      contents: read # checkout
+      id-token: write # OIDC token DevinoSolutions/artifact trades for storage credentials
     name: Live Claude E2E (required, paid)
     strategy:
       fail-fast: false
