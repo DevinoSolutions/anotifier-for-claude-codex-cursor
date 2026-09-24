@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AGENTS, getAgent } from "@/lib/agents";
 import { GUIDES } from "@/lib/guides";
 import LogoMark from "@/components/LogoMark";
+import StarButton from "@/components/StarButton";
 import "./agent-page.css";
 
 export const dynamicParams = false;
@@ -121,10 +122,8 @@ export default async function AgentPage({
           </Link>
           <div className="links">
             <Link href="/">Home</Link>
-            <a href="https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor">
-              GitHub
-            </a>
             <a href="https://www.npmjs.com/package/anotifier">npm</a>
+            <StarButton variant="nav" />
           </div>
         </div>
       </nav>

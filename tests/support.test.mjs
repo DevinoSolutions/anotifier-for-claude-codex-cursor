@@ -33,7 +33,8 @@ describe('src/support.mjs', () => {
 
   it('STAR_URL is the package.json repository as a plain https repo URL', () => {
     assert.equal(STAR_URL, pkg.repository.url.replace(/^git\+/, '').replace(/\.git$/, ''));
-    assert.match(STAR_URL, /^https:\/\/github\.com\/[^/]+\/[^/]+$/);
+    assert.match(STAR_URL, /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/);
+    assert.ok(!STAR_URL.endsWith('.git'), STAR_URL);
   });
 
   it('STAR_LINE is one line and carries the repo URL verbatim', () => {

@@ -109,13 +109,15 @@ a:focus-visible {
 }
 
 /* Star-on-GitHub button (components/StarButton.tsx). Lives here, not in
-   home.css, because it renders on the home page and every docs/guide page. */
+   home.css, because it renders in the nav of every page. The border lives
+   here, not inline, so the hover rule can win without !important. */
 .starBtn {
   align-self: center;
+  border: 1px solid #2e3033;
   transition: border-color 0.15s;
 }
 .starBtn:hover {
-  border-color: #4a4d52 !important;
+  border-color: #4a4d52;
 }
 /* Small phones: the nav pill keeps the star and the count, drops the word, and
    the docs nav drops Compare (still linked from the footer) so the pill fits. */

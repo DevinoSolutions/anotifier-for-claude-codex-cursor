@@ -1,51 +1,78 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { GITHUB_REPO, GITHUB_URL } from "@/lib/site";
 
-/* Live stargazer count, cached per tab for an hour so a visitor clicking
-   around the site costs one GitHub API call (the unauthenticated limit is
-   60/hour per IP). Until the count arrives, or if the call fails, the button
-   still reads "Star": it never shows a made-up number. */
+/* Live stargazer count, cached per tab for an hour. Every StarButton on the
+   page shares one in-flight request (the home page renders three), so a
+   visitor clicking around costs one GitHub API call per hour; the
+   unauthenticated limit is 60/hour per IP. Until the count arrives, or if the
+   call fails, the button still reads "Star": it never shows a made-up number. */
 const CACHE_KEY = "anotifier:stars";
 const CACHE_MS = 60 * 60 * 1000;
 
+const compact = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
 function formatCount(n: number): string {
-  if (n < 1000) return String(n);
-  return `${(n / 1000).toFixed(n < 10000 ? 1 : 0).replace(/\.0$/, "")}k`;
+  return compact.format(n).toLowerCase();
+}
+
+function readCache(): number | null {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) ?? "null");
+    if (typeof cached?.n !== "number" || typeof cached.at !== "number") {
+      return null;
+    }
+    const age = Date.now() - cached.at;
+    return age >= 0 && age < CACHE_MS ? cached.n : null;
+  } catch {
+    return null; // unreadable or blocked storage: fetch instead
+  }
+}
+
+// One request per page load, shared by every button. A failure (rate limit,
+// offline) resolves to null and is not retried until the next full load.
+let starsRequest: Promise<number | null> | null = null;
+
+function loadStars(): Promise<number | null> {
+  starsRequest ??= fetch(`https://api.github.com/repos/${GITHUB_REPO}`, {
+    headers: { accept: "application/vnd.github+json" },
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      const n = data?.stargazers_count;
+      if (typeof n !== "number") return null;
+      try {
+        sessionStorage.setItem(
+          CACHE_KEY,
+          JSON.stringify({ n, at: Date.now() }),
+        );
+      } catch {
+        // storage blocked: the count still shows on this page
+      }
+      return n;
+    })
+    .catch(() => null);
+  return starsRequest;
 }
 
 function useStars(): number | null {
   const [stars, setStars] = useState<number | null>(null);
-  useEffect(() => {
-    try {
-      const cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) ?? "null");
-      if (cached && Date.now() - cached.at < CACHE_MS) {
-        setStars(cached.n);
-        return;
-      }
-    } catch {
-      // unreadable cache: fall through and fetch
+  // Layout effect so a cached count is in place before the first paint and
+  // the button does not visibly grow on every page load.
+  useLayoutEffect(() => {
+    const cached = readCache();
+    if (cached !== null) {
+      setStars(cached);
+      return;
     }
     let alive = true;
-    fetch(`https://api.github.com/repos/${GITHUB_REPO}`, {
-      headers: { accept: "application/vnd.github+json" },
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        const n = data?.stargazers_count;
-        if (!alive || typeof n !== "number") return;
-        setStars(n);
-        try {
-          sessionStorage.setItem(
-            CACHE_KEY,
-            JSON.stringify({ n, at: Date.now() }),
-          );
-        } catch {
-          // storage blocked: the count still shows on this page
-        }
-      })
-      .catch(() => {});
+    void loadStars().then((n) => {
+      if (alive && n !== null) setStars(n);
+    });
     return () => {
       alive = false;
     };
@@ -80,22 +107,26 @@ export default function StarButton({
 }) {
   const stars = useStars();
   const nav = variant === "nav";
-  const title =
-    stars === null
-      ? "Star anotifier on GitHub"
-      : `Star anotifier on GitHub (${stars} stars)`;
+  const count =
+    stars === null ? "" : `${stars} ${stars === 1 ? "star" : "stars"}`;
+  // The accessible name starts with the visible words so voice control
+  // ("click Star on GitHub") matches it.
+  const name = nav ? "Star anotifier on GitHub" : label;
   return (
     <a
       href={GITHUB_URL}
-      className={nav ? "hovBorder starBtn navStar" : "hovBorder starBtn"}
-      title={title}
-      aria-label={title}
+      className={nav ? "starBtn navStar" : "starBtn"}
+      title={
+        count
+          ? `Star anotifier on GitHub (${count})`
+          : "Star anotifier on GitHub"
+      }
+      aria-label={count ? `${name}, ${count}` : name}
       style={{
         display: "inline-flex",
         alignItems: "center",
         gap: nav ? "6px" : "8px",
         background: "#101111",
-        border: "1px solid #2e3033",
         borderRadius: "8px",
         color: "#f4f4f6",
         fontSize: nav ? "13px" : "14px",
