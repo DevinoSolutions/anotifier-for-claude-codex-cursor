@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AGENTS } from "@/lib/agents";
 import { CHANNELS, getChannel } from "@/lib/channels";
 import LogoMark from "@/components/LogoMark";
+import StarButton from "@/components/StarButton";
 
 function stripTags(html: string): string {
   return html.replace(/<[^>]+>/g, "");
@@ -98,10 +99,8 @@ export default function ChannelPage({ slug }: { slug: string }) {
           </Link>
           <div className="links">
             <Link href="/">Home</Link>
-            <a href="https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor">
-              GitHub
-            </a>
             <a href="https://www.npmjs.com/package/anotifier">npm</a>
+            <StarButton variant="nav" />
           </div>
         </div>
       </nav>

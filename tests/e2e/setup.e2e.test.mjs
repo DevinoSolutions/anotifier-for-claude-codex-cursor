@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { seedTempHome, writeUserConfig, runNode, randomTopic } from './helpers.mjs';
+import { STAR_LINE } from '../../src/support.mjs';
 
 const readJSON = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 
@@ -19,6 +20,10 @@ describe('real setup subprocess wires every detected tool', () => {
   it('patches Claude, Codex, Cursor, and Gemini and saves the topic', () => {
     const res = runNode(['cli/index.mjs', 'setup'], { home, stdin: answers });
     assert.equal(res.status, 0, `setup exited non-zero: ${res.stderr}`);
+
+    // The star ask prints exactly once, in the success summary.
+    assert.equal(res.stdout.split(STAR_LINE).length - 1, 1, res.stdout);
+    assert.ok(res.stdout.indexOf(STAR_LINE) > res.stdout.indexOf('Setup complete'), res.stdout);
 
     // Config saved with our topic
     const cfg = readJSON(path.join(home, '.anotifier', 'config.json'));
@@ -122,6 +127,7 @@ describe('setup with partial / no tools installed', () => {
       // Nothing was set up — setup must fail loud, not exit 0 with a success banner (CL-16).
       assert.equal(res.status, 1, `setup should exit 1 when no tools are found: ${res.stderr}`);
       assert.match(res.stdout, /No supported AI tools/i);
+      assert.ok(!res.stdout.includes(STAR_LINE), 'no star ask after a failed setup');
     } finally {
       fs.rmSync(home, { recursive: true, force: true });
     }
