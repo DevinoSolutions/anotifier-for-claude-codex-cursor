@@ -16,7 +16,9 @@ concurrency:
 
 jobs:
   toast-linux:
-    permissions: write-all # GITHUB_TOKEN defaults + id-token for DevinoSolutions/artifact (OIDC)
+    permissions:
+      contents: read # checkout
+      id-token: write # OIDC token DevinoSolutions/artifact trades for storage credentials
     name: Live Toast Linux (notify-send → dunst capture)
     runs-on: ubuntu-latest
     timeout-minutes: 15
