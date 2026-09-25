@@ -87,9 +87,9 @@ export const GUIDES: Guide[] = [
     agentSlug: "claude-code",
     agentName: "Claude Code",
     icon: "/assets/icons/claude.png",
-    title: "How to Get Notified When Claude Code Finishes (Every Method, 2026)",
+    title: "How to Get Notified When Claude Code Finishes (2026)",
     description:
-      "Four ways to get alerted when Claude Code finishes or needs input: the built-in terminal setting, a Stop hook, an ntfy phone push, or anotifier. Copy-paste configs.",
+      "Four ways to get alerted when Claude Code finishes or needs input: the built-in terminal setting, a Stop hook, an ntfy phone push, or anotifier.",
     h1: "How to get notified when Claude Code finishes or needs you",
     intro:
       "Claude Code runs for minutes at a time, and the moment it stops is easy to miss: a finished refactor sits idle, or a permission prompt waits unnoticed. Claude Code exposes two hook events that fire at exactly those moments, `Stop` and `Notification`, and everything below builds on them. Here are all the ways to turn them into an alert, from the zero-install setting to a full multi-agent setup.",
@@ -192,10 +192,9 @@ export const GUIDES: Guide[] = [
     agentSlug: "codex",
     agentName: "Codex CLI",
     icon: "/assets/icons/codex.png",
-    title:
-      "Codex CLI Notifications: Get Alerted When Codex Finishes or Asks for Approval",
+    title: "Codex CLI Notifications: Finish and Approval Alerts",
     description:
-      "Desktop, phone, or Slack alerts when Codex CLI finishes or waits for approval: the notify setting, Stop and PermissionRequest hooks, or anotifier in one command.",
+      "Desktop, phone, or Slack alerts when Codex CLI finishes or waits for approval: the notify setting, Stop and PermissionRequest hooks, or anotifier.",
     h1: "How to get notified when Codex CLI finishes or needs approval",
     intro:
       "Codex CLI has two moments worth a notification: the end of a turn, and the approval prompt that blocks everything until you answer it. Codex exposes both through its own configuration, so no wrapper process is needed. Here is every way to wire them up.",
@@ -276,10 +275,9 @@ export const GUIDES: Guide[] = [
     agentSlug: "cursor",
     agentName: "Cursor",
     icon: "/assets/icons/cursor.png",
-    title:
-      "Cursor Agent Notifications: Get Pinged When the Cursor Agent Finishes",
+    title: "Cursor Agent Notifications: Get Pinged When It Finishes",
     description:
-      "Get a desktop toast, phone push, or chat message when the Cursor agent finishes: the completion sound, a stop hook in ~/.cursor/hooks.json, or anotifier in one command.",
+      "A desktop toast, phone push, or chat message when the Cursor agent finishes: the completion sound, a stop hook in ~/.cursor/hooks.json, or anotifier.",
     h1: "How to get notified when the Cursor agent finishes",
     intro:
       "You kick off a Cursor agent, switch to a browser tab, and check back either too early or twenty minutes late. Cursor exposes an agent lifecycle hook system that fires the instant the agent loop ends, which is all you need to be told rather than to keep checking.",
@@ -346,8 +344,7 @@ export const GUIDES: Guide[] = [
     agentSlug: "gemini-cli",
     agentName: "Gemini CLI",
     icon: "/assets/icons/gemini.png",
-    title:
-      "Gemini CLI Notifications: Alerts When Your Gemini Agent Finishes or Needs Input",
+    title: "Gemini CLI Notifications: Alerts When the Agent Finishes",
     description:
       "Desktop, phone, or webhook alerts when Gemini CLI finishes a run or needs attention: AfterAgent and Notification hooks by hand, or anotifier in one command.",
     h1: "How to get notified when Gemini CLI finishes",

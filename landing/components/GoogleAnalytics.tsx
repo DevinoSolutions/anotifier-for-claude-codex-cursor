@@ -10,7 +10,12 @@ import Script from "next/script";
     The bootstrap must keep the canonical
     `function gtag(){dataLayer.push(arguments);}` form. gtag.js reads a command
     off the raw `arguments` object; a rest-params/array rewrite is silently
-    ignored and no page_view is ever sent. */
+    ignored and no page_view is ever sent.
+
+    gtag.js loads lazyOnload, not afterInteractive: afterInteractive emits a
+    high-priority preload that pulled its ~170 KB in alongside the fonts and
+    CSS and pushed out mobile LCP. The bootstrap stays afterInteractive so the
+    queued config is sent the moment gtag.js arrives. */
 export default function GoogleAnalytics() {
   const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
   if (!gaId) {
@@ -21,7 +26,7 @@ export default function GoogleAnalytics() {
     <>
       <Script
         src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
-        strategy="afterInteractive"
+        strategy="lazyOnload"
       />
       <Script id="google-analytics" strategy="afterInteractive">
         {`window.dataLayer = window.dataLayer || [];

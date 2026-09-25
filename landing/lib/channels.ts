@@ -43,7 +43,7 @@ export const CHANNELS: Channel[] = [
     kind: "webhook",
     title: "Slack Notifications for Claude Code & AI Agents — anotifier",
     description:
-      "Send anotifier alerts to Slack when Claude Code, Codex, Cursor, or Gemini CLI finishes a task or needs input — via a Slack incoming webhook and one shared config.",
+      "Send anotifier alerts to Slack when Claude Code, Codex, Cursor, or Gemini CLI finishes a task or needs input, via a Slack incoming webhook and one config.",
     h1: { pre: "", em: "Slack", post: " alerts when your agent finishes." },
     sub: "Your AI agent runs for minutes while you're already in Slack. anotifier posts to the channel of your choice the moment Claude Code, Codex, Cursor, or Gemini CLI finishes a task or stops to ask for input.",
     setupIntro:
@@ -96,7 +96,7 @@ export const CHANNELS: Channel[] = [
     slug: "discord",
     name: "Discord",
     kind: "webhook",
-    title: "Discord Notifications for Claude Code & AI Agents — anotifier",
+    title: "Discord Notifications for Claude Code & AI Agents",
     description:
       "Post a Discord message the moment Claude Code, Codex, Cursor, or Gemini CLI finishes or needs input. Wire a Discord webhook to anotifier with one shared config.",
     h1: {
@@ -155,9 +155,9 @@ export const CHANNELS: Channel[] = [
     slug: "telegram",
     name: "Telegram",
     kind: "webhook",
-    title: "Telegram Alerts for Claude Code & AI Coding Agents — anotifier",
+    title: "Telegram Alerts for Claude Code & AI Coding Agents",
     description:
-      "Get a Telegram message when Claude Code or any AI coding agent finishes a task or needs input. A @BotFather bot plus anotifier's shared config — no polling required.",
+      "Get a Telegram message when Claude Code or any AI coding agent finishes a task or needs input. A @BotFather bot plus anotifier's config, no polling.",
     h1: {
       pre: "",
       em: "Telegram",

@@ -12,8 +12,7 @@ import "../[slug]/agent-page.css";
 import "../docs/docs.css";
 
 const URL = `${SITE_URL}/compare/`;
-const TITLE =
-  "anotifier vs code-notify, agent-notify, Pushary & DIY hooks — AI agent notification tools compared";
+const TITLE = "anotifier vs code-notify, agent-notify, Pushary & DIY Hooks";
 const DESCRIPTION =
   "anotifier, code-notify, agent-notify, claude-ntfy-hook, Pushary, AI Done Now and DIY hooks compared: agents, channels, platforms, remote approval, price.";
 

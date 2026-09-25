@@ -10,7 +10,8 @@
     "lint": "oxlint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "knip": "knip"
+    "knip": "knip",
+    "test:site": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "next": "^15.5.4",

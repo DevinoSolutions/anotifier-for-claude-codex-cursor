@@ -64,3 +64,22 @@ jobs:
       - name: Build (static export)
         if: ${{ !cancelled() }}
         run: npm run build
+
+      # The same image and nginx.conf production runs, so redirects, 404s and
+      # headers are tested for real, not just the HTML.
+      - name: Serve the export with the production nginx.conf
+        if: ${{ !cancelled() }}
+        run: |
+          docker run -d --name site -p 8080:80 \
+            -v "$PWD/out:/usr/share/nginx/html:ro" \
+            -v "$PWD/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginx:alpine
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:8080/ && exit 0; sleep 1; done
+          docker logs site
+          exit 1
+
+      - name: Site tests (HTTP + real Chrome)
+        if: ${{ !cancelled() }}
+        env:
+          BASE_URL: http://localhost:8080
+        run: npm run test:site
