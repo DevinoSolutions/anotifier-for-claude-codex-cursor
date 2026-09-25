@@ -23,6 +23,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
   hook path, or any notification. The URL comes from package.json
   `repository.url`.
 
+### Fixed
+- **WSL is reported as WSL.** `anotifier setup`, `status` and `doctor` described
+  WSL as plain Linux and checked for `notify-send`, which WSL never uses. They
+  now name the Windows-interop toast path, and `doctor` checks for `wslpath`
+  and a reachable Windows PowerShell instead.
+- **WSL toast failures are logged.** When no Windows PowerShell could be reached
+  through interop, the toast failed silently. It now writes a `toast:wsl` entry
+  (naming each executable tried) to the hook error log that `status` shows.
+- **`doctor` no longer passes with only Windows PowerShell 5.1.** Toasts are
+  spawned through PowerShell 7 (`pwsh`), so 5.1 alone now fails the toast check
+  with a `winget` install hint, and `setup` says so instead of reporting a
+  BurntToast install failure.
+- **`uninstall` removes the `agentfocus://` protocol** that click-to-focus
+  registers under `HKCU\Software\Classes`, but only when it still points at
+  anotifier's `focus.vbs`.
+- **The generated ntfy topic uses `crypto.randomInt`** instead of `Math.random`.
+  The topic is what keeps a public ntfy.sh topic private.
+
 ## [1.2.6] — 2026-09-10
 
 ### Fixed

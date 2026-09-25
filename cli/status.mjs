@@ -9,6 +9,7 @@ import { detectManagedEvents } from '../setup/patch-config.mjs';
 import { checkForUpdate, isNewer } from '../src/update-check.mjs';
 import { readSnoozeUntil, quietHoursWindow, inQuietHours, formatClock } from '../src/suppress.mjs';
 import { SUPPORT_LINE } from '../src/support.mjs';
+import { toastPlatform } from '../src/platforms/index.mjs';
 import { c, box, kv, sectionHeader } from './ui.mjs';
 
 const require = createRequire(import.meta.url);
@@ -16,6 +17,15 @@ const pkg = require('../package.json');
 
 // Webhook URLs are secrets (Slack/Discord tokens, Telegram bot token in the
 // path), so status shows the origin only — never the full URL.
+// Keyed by toastPlatform(): WSL sends a Windows toast through interop, so it
+// must not be reported as notify-send.
+export const PLATFORM_DISPLAY = {
+  win32: { platform: 'Windows', toast: 'BurntToast' },
+  darwin: { platform: 'macOS', toast: 'osascript' },
+  wsl: { platform: 'WSL', toast: 'Windows toast (WSL interop)' },
+  linux: { platform: 'Linux', toast: 'notify-send' },
+};
+
 function webhookOrigin(url) {
   try { return new URL(url).origin; } catch { return 'invalid URL'; }
 }
@@ -44,9 +54,7 @@ export async function run() {
     return;
   }
 
-  const platform = os.platform();
-  const platLabel = platform === 'win32' ? 'Windows' : platform === 'darwin' ? 'macOS' : 'Linux';
-  const toastLabel = platform === 'win32' ? 'BurntToast' : platform === 'darwin' ? 'osascript' : 'notify-send';
+  const { platform: platLabel, toast: toastLabel } = PLATFORM_DISPLAY[toastPlatform()];
   const toastExtra = config.toast?.clickToFocus ? c.muted(' (click-to-focus)') : '';
 
   const ntfyValue = config.ntfy?.enabled && config.ntfy?.topic

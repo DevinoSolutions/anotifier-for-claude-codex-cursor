@@ -4,7 +4,7 @@
 // shell, where process env and /proc would otherwise leak in and flip cases.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isWsl, sendToast } from '../src/platforms/wsl.mjs';
+import { findWslPowerShell, isWsl, sendToast } from '../src/platforms/wsl.mjs';
 
 // A dep bundle that looks like plain (non-WSL) Linux; each case overrides only
 // the probe it cares about. Every dep is supplied so the host never leaks in.
@@ -99,8 +99,31 @@ describe('wsl sendToast fails gracefully (returns false, never throws)', () => {
     // On a real WSL host this would fire a toast, so only assert the negative
     // path off-WSL (Windows/Mac/Linux CI), where wslpath is absent.
     if (isWsl()) return t.skip('running under WSL — would fire a real toast');
-    const r = await sendToast({ title: 'T', message: 'M' });
+    const logged = [];
+    const r = await sendToast({ title: 'T', message: 'M' }, { log: (context, err, extra) => logged.push({ context, err, extra }) });
     assert.equal(r, false);
+    // The failure is recorded (so `anotifier status` can surface it) rather than
+    // swallowed, and the injected logger keeps it out of the real errors.log.
+    assert.equal(logged.length, 1);
+    assert.equal(logged[0].context, 'toast:wsl');
+    assert.ok(logged[0].err instanceof Error);
+  });
+});
+
+describe('findWslPowerShell (what doctor and setup report)', () => {
+  it('prefers the absolute Windows PowerShell path when it exists on /mnt/c', () => {
+    const exe = findWslPowerShell({ existsSync: () => true, onPath: () => true });
+    assert.equal(exe, '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe');
+  });
+
+  it('falls back to a PATH lookup when /mnt/c is not mounted', () => {
+    const exe = findWslPowerShell({ existsSync: () => false, onPath: (bin) => bin === 'pwsh.exe' });
+    assert.equal(exe, 'pwsh.exe');
+  });
+
+  it('returns null when nothing is reachable, and survives a throwing existsSync', () => {
+    const exe = findWslPowerShell({ existsSync: () => { throw new Error('EACCES'); }, onPath: () => false });
+    assert.equal(exe, null);
   });
 });
 

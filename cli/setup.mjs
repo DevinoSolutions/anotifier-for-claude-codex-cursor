@@ -4,8 +4,11 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import https from 'node:https';
+import { randomInt } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { getConfigDir, getConfigPath, loadConfigResult, saveConfig } from '../src/config-loader.mjs';
+import { toastPlatform } from '../src/platforms/index.mjs';
+import { findWslPowerShell } from '../src/platforms/wsl.mjs';
 import { patchClaude, patchCodex, patchCursor, patchGemini } from '../setup/patch-config.mjs';
 import { ask, askYN, log } from './ui.mjs';
 import { DOCS_URL, STAR_LINE, SUPPORT_LINE } from '../src/support.mjs';
@@ -13,7 +16,9 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = os.homedir();
-const PLATFORM = os.platform();
+// win32 | darwin | wsl | linux: WSL toasts go through Windows, not notify-send.
+const PLATFORM = toastPlatform();
+const PLATFORM_LABELS = { win32: 'Windows', darwin: 'macOS', wsl: 'WSL', linux: 'Linux' };
 
 function detectTools() {
   const tools = [];
@@ -36,10 +41,12 @@ function detectTools() {
   return tools;
 }
 
-function generateTopic() {
+// The topic is the only thing keeping a public ntfy.sh topic private, so it
+// comes from the CSPRNG (16 chars of 36 ≈ 82 bits), not Math.random.
+export function generateTopic(rand = randomInt) {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let suffix = '';
-  for (let i = 0; i < 16; i++) suffix += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 16; i++) suffix += chars[rand(chars.length)];
   return `anotifier-${suffix}`;
 }
 
@@ -140,7 +147,7 @@ export async function run() {
   log('\n  anotifier — cross-platform AI agent notifications\n', 'bold');
 
   // 1. Platform
-  const platLabel = PLATFORM === 'win32' ? 'Windows' : PLATFORM === 'darwin' ? 'macOS' : 'Linux';
+  const platLabel = PLATFORM_LABELS[PLATFORM];
   log(`  Detecting platform... ${platLabel}`, 'cyan');
 
   // 2. Detect tools
@@ -164,10 +171,21 @@ export async function run() {
   // 3. Toast backend
   log('\n  Installing toast backend...', 'cyan');
   if (PLATFORM === 'win32') {
-    if (installBurntToast()) log('    ✓ BurntToast module ready', 'green');
+    // Toasts run only through PowerShell 7; without it the BurntToast install
+    // below would fail with a message that hides the real cause.
+    let hasPwsh = true;
+    try { execSync('where pwsh', { stdio: 'pipe' }); } catch { hasPwsh = false; }
+    if (!hasPwsh) {
+      log('    ✗ PowerShell 7 (pwsh) not found — Windows toasts need it', 'yellow');
+      log('      winget install --id Microsoft.PowerShell --source winget, then re-run: anotifier setup', 'dim');
+    } else if (installBurntToast()) log('    ✓ BurntToast module ready', 'green');
     else log('    ✗ BurntToast install failed — toasts may not work', 'yellow');
   } else if (PLATFORM === 'darwin') {
     log('    ✓ osascript (built-in)', 'green');
+  } else if (PLATFORM === 'wsl') {
+    const exe = findWslPowerShell();
+    if (exe) log(`    ✓ Windows toast via ${exe} (WSL interop)`, 'green');
+    else log('    ✗ no Windows PowerShell reachable — check [interop] enabled=true in /etc/wsl.conf', 'yellow');
   } else {
     try { execSync('which notify-send', { stdio: 'pipe' }); log('    ✓ notify-send available', 'green'); }
     catch { log('    ✗ notify-send not found — install libnotify for toasts', 'yellow'); }

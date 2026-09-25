@@ -4,7 +4,31 @@ import readline from 'node:readline';
 import path from 'node:path';
 import { getConfigDir } from '../src/config-loader.mjs';
 import { unpatchAll } from '../setup/patch-config.mjs';
+import { execFileSync } from 'node:child_process';
 import { c, spinner } from './ui.mjs';
+
+const FOCUS_KEY = 'HKCU\\Software\\Classes\\agentfocus';
+
+// toast.ps1 registers the agentfocus:// click-to-focus protocol in HKCU on the
+// first toast. Remove it on uninstall, but only when its command still points at
+// our focus.vbs, so a same-named protocol from another tool is left alone.
+// `reg` is injectable so tests never touch the real registry.
+export function removeFocusProtocol({
+  reg = (args) => execFileSync('reg', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10000 }),
+} = {}) {
+  let command;
+  try { command = reg(['query', `${FOCUS_KEY}\\shell\\open\\command`, '/ve']); }
+  catch { return { tool: 'agentfocus://', ok: true, reason: 'not registered' }; }
+  if (!/focus\.vbs/i.test(String(command))) {
+    return { tool: 'agentfocus://', ok: true, reason: 'left alone (registered by another program)' };
+  }
+  try {
+    reg(['delete', FOCUS_KEY, '/f']);
+    return { tool: 'agentfocus://', ok: true, reason: 'click-to-focus protocol removed' };
+  } catch (err) {
+    return { tool: 'agentfocus://', ok: false, reason: `could not delete ${FOCUS_KEY}: ${err.message}` };
+  }
+}
 
 export async function run() {
   // Nothing is written before the confirmation, so Ctrl+C here is a clean abort.
@@ -36,6 +60,7 @@ export async function run() {
   const backupDir = path.join(getConfigDir(), 'backups');
   const spin = spinner('Removing hooks...');
   const results = unpatchAll(os.homedir(), backupDir);
+  if (os.platform() === 'win32') results.push(removeFocusProtocol());
   spin.stop('Processed all tools');
 
   let anyFailed = false;
