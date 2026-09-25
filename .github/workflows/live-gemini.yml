@@ -41,7 +41,7 @@ jobs:
         run: node scripts/live-gemini.mjs
       - name: Diagnostics (always, macOS)
         if: always() && runner.os == 'macOS'
-        uses: DevinoSolutions/artifact/upload@v1
+        uses: DevinoSolutions/artifact/upload@739b3abd2f5f7bd4db8106bda6513ae94020c9e6 # v1
         with:
           name: live-gemini-macos-diag
           path: ${{ runner.temp }}/diag

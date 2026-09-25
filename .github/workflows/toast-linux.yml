@@ -52,7 +52,7 @@ jobs:
         run: xvfb-run -a dbus-run-session -- node scripts/live-toast-linux-render.mjs
       - name: Upload rendered banner (proof a human can see)
         if: always()
-        uses: DevinoSolutions/artifact/upload@v1
+        uses: DevinoSolutions/artifact/upload@739b3abd2f5f7bd4db8106bda6513ae94020c9e6 # v1
         with:
           name: linux-render-proof
           path: /tmp/linux-render-proof
