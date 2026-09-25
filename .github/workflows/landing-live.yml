@@ -1,0 +1,38 @@
+# Live site (anotifier.io) — runs landing/tests against production.
+#
+# The Landing workflow runs the same suite before merge against the export
+# served by the production nginx.conf. This one proves what visitors and
+# crawlers actually get after Dokploy deploys (Cloudflare included): daily, and
+# on demand after a deploy. It reads nothing from the repo but the tests.
+name: Landing (live site)
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: '${{ github.workflow }}'
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: landing
+
+jobs:
+  live:
+    name: Live site tests (anotifier.io)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      # The tests use only node built-ins, fetch and Chrome: no npm install.
+      - name: Site tests against https://anotifier.io
+        run: npm run test:site

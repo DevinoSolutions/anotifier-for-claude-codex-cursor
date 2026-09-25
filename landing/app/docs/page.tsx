@@ -18,7 +18,7 @@ import "./docs.css";
 const URL = `${SITE_URL}/docs/`;
 
 export const metadata: Metadata = {
-  title: `${DOCS_TITLE} — install, commands, config, channels`,
+  title: `${DOCS_TITLE} — install, commands, config`,
   description: DOCS_DESCRIPTION,
   alternates: { canonical: URL },
   openGraph: {

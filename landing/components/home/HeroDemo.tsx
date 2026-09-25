@@ -37,15 +37,18 @@ export default function HeroDemo() {
           flex: 1,
           minWidth: 0,
           marginRight: "-40px",
-          filter: "drop-shadow(0 34px 60px rgba(0,0,0,0.55))",
         }}
       >
+        {/* Box-shadows, not a drop-shadow filter on the wrapper: a filter
+            re-rasterizes the whole animating subtree on every demo frame,
+            which delayed first paint on mobile. */}
         <div
           style={{
             position: "relative",
             background: "linear-gradient(180deg,#2e3136,#1b1d21)",
             borderRadius: "20px 20px 0 0",
             padding: "10px 10px 14px",
+            boxShadow: "0 34px 60px rgba(0,0,0,0.55)",
           }}
         >
           <span
@@ -505,6 +508,7 @@ export default function HeroDemo() {
             borderRadius: "2px 2px 16px 16px",
             margin: "0 -14px",
             borderTop: "1px solid #4d5055",
+            boxShadow: "0 24px 44px rgba(0,0,0,0.5)",
           }}
         >
           <span

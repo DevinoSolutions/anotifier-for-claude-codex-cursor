@@ -38,11 +38,10 @@ export const AGENTS: Agent[] = [
   {
     slug: "claude-code",
     name: "Claude Code",
-    title:
-      "Claude Code Notifications — Desktop & Phone Alerts When Claude Finishes",
+    title: "Claude Code Notifier — Desktop, Phone & Slack Alerts",
     description:
-      "Get a desktop toast, phone push, or webhook the moment Claude Code finishes a task or needs your input. One-command setup with anotifier — works in the terminal and inside VS Code.",
-    h1: { pre: "Notifications for ", em: "Claude Code", post: "." },
+      "anotifier is a free Claude Code notifier: a desktop toast, phone push, or Slack message when Claude finishes or needs input. One command, terminal or VS Code.",
+    h1: { pre: "anotifier for ", em: "Claude Code", post: "." },
     sub: "Claude Code runs for minutes at a time — refactoring, running tests, waiting on a permission prompt you haven't seen. anotifier hooks into Claude Code's native event system and pings you the moment it finishes or needs you.",
     hooksIntro:
       "anotifier wires itself into Claude Code's built-in hook system during setup. No extension, no wrapper process — Claude Code itself fires the events.",
@@ -87,11 +86,10 @@ export const AGENTS: Agent[] = [
   {
     slug: "codex",
     name: "Codex CLI",
-    title:
-      "Codex CLI Notifications — Know When Codex Finishes or Needs Approval",
+    title: "Codex CLI Notifier — Desktop, Phone & Approval Alerts",
     description:
-      "Desktop toasts, phone push, and webhooks for OpenAI Codex CLI. anotifier pings you when Codex finishes a task or requests permission — one command to set up.",
-    h1: { pre: "Notifications for ", em: "Codex CLI", post: "." },
+      "anotifier is a free Codex CLI notifier: desktop toasts, phone push, and webhooks when Codex finishes a task or asks for approval. One command to set up.",
+    h1: { pre: "anotifier for ", em: "Codex CLI", post: "." },
     sub: "Codex works quietly in your terminal until it's done — or until it's stuck waiting for you to approve a command. anotifier turns both moments into notifications on your desktop, phone, or team chat.",
     hooksIntro:
       "Setup registers anotifier with Codex CLI's own hook system, so Codex reports its own state changes the instant they happen.",
@@ -129,10 +127,10 @@ export const AGENTS: Agent[] = [
   {
     slug: "cursor",
     name: "Cursor",
-    title: "Cursor Notifications — Get Pinged When Your Cursor Agent Finishes",
+    title: "Cursor Agent Notifier — Desktop, Phone & Slack Alerts",
     description:
-      "Stop watching Cursor work. anotifier sends a desktop toast, phone push, or webhook when your Cursor agent finishes editing — one command setup, no extension required.",
-    h1: { pre: "Notifications for ", em: "Cursor", post: "." },
+      "anotifier is a free Cursor agent notifier: a desktop toast, phone push, or webhook when the agent finishes editing. One-command setup, no extension needed.",
+    h1: { pre: "anotifier for ", em: "Cursor", post: "." },
     sub: "You kick off a Cursor agent, switch to something else, and check back… too late or too often. anotifier watches Cursor's agent lifecycle and tells you the moment the edits are ready to review.",
     hooksIntro:
       "Setup detects Cursor and hooks its agent lifecycle, so the notification fires exactly when the agent stops — not when you happen to look.",
@@ -165,10 +163,10 @@ export const AGENTS: Agent[] = [
   {
     slug: "gemini-cli",
     name: "Gemini CLI",
-    title: "Gemini CLI Notifications — Alerts When Your Gemini Agent Finishes",
+    title: "Gemini CLI Notifier — Desktop, Phone & Webhook Alerts",
     description:
-      "Desktop, phone, and webhook notifications for Google Gemini CLI. anotifier hooks Gemini CLI's agent events and pings you when a run finishes or needs input.",
-    h1: { pre: "Notifications for ", em: "Gemini CLI", post: "." },
+      "anotifier is a free Gemini CLI notifier: it hooks Gemini's agent events and sends a desktop, phone, or webhook alert when a run finishes or needs input.",
+    h1: { pre: "anotifier for ", em: "Gemini CLI", post: "." },
     sub: "Gemini CLI chews through long agentic runs in your terminal. anotifier hooks its agent events so the finish line — or a question that blocks it — reaches you wherever you are.",
     hooksIntro:
       "Setup registers hooks for Gemini CLI's agent lifecycle events, so notifications come from Gemini itself, not from polling.",
@@ -206,7 +204,7 @@ export const AGENTS: Agent[] = [
   {
     slug: "vscode",
     name: "VS Code",
-    title: "AI Agent Notifications in VS Code — Claude Code & Cursor Alerts",
+    title: "VS Code AI Agent Notifier — Claude Code & Cursor Alerts",
     description:
       "Running Claude Code or an AI agent inside VS Code? anotifier pings you when it finishes or needs input, and click-to-focus jumps you back to the right window.",
     h1: { pre: "Agent notifications, in ", em: "VS Code", post: "." },

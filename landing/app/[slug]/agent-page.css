@@ -272,6 +272,15 @@ details .a a {
 .cta {
   margin: 10px 0 0;
 }
+.guide-link {
+  margin-top: 18px;
+  font-size: 14px;
+  color: var(--dim);
+}
+.guide-link a {
+  color: var(--green);
+  text-decoration: underline;
+}
 footer {
   border-top: 1px solid #17181b;
   margin-top: 48px;

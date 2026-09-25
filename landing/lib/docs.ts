@@ -39,7 +39,7 @@ export interface DocFaq {
 
 export const DOCS_TITLE = "anotifier documentation";
 export const DOCS_DESCRIPTION =
-  "Complete anotifier reference: install, setup wizard, every CLI command and config key, agent hook events, notification channels, privacy defaults, troubleshooting.";
+  "Complete anotifier reference: install, setup wizard, every CLI command and config key, agent hook events, channels, privacy defaults, troubleshooting.";
 
 export const DOCS: DocSection[] = [
   {

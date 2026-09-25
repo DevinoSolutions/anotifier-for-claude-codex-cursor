@@ -8,10 +8,9 @@ import "../[slug]/agent-page.css";
 import "../docs/docs.css";
 
 const URL = `${SITE_URL}/guides/`;
-const TITLE =
-  "AI Coding Agent Notification Guides — Claude Code, Codex, Cursor, Gemini CLI";
+const TITLE = "Notification Guides for Claude Code, Codex, Cursor & Gemini";
 const DESCRIPTION =
-  "Step-by-step guides to getting notified when Claude Code, Codex CLI, Cursor, or Gemini CLI finishes or needs input, plus channel setup for Slack, Discord, Telegram, and phone push.";
+  "Step-by-step guides to getting notified when Claude Code, Codex CLI, Cursor, or Gemini CLI finishes, plus Slack, Discord, Telegram, and phone push setup.";
 
 export const metadata: Metadata = {
   title: TITLE,

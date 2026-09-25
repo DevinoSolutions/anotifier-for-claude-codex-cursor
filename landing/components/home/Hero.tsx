@@ -76,31 +76,25 @@ export default function Hero() {
           }}
         >
           Know the moment your{" "}
-          <span className="agentRoll">
+          <span className="srOnly">
+            Claude Code, Codex, Cursor or Gemini CLI
+          </span>
+          <span className="agentRoll" aria-hidden="true">
             <ul>
-              <li>
-                <img
-                  src="/assets/icons/claude.png"
-                  alt="Claude Code"
-                  loading="eager"
-                />
-                Claude
+              <li data-n="Claude">
+                <img src="/assets/icons/claude.png" alt="" loading="eager" />
               </li>
-              <li>
-                <img src="/assets/icons/codex.png" alt="Codex CLI" />
-                Codex
+              <li data-n="Codex">
+                <img src="/assets/icons/codex.png" alt="" />
               </li>
-              <li>
-                <img src="/assets/icons/cursor.png" alt="Cursor" />
-                Cursor
+              <li data-n="Cursor">
+                <img src="/assets/icons/cursor.png" alt="" />
               </li>
-              <li>
-                <img src="/assets/icons/gemini.png" alt="Gemini CLI" />
-                Gemini
+              <li data-n="Gemini">
+                <img src="/assets/icons/gemini.png" alt="" />
               </li>
-              <li aria-hidden="true">
+              <li data-n="Claude">
                 <img src="/assets/icons/claude.png" alt="" />
-                Claude
               </li>
             </ul>
           </span>{" "}

@@ -157,6 +157,13 @@ export default async function AgentPage({
               dangerouslySetInnerHTML={{ __html: agent.extraInstall }}
             />
           )}
+          {guide && (
+            <p className="guide-link">
+              Comparing options first?{" "}
+              <Link href={`/guides/${guide.slug}/`}>{guide.h1}</Link> covers
+              every method, built-in and DIY.
+            </p>
+          )}
         </header>
 
         <section>
@@ -244,25 +251,16 @@ export default async function AgentPage({
               </Link>
             ))}
           </div>
-          {guide && (
-            <p className="cta">
-              Step by step, every method compared:{" "}
-              <Link
-                href={`/guides/${guide.slug}/`}
-                style={{ color: "var(--green)", textDecoration: "underline" }}
-              >
-                {guide.h1}
-              </Link>
-              . Every command and config key is in the{" "}
-              <Link
-                href="/docs/"
-                style={{ color: "var(--green)", textDecoration: "underline" }}
-              >
-                docs
-              </Link>
-              .
-            </p>
-          )}
+          <p className="cta">
+            Every command and config key is in the{" "}
+            <Link
+              href="/docs/"
+              style={{ color: "var(--green)", textDecoration: "underline" }}
+            >
+              docs
+            </Link>
+            .
+          </p>
           <p className="cta">
             Full feature tour, demo video, and install options on the{" "}
             <Link
