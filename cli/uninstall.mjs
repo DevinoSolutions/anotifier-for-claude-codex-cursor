@@ -5,6 +5,7 @@ import path from 'node:path';
 import { getConfigDir } from '../src/config-loader.mjs';
 import { unpatchAll } from '../setup/patch-config.mjs';
 import { execFileSync } from 'node:child_process';
+import { track } from '../src/telemetry.mjs';
 import { c, spinner } from './ui.mjs';
 
 const FOCUS_KEY = 'HKCU\\Software\\Classes\\agentfocus';
@@ -77,6 +78,12 @@ export async function run() {
   console.log(`    ${c.muted('Backups saved to')} ${c.white(backupDir)}`);
   console.log(`    ${c.muted('Config at ~/.anotifier/ preserved — delete manually if desired.')}`);
   console.log();
+
+  // Opt-in usage stats: which tools were unwired, never the failure reasons.
+  await track('uninstall_result', {
+    removed: results.filter((r) => r.ok).map((r) => r.tool),
+    failed: results.filter((r) => !r.ok).map((r) => r.tool),
+  });
 
   if (anyFailed) process.exitCode = 1;
   rl.close();

@@ -27,6 +27,9 @@
   "updateCheck": {
     "enabled": true
   },
+  "telemetry": {
+    "enabled": false
+  },
   "quietHours": {
     "enabled": false,
     "from": "22:00",

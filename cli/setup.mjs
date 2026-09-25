@@ -12,6 +12,7 @@ import { findWslPowerShell } from '../src/platforms/wsl.mjs';
 import { patchClaude, patchCodex, patchCursor, patchGemini } from '../setup/patch-config.mjs';
 import { ask, askYN, log } from './ui.mjs';
 import { DOCS_URL, STAR_LINE, SUPPORT_LINE } from '../src/support.mjs';
+import { telemetryBlockedBy, track } from '../src/telemetry.mjs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -164,39 +165,45 @@ export async function run() {
     // Nothing was set up — fail loud so scripts and users don't read this as success.
     log('\n  No supported AI tools found. Install Claude Code, Codex, Gemini CLI, or Cursor first.', 'red');
     rl.close();
+    // Sent only if this install opted in on an earlier run; nothing was asked yet.
+    await track('setup_failed', { step: 'no_tools' });
     process.exitCode = 1;
     return;
   }
 
   // 3. Toast backend
   log('\n  Installing toast backend...', 'cyan');
+  let toastReady = true;
   if (PLATFORM === 'win32') {
     // Toasts run only through PowerShell 7; without it the BurntToast install
     // below would fail with a message that hides the real cause.
     let hasPwsh = true;
     try { execSync('where pwsh', { stdio: 'pipe' }); } catch { hasPwsh = false; }
     if (!hasPwsh) {
+      toastReady = false;
       log('    ✗ PowerShell 7 (pwsh) not found — Windows toasts need it', 'yellow');
       log('      winget install --id Microsoft.PowerShell --source winget, then re-run: anotifier setup', 'dim');
     } else if (installBurntToast()) log('    ✓ BurntToast module ready', 'green');
-    else log('    ✗ BurntToast install failed — toasts may not work', 'yellow');
+    else { toastReady = false; log('    ✗ BurntToast install failed — toasts may not work', 'yellow'); }
   } else if (PLATFORM === 'darwin') {
     log('    ✓ osascript (built-in)', 'green');
   } else if (PLATFORM === 'wsl') {
     const exe = findWslPowerShell();
     if (exe) log(`    ✓ Windows toast via ${exe} (WSL interop)`, 'green');
-    else log('    ✗ no Windows PowerShell reachable — check [interop] enabled=true in /etc/wsl.conf', 'yellow');
+    else { toastReady = false; log('    ✗ no Windows PowerShell reachable — check [interop] enabled=true in /etc/wsl.conf', 'yellow'); }
   } else {
     try { execSync('which notify-send', { stdio: 'pipe' }); log('    ✓ notify-send available', 'green'); }
-    catch { log('    ✗ notify-send not found — install libnotify for toasts', 'yellow'); }
+    catch { toastReady = false; log('    ✗ notify-send not found — install libnotify for toasts', 'yellow'); }
   }
 
   // 4. Icon
   const configDir = getConfigDir();
   fs.mkdirSync(configDir, { recursive: true });
   const iconPath = path.join(configDir, 'icon.png');
+  let iconReady = true;
   if (!fs.existsSync(iconPath)) {
     const ok = await downloadIcon(iconPath);
+    iconReady = ok;
     if (ok) log('    ✓ Notification icon downloaded', 'green');
     else log('    ✗ Icon download failed (toasts will use default icon)', 'yellow');
   }
@@ -227,6 +234,13 @@ export async function run() {
     config.ntfy.enabled = false;
   }
 
+  // 6b. Anonymous usage stats — opt-in, default Yes, asked here and nowhere
+  // else. Where DO_NOT_TRACK, ANOTIFIER_TELEMETRY=0 or CI rule it out anyway
+  // the question is skipped and the stored choice left alone.
+  if (!telemetryBlockedBy()) {
+    config.telemetry.enabled = await askYN(rl, 'Share anonymous usage stats to help improve anotifier? (never message text, paths or topics)', true);
+  }
+
   saveConfig(config, getConfigPath());
   log('    ✓ Config saved', 'green');
 
@@ -249,7 +263,7 @@ export async function run() {
       log(`    ✓ ${tool.label}`, 'green');
     } catch (err) {
       log(`    ✗ ${tool.label}: ${err.message}`, 'red');
-      failures.push({ tool: tool.label, reason: err.message });
+      failures.push({ tool: tool.label, name: tool.name, reason: err.message });
     }
   }
 
@@ -258,6 +272,11 @@ export async function run() {
     for (const f of failures) log(`    ✗ ${f.tool}: ${f.reason}`, 'red');
     log('    Fix the errors above and re-run setup.', 'yellow');
     rl.close();
+    await track('setup_failed', {
+      step: 'patch',
+      tools_detected: tools.map((t) => t.name),
+      failed_tools: failures.map((f) => f.name),
+    }, { config });
     process.exitCode = 1;
     return;
   }
@@ -285,4 +304,11 @@ export async function run() {
   log(`    ${SUPPORT_LINE}\n`, 'dim');
 
   rl.close();
+  await track('setup_completed', {
+    tools_detected: tools.map((t) => t.name),
+    toast_backend_ready: toastReady,
+    icon_ready: iconReady,
+    config_rebuilt: Boolean(problem),
+    ntfy_enabled: config.ntfy.enabled,
+  }, { config });
 }

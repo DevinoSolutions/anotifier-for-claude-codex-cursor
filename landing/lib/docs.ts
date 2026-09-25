@@ -672,7 +672,29 @@ export const DOCS: DocSection[] = [
           "Hook processes always exit 0 and always return the JSON the agent expects, even after an internal error.",
           "`anotifier status` lists the last 8 hook errors with timestamp and context, and points at the log file.",
           "`anotifier doctor` runs static checks per channel; `doctor --deep` sends a real marker notification and reads it back from Notification Center (macOS) or dunst history (Linux). Windows gets a static PowerShell + BurntToast + execution-policy check.",
-          "Opt-in Sentry mirroring (`sentry.enabled` + `sentry.dsn`) sends error events only, through a built-in zero-dependency client. No SDK is bundled and no telemetry is collected.",
+          "Opt-in Sentry mirroring (`sentry.enabled` + `sentry.dsn`) sends error events only, through a built-in zero-dependency client. No SDK is bundled.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "usage-stats",
+    title: "Does anotifier collect usage stats?",
+    lead: "Only if you say yes. Versions after 1.2.6 ask once during anotifier setup (default Yes); 1.2.6 and earlier send nothing, and a plugin-only install never runs setup, so it never sends any.",
+    blocks: [
+      {
+        kind: "code",
+        lang: "bash",
+        code: "anotifier telemetry        # on/off, plus the exact counts waiting to be sent\nanotifier telemetry off    # stop, and delete the install id and pending counts\nanotifier telemetry on",
+      },
+      {
+        kind: "ul",
+        items: [
+          "Events go to a self-hosted PostHog at `posthog.devino.ca`, keyed by a random install id in `~/.anotifier/.telemetry.json`.",
+          "CLI commands report the command, exit code and duration. `setup` also reports the agents it found and whether it finished; `test`, `doctor` and `uninstall` report each channel's or tool's result.",
+          "Hook runs are counted locally and sent as one summary a day: delivered or failed per agent, event and channel, why a notification was skipped, a latency bucket, and which features are on.",
+          "Never sent: message text, project names, file paths, ntfy topics or servers, webhook URLs, hostnames, error messages, or any argument you typed.",
+          "`DO_NOT_TRACK=1`, `ANOTIFIER_TELEMETRY=0`, or a CI environment turns it off regardless of the setting.",
         ],
       },
     ],
@@ -743,6 +765,6 @@ export const DOCS_FAQ: DocFaq[] = [
   },
   {
     q: "Is anotifier free?",
-    a: "Yes. It is open source under AGPL-3.0 with no paid tier, no account, and no telemetry. Sponsorship is welcome but never required.",
+    a: "Yes. It is open source under AGPL-3.0 with no paid tier and no account. Usage stats are opt-in and never include message text, paths or topics. Sponsorship is welcome but never required.",
   },
 ];

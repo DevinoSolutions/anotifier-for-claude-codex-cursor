@@ -22,6 +22,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
   anotifier"). It appears only there — not in `status`, `--help`, `doctor`, the
   hook path, or any notification. The URL comes from package.json
   `repository.url`.
+- **Opt-in anonymous usage stats.** `anotifier setup` asks once whether to
+  share them (default Yes); `anotifier telemetry [on|off]` shows or changes the
+  choice, and `anotifier telemetry` prints the exact counts waiting to be sent.
+  CLI commands send their name, exit code, duration and per-channel results.
+  Hook runs are only counted locally and sent as one summary a day: outcomes per
+  agent, event and channel, skip reasons, a latency bucket, and which features
+  are on. Message text, project names, paths, ntfy topics and servers, webhook
+  URLs, hostnames and error messages are never sent. The stats go to a
+  self-hosted PostHog, keyed by a random install id. Off by default in
+  `config.json` (so plugin-only installs send nothing), and forced off by
+  `DO_NOT_TRACK=1`, `ANOTIFIER_TELEMETRY=0` or CI. `telemetry off` also
+  deletes the install id and any pending counts.
 
 ### Fixed
 - **WSL is reported as WSL.** `anotifier setup`, `status` and `doctor` described
