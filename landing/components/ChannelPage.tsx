@@ -5,6 +5,8 @@ import { AGENTS } from "@/lib/agents";
 import { CHANNELS, getChannel } from "@/lib/channels";
 import LogoMark from "@/components/LogoMark";
 import StarButton from "@/components/StarButton";
+import CopyButton from "@/components/home/CopyButton";
+import { INSTALL_CMD } from "@/lib/site";
 
 function stripTags(html: string): string {
   return html.replace(/<[^>]+>/g, "");
@@ -25,13 +27,11 @@ export function buildChannelMetadata(slug: string): Metadata {
       url,
       title: channel.title,
       description: channel.description,
-      images: [{ url: "/og.png?v=3", width: 1200, height: 630 }],
     },
     twitter: {
       card: "summary_large_image",
       title: channel.title,
       description: channel.description,
-      images: ["/og.png?v=3"],
     },
   };
 }
@@ -91,7 +91,11 @@ export default function ChannelPage({ slug }: { slug: string }) {
 
       <nav>
         <div className="wrap">
-          <Link href="/" style={{ display: "inline-flex" }}>
+          <Link
+            href="/"
+            aria-label="anotifier home"
+            style={{ display: "inline-flex" }}
+          >
             <LogoMark size={28} />
           </Link>
           <Link href="/" className="brand">
@@ -119,7 +123,8 @@ export default function ChannelPage({ slug }: { slug: string }) {
           </div>
           <p className="sub">{channel.sub}</p>
           <div className="install">
-            <span className="d">$</span> npx anotifier@latest setup
+            <span className="d">$</span> {INSTALL_CMD}
+            <CopyButton text={INSTALL_CMD} placement="channel_hero" />
           </div>
         </header>
 
@@ -156,22 +161,30 @@ export default function ChannelPage({ slug }: { slug: string }) {
             </code>
             . Drop this in and every supported agent uses it.
           </p>
-          <pre
-            style={{
-              background: "#0d0d0d",
-              border: "1px solid #242728",
-              borderRadius: "10px",
-              padding: "16px 18px",
-              fontFamily: "var(--font-mono-stack)",
-              fontSize: "13px",
-              lineHeight: 1.7,
-              color: "var(--ink)",
-              overflowX: "auto",
-              margin: "18px 0 0",
-            }}
-          >
-            <code>{channel.config}</code>
-          </pre>
+          <div className="codeBlock" style={{ margin: "18px 0 0" }}>
+            <pre
+              style={{
+                background: "#0d0d0d",
+                border: "1px solid #242728",
+                borderRadius: "10px",
+                paddingLeft: "18px",
+                paddingRight: "18px",
+                paddingBottom: "16px",
+                fontFamily: "var(--font-mono-stack)",
+                fontSize: "13px",
+                lineHeight: 1.7,
+                color: "var(--ink)",
+                overflowX: "auto",
+              }}
+            >
+              <code>{channel.config}</code>
+            </pre>
+            <CopyButton
+              text={channel.config}
+              placement="channel_config"
+              block
+            />
+          </div>
           {channel.kind === "webhook" && (
             <p className="alt-install">
               Need auth? Add{" "}

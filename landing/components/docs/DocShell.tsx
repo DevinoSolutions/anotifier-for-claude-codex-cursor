@@ -20,7 +20,11 @@ export default function DocShell({
     <>
       <nav>
         <div className="wrap">
-          <Link href="/" style={{ display: "inline-flex" }}>
+          <Link
+            href="/"
+            aria-label="anotifier home"
+            style={{ display: "inline-flex" }}
+          >
             <LogoMark size={28} />
           </Link>
           <Link href="/" className="brand">

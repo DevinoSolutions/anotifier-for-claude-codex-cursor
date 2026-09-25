@@ -3,6 +3,7 @@ import Link from "next/link";
 import Blocks from "@/components/docs/Blocks";
 import DocShell from "@/components/docs/DocShell";
 import Inline from "@/components/docs/Inline";
+import CopyButton from "@/components/home/CopyButton";
 import { DOCS, DOCS_DESCRIPTION, DOCS_FAQ, DOCS_TITLE } from "@/lib/docs";
 import {
   CONTENT_UPDATED,
@@ -27,13 +28,11 @@ export const metadata: Metadata = {
     url: URL,
     title: DOCS_TITLE,
     description: DOCS_DESCRIPTION,
-    images: [{ url: "/og.png?v=3", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: DOCS_TITLE,
     description: DOCS_DESCRIPTION,
-    images: ["/og.png?v=3"],
   },
 };
 
@@ -107,6 +106,7 @@ export default function DocsPage() {
         </p>
         <div className="install">
           <span className="d">$</span> {INSTALL_CMD}
+          <CopyButton text={INSTALL_CMD} placement="docs_hero" />
         </div>
         <p className="docMeta">
           Updated {CONTENT_UPDATED} for v{VERSION} ·{" "}

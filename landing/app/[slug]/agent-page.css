@@ -99,6 +99,7 @@ h1 em {
 }
 .install {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 14px;
   background: #0d0d0d;
@@ -111,6 +112,46 @@ h1 em {
 }
 .install .d {
   color: var(--green);
+}
+
+/* Code block with a copy button (components/docs/CodeBlock.tsx). The language
+   label moves to the left of a header strip so the button never covers code. */
+div.codeBlock {
+  position: relative;
+  margin: 16px 0;
+}
+div.codeBlock > pre {
+  margin: 0;
+  padding-top: 38px;
+}
+div.codeBlock > pre[data-lang]::before {
+  top: 13px;
+  left: 18px;
+  right: auto;
+}
+.codeCopy {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  background: #101111;
+  border: 1px solid #242728;
+  border-radius: 6px;
+  color: #9c9c9d;
+  font-family: var(--font-mono-stack);
+  font-size: 11px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.codeCopy:hover,
+.codeCopy:focus-visible {
+  color: #ffffff;
+  border-color: #3a3d40;
+}
+.codeCopy.copied {
+  color: var(--green);
+}
+.codeCopy.failed {
+  color: #ff6157;
 }
 .alt-install {
   margin-top: 14px;
@@ -298,6 +339,11 @@ footer .wrap {
 }
 footer a {
   color: var(--dim);
+}
+/* the credit link sits inside a sentence, so colour alone doesn't mark it */
+footer .wrap > div:first-child a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* Narrow viewports. Desktop (>= 901px) is untouched by everything below. */

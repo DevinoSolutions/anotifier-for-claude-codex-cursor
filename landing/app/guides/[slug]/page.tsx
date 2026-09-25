@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Blocks from "@/components/docs/Blocks";
+import CodeBlock from "@/components/docs/CodeBlock";
 import DocShell from "@/components/docs/DocShell";
 import Inline from "@/components/docs/Inline";
 import { GUIDES, getGuide } from "@/lib/guides";
@@ -40,13 +41,11 @@ export async function generateMetadata({
       url,
       title: guide.title,
       description: guide.description,
-      images: [{ url: "/og.png?v=3", width: 1200, height: 630 }],
     },
     twitter: {
       card: "summary_large_image",
       title: guide.title,
       description: guide.description,
-      images: ["/og.png?v=3"],
     },
   };
 }
@@ -62,6 +61,7 @@ export default async function GuidePage({
 
   const url = `${SITE_URL}/guides/${guide.slug}/`;
   const others = GUIDES.filter((g) => g.slug !== guide.slug);
+  const isAgent = guide.kind === "agent";
 
   const jsonLd = [
     {
@@ -79,7 +79,10 @@ export default async function GuidePage({
         url: "https://github.com/DevinoSolutions",
       },
       publisher: { "@id": `${SITE_URL}/#org` },
-      about: { "@type": "SoftwareApplication", name: guide.agentName },
+      about: {
+        "@type": "SoftwareApplication",
+        name: isAgent ? guide.name : "anotifier",
+      },
     },
     {
       "@context": "https://schema.org",
@@ -106,7 +109,7 @@ export default async function GuidePage({
           name: "Guides",
           item: `${SITE_URL}/guides/`,
         },
-        { "@type": "ListItem", position: 3, name: guide.agentName, item: url },
+        { "@type": "ListItem", position: 3, name: guide.name, item: url },
       ],
     },
   ];
@@ -118,26 +121,32 @@ export default async function GuidePage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <header style={{ paddingTop: "28px" }}>
-        <div className="kicker">
-          [ GUIDE · {guide.agentName.toUpperCase()} ]
-        </div>
+        <div className="kicker">[ GUIDE · {guide.name.toUpperCase()} ]</div>
         <div className="hero-row">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={guide.icon}
-            alt={`${guide.agentName} logo`}
-            width={56}
-            height={56}
-          />
+          {guide.icon && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={guide.icon}
+              alt={`${guide.name} logo`}
+              width={56}
+              height={56}
+            />
+          )}
           <h1>{guide.h1}</h1>
         </div>
         <p className="sub">
           <Inline text={guide.intro} />
         </p>
         <p className="docMeta">
-          Updated {CONTENT_UPDATED} · also see the{" "}
-          <Link href={`/${guide.agentSlug}/`}>{guide.agentName} overview</Link>{" "}
-          and the <Link href="/docs/">full docs</Link>
+          Updated {CONTENT_UPDATED} · also see{" "}
+          {guide.agentSlug && (
+            <>
+              the{" "}
+              <Link href={`/${guide.agentSlug}/`}>{guide.name} overview</Link>{" "}
+              and{" "}
+            </>
+          )}
+          the <Link href="/docs/">full docs</Link>
         </p>
       </header>
 
@@ -160,12 +169,16 @@ export default async function GuidePage({
           {guide.sections.map((s) => (
             <section key={s.id} id={s.id}>
               <h2>{s.title}</h2>
-              <Blocks blocks={s.blocks} />
+              <Blocks blocks={s.blocks} placement="guide" />
             </section>
           ))}
 
           <section id="faq" className="faq">
-            <h2>{guide.agentName} notification questions</h2>
+            <h2>
+              {isAgent
+                ? `${guide.name} notification questions`
+                : `${guide.name}: common questions`}
+            </h2>
             {guide.faqs.map((f) => (
               <details key={f.q}>
                 <summary>{f.q}</summary>
@@ -179,12 +192,11 @@ export default async function GuidePage({
           <section id="next">
             <h2>Try it</h2>
             <p className="lead">
-              One command wires {guide.agentName} and every other agent you have
-              installed.
+              {isAgent
+                ? `One command wires ${guide.name} and every other agent you have installed.`
+                : "One command wires every agent you have installed: Claude Code, Codex CLI, Cursor, and Gemini CLI."}
             </p>
-            <pre data-lang="bash">
-              <code>{INSTALL_CMD}</code>
-            </pre>
+            <CodeBlock code={INSTALL_CMD} lang="bash" placement="guide" />
             <div className="docCtaRow">
               <Link href="/docs/" className="primary">
                 Read the docs
@@ -200,9 +212,11 @@ export default async function GuidePage({
             <div className="others">
               {others.map((o) => (
                 <Link href={`/guides/${o.slug}/`} key={o.slug}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={o.icon} alt="" width={20} height={20} />
-                  {o.agentName}
+                  {o.icon && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={o.icon} alt="" width={20} height={20} />
+                  )}
+                  {o.name}
                 </Link>
               ))}
             </div>

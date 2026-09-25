@@ -135,11 +135,19 @@ a:focus-visible {
 .starBtn:hover {
   border-color: #4a4d52;
 }
-/* Small phones: the nav pill keeps the star and the count, drops the word, and
-   the docs nav drops Compare (still linked from the footer) so the pill fits. */
+/* Small phones: the nav pill keeps the star and the count, hides the word
+   (visually only, so it stays in the link's accessible name), and the docs nav
+   drops Compare (still linked from the footer) so the pill fits. */
 @media (max-width: 420px) {
-  .navStar .starLabel,
   .navOptional {
     display: none;
+  }
+  .navStar .starLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 }

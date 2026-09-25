@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import DocShell from "@/components/docs/DocShell";
-import { GUIDES } from "@/lib/guides";
+import { GUIDES, GUIDES_DESCRIPTION, GUIDES_TITLE } from "@/lib/guides";
 import { CHANNELS } from "@/lib/channels";
 import { SITE_URL } from "@/lib/site";
 import "../[slug]/agent-page.css";
 import "../docs/docs.css";
 
 const URL = `${SITE_URL}/guides/`;
-const TITLE = "Notification Guides for Claude Code, Codex, Cursor & Gemini";
-const DESCRIPTION =
-  "Step-by-step guides to getting notified when Claude Code, Codex CLI, Cursor, or Gemini CLI finishes, plus Slack, Discord, Telegram, and phone push setup.";
+const TITLE = GUIDES_TITLE;
+const DESCRIPTION = GUIDES_DESCRIPTION;
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -22,13 +21,11 @@ export const metadata: Metadata = {
     url: URL,
     title: TITLE,
     description: DESCRIPTION,
-    images: [{ url: "/og.png?v=3", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: TITLE,
     description: DESCRIPTION,
-    images: ["/og.png?v=3"],
   },
 };
 
@@ -74,8 +71,9 @@ export default function GuidesIndex() {
         </h1>
         <p className="sub">
           Every way to do it, per agent: the built-in option, a hook you write
-          yourself, a phone push over ntfy, and the one-command setup. Honest
-          about what each gives you.
+          yourself, a phone push over ntfy, and the one-command setup. Plus
+          per-platform setup, how the hooks work, and what to check when a
+          notification doesn&apos;t arrive.
         </p>
       </header>
 
@@ -83,7 +81,7 @@ export default function GuidesIndex() {
         <section>
           <h2>By agent</h2>
           <div className="cmpGrid">
-            {GUIDES.map((g) => (
+            {GUIDES.filter((g) => g.kind === "agent").map((g) => (
               <Link
                 key={g.slug}
                 href={`/guides/${g.slug}/`}
@@ -106,8 +104,25 @@ export default function GuidesIndex() {
                     height={28}
                     style={{ borderRadius: "7px" }}
                   />
-                  <h3 style={{ margin: 0 }}>{g.agentName}</h3>
+                  <h3 style={{ margin: 0 }}>{g.name}</h3>
                 </div>
+                <p style={{ margin: 0, color: "var(--dim)" }}>{g.h1}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h2>By platform and topic</h2>
+          <div className="cmpGrid">
+            {GUIDES.filter((g) => g.kind === "topic").map((g) => (
+              <Link
+                key={g.slug}
+                href={`/guides/${g.slug}/`}
+                className="cmpCard"
+                style={{ textDecoration: "none", color: "inherit" }}
+              >
+                <h3 style={{ margin: "0 0 8px" }}>{g.name}</h3>
                 <p style={{ margin: 0, color: "var(--dim)" }}>{g.h1}</p>
               </Link>
             ))}

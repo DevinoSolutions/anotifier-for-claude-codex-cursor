@@ -137,9 +137,9 @@ export default function Hero() {
             <span style={{ color: "#f4f4f6", whiteSpace: "nowrap" }}>
               npx anotifier@latest setup
             </span>
-            <CopyButton text="npx anotifier@latest setup" />
+            <CopyButton text="npx anotifier@latest setup" placement="hero" />
           </div>
-          <StarButton />
+          <StarButton placement="hero" />
         </div>
         <div
           style={{

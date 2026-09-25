@@ -192,3 +192,8 @@ export const ALTERNATIVES: Alternative[] = [
     ],
   },
 ];
+
+export const COMPARE_TITLE =
+  "anotifier vs code-notify, agent-notify, Pushary & DIY Hooks";
+export const COMPARE_DESCRIPTION =
+  "anotifier, code-notify, agent-notify, claude-ntfy-hook, Pushary, AI Done Now and DIY hooks compared: agents, channels, platforms, remote approval, price.";
