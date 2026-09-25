@@ -2,7 +2,7 @@
 // the hook path, the CLI test command, and the demo script.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveToastBackend } from '../src/platforms/index.mjs';
+import { resolveToastBackend, toastPlatform } from '../src/platforms/index.mjs';
 
 describe('resolveToastBackend', () => {
   it('maps each platform to its real backend module', async () => {
@@ -24,5 +24,15 @@ describe('resolveToastBackend', () => {
   it('treats unknown platforms as linux (notify-send is the portable fallback)', async () => {
     const fallback = await resolveToastBackend('freebsd');
     assert.equal(fallback, (await import('../src/platforms/linux.mjs')).sendToast);
+  });
+});
+
+describe('toastPlatform', () => {
+  it('names WSL as its own platform so setup/status/doctor stop describing notify-send', () => {
+    assert.equal(toastPlatform('linux', { isWsl: () => true }), 'wsl');
+    assert.equal(toastPlatform('linux', { isWsl: () => false }), 'linux');
+    assert.equal(toastPlatform('win32', { isWsl: () => true }), 'win32');
+    assert.equal(toastPlatform('darwin', { isWsl: () => true }), 'darwin');
+    assert.equal(toastPlatform('freebsd', { isWsl: () => false }), 'linux');
   });
 });

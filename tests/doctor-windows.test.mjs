@@ -14,7 +14,7 @@ test('fails when no PowerShell is present', () => {
   const r = windowsToastBackendCheck({ hasBin: absent, psRun: okProbe });
   assert.equal(r.id, 'toast-backend');
   assert.equal(r.status, 'fail');
-  assert.match(r.detail, /PowerShell not found/);
+  assert.match(r.detail, /PowerShell 7 \(pwsh\) not found/);
   assert.ok(r.hint);
 });
 
@@ -24,10 +24,14 @@ test('ok when pwsh + BurntToast present and no blocking policy', () => {
   assert.match(r.detail, /pwsh \+ BurntToast/);
 });
 
-test('falls back to powershell when pwsh absent', () => {
-  const r = windowsToastBackendCheck({ hasBin: (b) => b === 'powershell', psRun: okProbe });
-  assert.equal(r.status, 'ok');
-  assert.match(r.detail, /powershell \+ BurntToast/);
+// windows.mjs spawns only pwsh, so 5.1 alone must not read as healthy.
+test('fails when only Windows PowerShell 5.1 is present', () => {
+  let probed = false;
+  const r = windowsToastBackendCheck({ hasBin: (b) => b === 'powershell', psRun: () => { probed = true; return okProbe(); } });
+  assert.equal(r.status, 'fail');
+  assert.match(r.detail, /only Windows PowerShell 5\.1 found/);
+  assert.match(r.hint, /winget install --id Microsoft\.PowerShell/);
+  assert.equal(probed, false, 'no point probing BurntToast through a shell the toast never uses');
 });
 
 test('warns when BurntToast module is not installed', () => {

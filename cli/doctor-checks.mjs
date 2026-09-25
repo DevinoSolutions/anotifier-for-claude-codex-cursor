@@ -4,6 +4,8 @@
 import os from 'node:os';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { notificationAuthState, verifyDelivery, ncDbPath } from '../src/platforms/macos-delivery.mjs';
+import { toastPlatform } from '../src/platforms/index.mjs';
+import { findWslPowerShell } from '../src/platforms/wsl.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -14,6 +16,7 @@ export const CHECK_IDS = {
   darwin: ['toast-backend', 'toast-auth', 'bell', 'ntfy-config', 'webhook-config', 'config', 'focus'],
   win32: ['toast-backend', 'bell', 'ntfy-config', 'webhook-config', 'config'],
   linux: ['toast-backend', 'bell', 'ntfy-config', 'webhook-config', 'config'],
+  wsl: ['toast-backend', 'bell', 'ntfy-config', 'webhook-config', 'config'],
   default: ['toast-backend', 'bell', 'ntfy-config', 'webhook-config', 'config'],
 };
 
@@ -22,8 +25,34 @@ function has(bin) {
   catch { return false; }
 }
 
-function toastBackendCheck() {
-  const p = os.platform();
+// WSL toasts go through Windows interop (src/platforms/wsl.mjs), not notify-send:
+// what has to exist is wslpath (to hand the script to Windows) and one of the
+// PowerShell executables the backend probes. Nothing is fired here; `--deep` has
+// no WSL read-back, so `anotifier test toast` stays the real delivery check.
+export function wslToastBackendCheck({ hasBin = has, findPowerShell = findWslPowerShell } = {}) {
+  if (!hasBin('wslpath')) {
+    return {
+      id: 'toast-backend', channel: 'toast', status: 'fail',
+      detail: 'WSL detected but wslpath is missing, so the toast script cannot be handed to Windows',
+      hint: 'run anotifier inside a WSL distribution (wslpath ships with WSL)',
+    };
+  }
+  const exe = findPowerShell();
+  if (!exe) {
+    return {
+      id: 'toast-backend', channel: 'toast', status: 'fail',
+      detail: 'WSL detected but no Windows PowerShell is reachable (checked /mnt/c and PATH)',
+      hint: 'make sure Windows interop is enabled ([interop] enabled=true in /etc/wsl.conf) and C: is mounted at /mnt/c',
+    };
+  }
+  return {
+    id: 'toast-backend', channel: 'toast', status: 'ok',
+    detail: `WSL: Windows toast via ${exe}`,
+    hint: 'confirm delivery with: anotifier test toast',
+  };
+}
+
+function toastBackendCheck(p) {
   if (p === 'darwin') {
     return has('osascript')
       ? { id: 'toast-backend', channel: 'toast', status: 'ok', detail: 'osascript present' }
@@ -48,14 +77,19 @@ function toastBackendCheck() {
 const BLOCKING_POLICIES = new Set(['Restricted', 'AllSigned']);
 
 export function windowsToastBackendCheck({ hasBin = has, psRun = defaultPsRun } = {}) {
-  const shell = hasBin('pwsh') ? 'pwsh' : hasBin('powershell') ? 'powershell' : null;
-  if (!shell) {
+  // The toast is always spawned as `pwsh` (src/platforms/windows.mjs), so
+  // Windows PowerShell 5.1 on its own cannot deliver one — it must not pass.
+  if (!hasBin('pwsh')) {
+    const only51 = hasBin('powershell');
     return {
       id: 'toast-backend', channel: 'toast', status: 'fail',
-      detail: 'PowerShell not found (pwsh/powershell) — Windows toasts cannot fire',
-      hint: 'install PowerShell 7: https://aka.ms/powershell',
+      detail: only51
+        ? 'only Windows PowerShell 5.1 found; toasts run through PowerShell 7 (pwsh)'
+        : 'PowerShell 7 (pwsh) not found; Windows toasts cannot fire',
+      hint: 'winget install --id Microsoft.PowerShell --source winget, then run: anotifier setup',
     };
   }
+  const shell = 'pwsh';
 
   let probe;
   try { probe = psRun(shell); }
@@ -248,14 +282,15 @@ export async function linuxDeepToastCheck({
 
 // Run all platform-appropriate checks. `strict` (AAN_DOCTOR_STRICT=1) turns
 // deep-mode warns into fails so CI can gate on the product diagnostic.
-export async function runChecks({ config, configProblem = null, deep = false, strict = false }) {
-  const p = os.platform();
+// `p` is the toast platform (win32 | darwin | wsl | linux), injectable for tests.
+export async function runChecks({ config, configProblem = null, deep = false, strict = false, platform: p = toastPlatform() }) {
   const results = [];
-  if (p === 'win32') {
-    try { results.push(windowsToastBackendCheck()); }
+  if (p === 'win32' || p === 'wsl') {
+    const check = p === 'win32' ? windowsToastBackendCheck : wslToastBackendCheck;
+    try { results.push(check()); }
     catch (err) { results.push({ id: 'toast-backend', channel: 'toast', status: 'warn', detail: `backend check errored: ${err.message}` }); }
   } else {
-    results.push(toastBackendCheck());
+    results.push(toastBackendCheck(p));
   }
   if (p === 'darwin') {
     try { results.push(await toastAuthCheck(deep, strict)); }
@@ -271,8 +306,8 @@ export async function runChecks({ config, configProblem = null, deep = false, st
       results.push({ id: 'toast-deep', channel: 'toast', status: 'warn', detail: `deep probe errored: ${err.message}` });
     }
   } else if (deep) {
-    // win32 (and any other non-darwin, non-linux platform): no deep probe exists;
-    // it would otherwise silently no-op, so say so explicitly.
+    // win32 and wsl: no deep probe exists; it would otherwise silently no-op,
+    // so say so explicitly.
     results.push({ id: 'deep-probe', channel: 'toast', status: 'info', detail: `deep verification not available on ${p} (static checks only)` });
   }
   results.push(bellCheck(), ntfyCheck(config), webhookCheck(config), configCheck(config, configProblem));

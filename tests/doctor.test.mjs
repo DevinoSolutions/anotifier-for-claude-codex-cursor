@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
-import { runChecks, CHECK_IDS, linuxDeepToastCheck } from '../cli/doctor-checks.mjs';
+import { runChecks, CHECK_IDS, linuxDeepToastCheck, wslToastBackendCheck } from '../cli/doctor-checks.mjs';
 
 test('runChecks returns one result per known check id, all well-formed', async () => {
   const results = await runChecks({ config: baseConfig(), deep: false });
@@ -45,6 +45,42 @@ test('deep on a platform with no deep probe reports it explicitly (never silentl
   assert.ok(probe, 'a deep-probe row must be present when --deep is unavailable');
   assert.equal(probe.status, 'info');
   assert.match(probe.detail, /deep verification not available/);
+});
+
+// WSL is Linux to os.platform() but toasts through Windows, so doctor must not
+// run the notify-send check or the dunst deep probe there.
+test('runChecks on WSL checks the interop toast path, not notify-send', async () => {
+  const results = await runChecks({ config: baseConfig(), deep: true, platform: 'wsl' });
+  const ids = results.map((r) => r.id);
+  for (const id of CHECK_IDS.wsl) assert.ok(ids.includes(id), `missing check ${id}`);
+  const backend = results.find((r) => r.id === 'toast-backend');
+  assert.doesNotMatch(backend.detail, /notify-send/);
+  assert.match(backend.detail, /WSL/);
+  const probe = results.find((r) => r.id === 'deep-probe');
+  assert.equal(probe.status, 'info');
+  assert.match(probe.detail, /deep verification not available on wsl/);
+});
+
+test('wslToastBackendCheck: ok names the PowerShell it will use', () => {
+  const r = wslToastBackendCheck({ hasBin: () => true, findPowerShell: () => 'powershell.exe' });
+  assert.equal(r.status, 'ok');
+  assert.match(r.detail, /Windows toast via powershell\.exe/);
+  assert.match(r.hint, /anotifier test toast/);
+});
+
+test('wslToastBackendCheck: fails without wslpath, before looking for PowerShell', () => {
+  let looked = false;
+  const r = wslToastBackendCheck({ hasBin: () => false, findPowerShell: () => { looked = true; return 'pwsh.exe'; } });
+  assert.equal(r.status, 'fail');
+  assert.match(r.detail, /wslpath is missing/);
+  assert.equal(looked, false);
+});
+
+test('wslToastBackendCheck: fails with an interop hint when no PowerShell is reachable', () => {
+  const r = wslToastBackendCheck({ hasBin: () => true, findPowerShell: () => null });
+  assert.equal(r.status, 'fail');
+  assert.match(r.detail, /no Windows PowerShell is reachable/);
+  assert.match(r.hint, /\[interop\] enabled=true/);
 });
 
 // The Linux --deep probe is deps-injected so these run on any OS (incl. Windows CI).

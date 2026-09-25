@@ -4,11 +4,12 @@
 // PowerShell across the /mnt/c boundary. Detection and delivery are both
 // best-effort: every probe is guarded and any failure resolves to "unavailable"
 // rather than throwing into the hook path.
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import fs from 'node:fs';
+import { logHookError } from '../error-log.mjs';
 
 // --- Detection -------------------------------------------------------------
 
@@ -96,6 +97,7 @@ function toWindowsPath(linuxPath) {
   });
 }
 
+// Resolves { ok, err, stderr } so a total failure can say why in errors.log.
 function runToast(exe, winPath, title, message) {
   return new Promise((resolve) => {
     try {
@@ -106,31 +108,62 @@ function runToast(exe, winPath, title, message) {
         '-WindowStyle', 'Hidden', '-File', winPath,
         '-Title', title, '-Message', message,
       ];
-      execFile(exe, args, { timeout: TOAST_TIMEOUT_MS }, (err) => resolve(!err));
-    } catch {
-      resolve(false);
+      execFile(exe, args, { timeout: TOAST_TIMEOUT_MS }, (err, stdout, stderr) => {
+        resolve({ ok: !err, err, stderr: String(stderr || '').slice(0, 400) });
+      });
+    } catch (err) {
+      resolve({ ok: false, err, stderr: '' });
     }
   });
 }
 
-export async function sendToast(notification) {
+// `log` is injectable so tests can assert the failure record without writing
+// to the real ~/.anotifier/errors.log.
+export async function sendToast(notification, { log = logHookError } = {}) {
   const title = String(notification?.title ?? '');
   const message = String(notification?.message ?? '');
 
   // The script path is constant; translate once to its \\wsl.localhost\... UNC.
   if (!cachedWinPath) cachedWinPath = await toWindowsPath(TOAST_SCRIPT);
-  if (!cachedWinPath) return false;
+  if (!cachedWinPath) {
+    log('toast:wsl', new Error('wslpath could not translate the toast script path'), { script: TOAST_SCRIPT });
+    return false;
+  }
 
-  if (cachedExe) return runToast(cachedExe, cachedWinPath, title, message);
+  if (cachedExe) {
+    const r = await runToast(cachedExe, cachedWinPath, title, message);
+    if (!r.ok) log('toast:wsl', r.err, { exe: cachedExe, stderr: r.stderr });
+    return r.ok;
+  }
 
   // First send: walk the probe chain and cache the first exe that fires. A
-  // missing exe or disabled interop just errors (ENOENT/timeout) — we move on and
-  // ultimately resolve false without trying to diagnose.
+  // missing exe or disabled interop just errors (ENOENT/timeout); we move on,
+  // and only when every candidate failed is one error logged, naming each.
+  const tried = [];
   for (const exe of EXE_CANDIDATES) {
-    if (await runToast(exe, cachedWinPath, title, message)) {
+    const r = await runToast(exe, cachedWinPath, title, message);
+    if (r.ok) {
       cachedExe = exe;
       return true;
     }
+    tried.push({ exe, error: (r.err && (r.err.code || r.err.message)) || 'failed', stderr: r.stderr || undefined });
   }
+  log('toast:wsl', new Error('no Windows PowerShell reachable through WSL interop'), { tried });
   return false;
+}
+
+// For `anotifier doctor` and setup: the first PowerShell the toast path would
+// try that exists, without firing anything. Absolute /mnt/c paths are checked on
+// disk; bare names are looked up on PATH (interop appends the Windows PATH).
+export function findWslPowerShell({ existsSync = fs.existsSync, onPath = whichSync } = {}) {
+  for (const exe of EXE_CANDIDATES) {
+    const found = exe.startsWith('/') ? existsGuarded(existsSync, exe) : onPath(exe);
+    if (found) return exe;
+  }
+  return null;
+}
+
+function whichSync(bin) {
+  try { execFileSync('which', [bin], { stdio: 'ignore', timeout: 5000 }); return true; }
+  catch { return false; }
 }

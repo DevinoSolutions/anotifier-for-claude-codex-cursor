@@ -369,9 +369,9 @@ Hook fires (stdin JSON + --source flag)
 ### Windows
 
 - [BurntToast](https://github.com/Windos/BurntToast) PowerShell module for rich toast notifications
-- Click-to-focus via custom `agentfocus://` URI protocol
+- Click-to-focus via custom `agentfocus://` URI protocol (registered under HKCU on the first toast; `anotifier uninstall` removes it)
 - BurntToast auto-installed during setup if missing
-- Requires PowerShell 7+ (pwsh)
+- Requires PowerShell 7+ (pwsh); Windows PowerShell 5.1 alone is not enough, and `anotifier doctor` fails the toast check until pwsh is installed
 
 ### macOS
 
@@ -387,6 +387,7 @@ Hook fires (stdin JSON + --source flag)
 - Auto-detected -- no config needed
 - Toast notifications are routed to Windows via PowerShell interop (`powershell.exe`/`pwsh.exe` across the `/mnt/c` boundary) instead of `notify-send`/D-Bus, so no Linux notification daemon is needed
 - Needs WSL2 interop enabled and a Windows PowerShell present -- both are on by default
+- `anotifier setup`, `status` and `doctor` report WSL as its own platform and check the interop path (`wslpath` plus a reachable PowerShell); a toast that fails is recorded in the hook error log that `anotifier status` shows
 - Terminal bell and ntfy behave exactly as on native Linux
 - **Proof boundary:** WSL detection and the interop invocation are unit-tested (`tests/platforms-wsl.test.mjs`), but — unlike the native Linux/macOS/Windows toast lanes — no hosted CI runner proves a toast reaches the Windows host end to end, so this path is not claimed in the Testing table below
 
