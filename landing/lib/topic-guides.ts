@@ -57,7 +57,7 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "note",
-            text: "`anotifier uninstall` removes the hooks but leaves the `agentfocus` registry key and the BurntToast module in place. For a completely clean machine, remove them by hand: `Remove-Item -Recurse HKCU:\\Software\\Classes\\agentfocus` and `Uninstall-Module BurntToast`.",
+            text: "`anotifier uninstall` removes the hooks. In 1.2.6 it leaves the `agentfocus` registry key in place; from the release after 1.2.6 it removes that key too, but only when the key points at anotifier's own focus script, so a handler another program registered is left alone. The BurntToast module stays installed either way, since other tools may use it. For a completely clean machine, remove what is left by hand: `Remove-Item -Recurse HKCU:\\Software\\Classes\\agentfocus` and `Uninstall-Module BurntToast`.",
           },
         ],
       },
@@ -91,7 +91,7 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "note",
-            text: "Known gaps: inside WSL, `setup`, `status`, and `doctor` still describe the Linux toast backend, so they may warn that `notify-send` is missing. That warning does not apply to WSL toasts. A failed WSL toast is also not written to `errors.log` yet. Use `anotifier test toast`, which prints `Toast sent` or `Toast failed`, as the real check.",
+            text: "In 1.2.6, `setup`, `status`, and `doctor` describe WSL as plain Linux, so they may warn that `notify-send` is missing. That warning does not apply to WSL toasts, and a failed WSL toast is not written to `errors.log`. The release after 1.2.6 fixes both: all three commands name the Windows-interop toast path, `doctor` checks for `wslpath` and a reachable Windows PowerShell instead of `notify-send`, and a failed WSL toast is logged as `toast:wsl`. On any version, `anotifier test toast`, which prints `Toast sent` or `Toast failed`, is the real check.",
           },
         ],
       },
@@ -107,7 +107,7 @@ export const TOPIC_GUIDES: Guide[] = [
           {
             kind: "ul",
             items: [
-              "`anotifier doctor` accepts either PowerShell 7 or Windows PowerShell 5.1, but native toasts need PowerShell 7. If doctor is green and `test toast` fails, install PowerShell 7 and run setup again.",
+              "Native toasts need PowerShell 7. In 1.2.6, `anotifier doctor` also passes with only Windows PowerShell 5.1, so if doctor is green and `test toast` fails, install PowerShell 7 and run setup again. From the release after 1.2.6, `doctor` fails when PowerShell 7 is missing and `setup` warns about it, both with the `winget` command to install it.",
               "`test toast` says `Toast sent` but nothing appears: Do not disturb (Focus Assist) may be on. anotifier does not detect it; check **Settings > System > Notifications**.",
               "`doctor --deep` has no read-back on Windows yet; it reports that deep verification is not available there.",
               "Still stuck? The [troubleshooting guide](/guides/notifications-not-working/) walks through every check.",
@@ -403,7 +403,7 @@ export const TOPIC_GUIDES: Guide[] = [
             items: [
               "**Tools**: each agent shows `wired` with its events, `not wired`, `not installed`, or `config error`. `not wired` means setup hasn't patched that agent yet: run `npx anotifier@latest setup`. Claude Code only counts as installed once `~/.claude/settings.json` exists, so start Claude Code once before running setup.",
               "**Snooze** and **Quiet hours**: a snooze time, or quiet hours marked `(active now)`, means every channel is silenced on purpose. `anotifier snooze off` ends a snooze early.",
-              "**Recent errors**: the last 8 hook errors from `~/.anotifier/errors.log`, each tagged with what failed (`toast:windows`, `toast:linux`, `ntfy`, `webhook`, and so on).",
+              "**Recent errors**: the last 8 hook errors from `~/.anotifier/errors.log`, each tagged with what failed (`toast:windows`, `toast:linux`, `ntfy`, `webhook`, and so on). Failed WSL toasts are logged as `toast:wsl` from the release after 1.2.6; 1.2.6 does not log them.",
               "If `status` itself stops with `Config error`, `~/.anotifier/config.json` is invalid JSON or has a bad value. Fix it, or run setup and let it rebuild the file.",
             ],
           },
@@ -446,7 +446,7 @@ export const TOPIC_GUIDES: Guide[] = [
             rows: [
               [
                 "`toast-backend`",
-                "The OS toast tool: PowerShell, BurntToast and the execution policy on Windows, `osascript` on macOS, `notify-send` on Linux.",
+                "The OS toast tool: PowerShell, BurntToast and the execution policy on Windows, `osascript` on macOS, `notify-send` on Linux. Inside WSL, 1.2.6 also checks `notify-send`, which WSL toasts never use; from the release after 1.2.6 it checks `wslpath` and a reachable Windows PowerShell instead.",
               ],
               [
                 "`toast-auth`",
