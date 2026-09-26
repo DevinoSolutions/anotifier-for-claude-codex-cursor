@@ -21,7 +21,17 @@
 - [Codex CLI](https://anotifier.io/guides/codex-cli-notifications/): notify command, Stop/PermissionRequest hooks, approval alerts
 - [Cursor](https://anotifier.io/guides/cursor-agent-notifications/): completion sound, stop hook in ~/.cursor/hooks.json
 - [Gemini CLI](https://anotifier.io/guides/gemini-cli-notifications/): AfterAgent/Notification hooks in ~/.gemini/settings.json
+- [Claude Code permission and waiting-for-input notifications](https://anotifier.io/guides/claude-code-permission-notifications/): permission_prompt and idle_prompt matchers, every notification type, timing, PermissionRequest, phone push
+- [Claude Code notification sound](https://anotifier.io/guides/claude-code-notification-sound/): terminal_bell setting, Stop hook with afplay / paplay / PowerShell, per-event sounds
 - [All guides](https://anotifier.io/guides/)
+
+## Platform and troubleshooting guides
+
+- [Windows and WSL](https://anotifier.io/guides/windows-wsl-notifications/): PowerShell 7 + BurntToast toasts, click-to-focus, WSL interop toasts
+- [macOS and Linux](https://anotifier.io/guides/macos-linux-notifications/): osascript and Notification Center permissions, notify-send
+- [Agent hooks explained](https://anotifier.io/guides/agent-hooks-explained/): which hook each agent fires, where it is configured, what setup writes
+- [Notifications not working](https://anotifier.io/guides/notifications-not-working/): status, test and doctor, common causes and fixes
+- [Phone push with ntfy](https://anotifier.io/guides/ntfy-phone-notifications/): setup, private topics, self-hosting
 
 ## Compared with alternatives
 

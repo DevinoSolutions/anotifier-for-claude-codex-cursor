@@ -152,6 +152,8 @@ test("the 404 page declares no canonical", async () => {
 });
 
 const TOPIC_GUIDES = [
+  "/guides/claude-code-permission-notifications/",
+  "/guides/claude-code-notification-sound/",
   "/guides/windows-wsl-notifications/",
   "/guides/macos-linux-notifications/",
   "/guides/agent-hooks-explained/",
@@ -163,6 +165,14 @@ test("sitemap lists the platform and topic guides", () => {
   for (const p of TOPIC_GUIDES) {
     assert.ok(paths.includes(p), `${p} missing from sitemap`);
   }
+});
+
+test("home links every guide, so crawlers reach them from the top page", () => {
+  const { body } = pages.get("/");
+  const guides = paths.filter((p) => /^\/guides\/.+\/$/.test(p));
+  assert.ok(guides.length > 0, "no guides in the sitemap");
+  const missing = guides.filter((g) => !body.includes(`href="${g}"`));
+  assert.deepEqual(missing, [], "guides the home page does not link");
 });
 
 const metaContent = (html, key) =>
