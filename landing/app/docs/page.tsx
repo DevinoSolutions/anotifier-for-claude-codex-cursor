@@ -6,9 +6,9 @@ import Inline from "@/components/docs/Inline";
 import CopyButton from "@/components/home/CopyButton";
 import { DOCS, DOCS_DESCRIPTION, DOCS_FAQ, DOCS_TITLE } from "@/lib/docs";
 import {
-  CONTENT_UPDATED,
   GITHUB_URL,
   INSTALL_CMD,
+  PAGE_UPDATED,
   SITE_URL,
   SUPPORT_URL,
   VERSION,
@@ -44,7 +44,7 @@ export default function DocsPage() {
       headline: DOCS_TITLE,
       description: DOCS_DESCRIPTION,
       url: URL,
-      dateModified: CONTENT_UPDATED,
+      dateModified: PAGE_UPDATED.docs,
       inLanguage: "en",
       isAccessibleForFree: true,
       author: {
@@ -109,7 +109,7 @@ export default function DocsPage() {
           <CopyButton text={INSTALL_CMD} placement="docs_hero" />
         </div>
         <p className="docMeta">
-          Updated {CONTENT_UPDATED} for v{VERSION} ·{" "}
+          Updated {PAGE_UPDATED.docs} for v{VERSION} ·{" "}
           <a href={`${SITE_URL}/llms-full.txt`}>plain-text version for LLMs</a>{" "}
           · <a href={`${GITHUB_URL}#readme`}>README on GitHub</a>
         </p>

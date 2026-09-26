@@ -9,6 +9,7 @@ import type { Guide } from "./guides";
 export const TOPIC_GUIDES: Guide[] = [
   {
     slug: "windows-wsl-notifications",
+    updated: "2026-09-26",
     kind: "topic",
     name: "Windows & WSL",
     title: "Claude Code & Codex Notifications on Windows and WSL",
@@ -137,6 +138,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "macos-linux-notifications",
+    updated: "2026-09-25",
     kind: "topic",
     name: "macOS & Linux",
     title: "Claude Code & Codex Notifications on macOS and Linux",
@@ -241,6 +243,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "agent-hooks-explained",
+    updated: "2026-09-25",
     kind: "topic",
     name: "Agent hooks",
     title: "Agent Hooks Explained: Claude Code, Codex, Cursor, Gemini",
@@ -384,6 +387,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "notifications-not-working",
+    updated: "2026-09-26",
     kind: "topic",
     name: "Troubleshooting",
     title: "Agent Notifications Not Working? Troubleshooting Guide",
@@ -569,6 +573,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "ntfy-phone-notifications",
+    updated: "2026-09-25",
     kind: "topic",
     name: "ntfy phone push",
     title: "Phone Notifications for Claude Code & Codex with ntfy",

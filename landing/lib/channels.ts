@@ -19,6 +19,9 @@ interface ChannelFaq {
 
 export interface Channel {
   slug: string;
+  /** Last significant edit of this page's content (YYYY-MM-DD): the
+      sitemap <lastmod>. Bump it when you change the entry, not on every build. */
+  updated: string;
   /** Display name used in breadcrumb, headings, and cross-links (e.g. "Slack"). */
   name: string;
   /** Delivery mechanism — drives the shared privacy/safety section. */
@@ -39,6 +42,7 @@ export interface Channel {
 export const CHANNELS: Channel[] = [
   {
     slug: "slack",
+    updated: "2026-09-25",
     name: "Slack",
     kind: "webhook",
     title: "Slack Notifications for Claude Code & AI Agents — anotifier",
@@ -94,6 +98,7 @@ export const CHANNELS: Channel[] = [
   },
   {
     slug: "discord",
+    updated: "2026-09-25",
     name: "Discord",
     kind: "webhook",
     title: "Discord Notifications for Claude Code & AI Agents",
@@ -153,6 +158,7 @@ export const CHANNELS: Channel[] = [
   },
   {
     slug: "telegram",
+    updated: "2026-09-25",
     name: "Telegram",
     kind: "webhook",
     title: "Telegram Alerts for Claude Code & AI Coding Agents",
@@ -217,6 +223,7 @@ export const CHANNELS: Channel[] = [
   },
   {
     slug: "phone",
+    updated: "2026-09-11",
     name: "Phone push",
     kind: "ntfy",
     title: "Phone Push for Claude Code & AI Coding Agents — anotifier",

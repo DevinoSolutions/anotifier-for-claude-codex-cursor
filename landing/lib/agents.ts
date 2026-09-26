@@ -18,6 +18,9 @@ interface AgentH1 {
 
 export interface Agent {
   slug: string;
+  /** Last significant edit of this page's content (YYYY-MM-DD): the
+      sitemap <lastmod>. Bump it when you change the entry, not on every build. */
+  updated: string;
   /** Display name used in breadcrumb, headings, and cross-links (e.g. "Claude Code"). */
   name: string;
   title: string;
@@ -37,6 +40,7 @@ export interface Agent {
 export const AGENTS: Agent[] = [
   {
     slug: "claude-code",
+    updated: "2026-09-25",
     name: "Claude Code",
     title: "Claude Code Notifier — Desktop, Phone & Slack Alerts",
     description:
@@ -85,6 +89,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "codex",
+    updated: "2026-09-25",
     name: "Codex CLI",
     title: "Codex CLI Notifier — Desktop, Phone & Approval Alerts",
     description:
@@ -126,6 +131,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "cursor",
+    updated: "2026-09-25",
     name: "Cursor",
     title: "Cursor Agent Notifier — Desktop, Phone & Slack Alerts",
     description:
@@ -162,6 +168,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "gemini-cli",
+    updated: "2026-09-25",
     name: "Gemini CLI",
     title: "Gemini CLI Notifier — Desktop, Phone & Webhook Alerts",
     description:
@@ -203,6 +210,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "vscode",
+    updated: "2026-09-25",
     name: "VS Code",
     title: "VS Code AI Agent Notifier — Claude Code & Cursor Alerts",
     description:

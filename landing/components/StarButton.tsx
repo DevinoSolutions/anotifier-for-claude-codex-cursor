@@ -60,6 +60,50 @@ function loadStars(): Promise<number | null> {
   return starsRequest;
 }
 
+// Runs `cb` once the page has painted AND finished loading, then waits for an
+// idle moment. The GitHub call is a new cross-origin connection (DNS + TCP +
+// TLS); fired straight from hydration it finished before first paint and sat
+// on the mobile LCP critical path that PageSpeed Insights simulates (~0.6 s of
+// LCP on the home page). The count is decoration: the button reads "Star"
+// until it arrives, exactly as it does when the call fails.
+function afterPaintAndLoad(cb: () => void): () => void {
+  let cancelled = false;
+  let idleId: number | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const fire = () => {
+    if (cancelled) return;
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(cb, { timeout: 2000 });
+    } else {
+      timer = setTimeout(cb, 200);
+    }
+  };
+  const painted = new Promise<void>((resolve) => {
+    if (!PerformanceObserver.supportedEntryTypes?.includes("paint")) {
+      // No paint timing: two animation frames put us past a rendered frame.
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      return;
+    }
+    const po = new PerformanceObserver((list) => {
+      if (list.getEntriesByName("first-contentful-paint").length > 0) {
+        po.disconnect();
+        resolve();
+      }
+    });
+    po.observe({ type: "paint", buffered: true });
+  });
+  const loaded = new Promise<void>((resolve) => {
+    if (document.readyState === "complete") resolve();
+    else window.addEventListener("load", () => resolve(), { once: true });
+  });
+  void Promise.all([painted, loaded]).then(fire);
+  return () => {
+    cancelled = true;
+    if (idleId !== undefined) window.cancelIdleCallback(idleId);
+    if (timer !== undefined) clearTimeout(timer);
+  };
+}
+
 function useStars(): number | null {
   const [stars, setStars] = useState<number | null>(null);
   // Layout effect so a cached count is in place before the first paint and
@@ -71,11 +115,14 @@ function useStars(): number | null {
       return;
     }
     let alive = true;
-    void loadStars().then((n) => {
-      if (alive && n !== null) setStars(n);
+    const cancel = afterPaintAndLoad(() => {
+      void loadStars().then((n) => {
+        if (alive && n !== null) setStars(n);
+      });
     });
     return () => {
       alive = false;
+      cancel();
     };
   }, []);
   return stars;
