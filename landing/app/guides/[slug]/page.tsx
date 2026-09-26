@@ -6,13 +6,7 @@ import CodeBlock from "@/components/docs/CodeBlock";
 import DocShell from "@/components/docs/DocShell";
 import Inline from "@/components/docs/Inline";
 import { GUIDES, getGuide } from "@/lib/guides";
-import {
-  CONTENT_UPDATED,
-  GITHUB_URL,
-  INSTALL_CMD,
-  SITE_URL,
-  SUPPORT_URL,
-} from "@/lib/site";
+import { GITHUB_URL, INSTALL_CMD, SITE_URL, SUPPORT_URL } from "@/lib/site";
 import "../../[slug]/agent-page.css";
 import "../../docs/docs.css";
 
@@ -70,7 +64,7 @@ export default async function GuidePage({
       headline: guide.h1,
       description: guide.description,
       url,
-      dateModified: CONTENT_UPDATED,
+      dateModified: guide.updated,
       inLanguage: "en",
       isAccessibleForFree: true,
       author: {
@@ -138,7 +132,7 @@ export default async function GuidePage({
           <Inline text={guide.intro} />
         </p>
         <p className="docMeta">
-          Updated {CONTENT_UPDATED} · also see{" "}
+          Updated {guide.updated} · also see{" "}
           {guide.agentSlug && (
             <>
               the{" "}

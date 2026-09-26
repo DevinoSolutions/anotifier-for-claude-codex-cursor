@@ -10,7 +10,7 @@ import {
   COMPARE_INTRO,
   COMPARE_TITLE,
 } from "@/lib/alternatives";
-import { CONTENT_UPDATED, GITHUB_URL, INSTALL_CMD, SITE_URL } from "@/lib/site";
+import { GITHUB_URL, INSTALL_CMD, PAGE_UPDATED, SITE_URL } from "@/lib/site";
 import "../[slug]/agent-page.css";
 import "../docs/docs.css";
 
@@ -44,7 +44,7 @@ export default function ComparePage() {
       headline: "AI coding agent notification tools compared",
       description: DESCRIPTION,
       url: URL,
-      dateModified: CONTENT_UPDATED,
+      dateModified: PAGE_UPDATED.compare,
       inLanguage: "en",
       author: {
         "@type": "Organization",
@@ -92,7 +92,7 @@ export default function ComparePage() {
         <p className="sub">{COMPARE_INTRO}</p>
         <p className="docMeta">
           Facts taken from each project&apos;s own README or site on{" "}
-          {CONTENT_UPDATED}. Spotted something out of date?{" "}
+          {PAGE_UPDATED.compare}. Spotted something out of date?{" "}
           <a href={`${GITHUB_URL}/issues`}>Open an issue</a> and we will fix it.
         </p>
       </header>

@@ -19,6 +19,9 @@ interface GuideSection {
 
 export interface Guide {
   slug: string;
+  /** Last significant edit of this page's content (YYYY-MM-DD): the
+      sitemap <lastmod>. Bump it when you change the entry, not on every build. */
+  updated: string;
   /** "agent": how to get notified by one agent. "topic": a platform or
       feature (Windows, hooks, ntfy, troubleshooting) across every agent. */
   kind: "agent" | "topic";
@@ -91,6 +94,7 @@ const WHAT_ANOTIFIER_ADDS: Block[] = [
 const AGENT_GUIDES: Guide[] = [
   {
     slug: "claude-code-notifications",
+    updated: "2026-09-26",
     kind: "agent",
     agentSlug: "claude-code",
     name: "Claude Code",
@@ -229,6 +233,7 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "codex-cli-notifications",
+    updated: "2026-09-25",
     kind: "agent",
     agentSlug: "codex",
     name: "Codex CLI",
@@ -313,6 +318,7 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "cursor-agent-notifications",
+    updated: "2026-09-25",
     kind: "agent",
     agentSlug: "cursor",
     name: "Cursor",
@@ -383,6 +389,7 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "gemini-cli-notifications",
+    updated: "2026-09-25",
     kind: "agent",
     agentSlug: "gemini-cli",
     name: "Gemini CLI",

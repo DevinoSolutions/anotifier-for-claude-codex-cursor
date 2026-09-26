@@ -219,3 +219,25 @@ test("GitHub links keep their visible text as the accessible name", () => {
     assert.doesNotMatch(body, override, `${p} aria-labels a GitHub link`);
   }
 });
+
+test("sitemap lastmod is each page's own date, and guides show the same one", async () => {
+  const { body } = await get("/sitemap.xml");
+  const lastmod = new Map(
+    [
+      ...body.matchAll(/<loc>([^<]+)<\/loc>\s*<lastmod>([^<]+)<\/lastmod>/g),
+    ].map((m) => [m[1].replace(SITE_URL, ""), m[2].slice(0, 10)]),
+  );
+  assert.equal(lastmod.size, paths.length, "every sitemap URL has a lastmod");
+  const guides = [...lastmod].filter(([p]) => /^\/guides\/.+/.test(p));
+  for (const [p, date] of guides) {
+    const shown = pages
+      .get(p)
+      .body.match(/Updated (?:<!-- -->)?(\d{4}-\d{2}-\d{2})/)?.[1];
+    assert.equal(shown, date, `${p}: visible Updated date vs sitemap lastmod`);
+  }
+  const newestGuide = guides
+    .map(([, d]) => d)
+    .sort()
+    .at(-1);
+  assert.equal(lastmod.get("/guides/"), newestGuide, "/guides/ lastmod");
+});
