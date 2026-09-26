@@ -380,7 +380,7 @@ Hook fires (stdin JSON + --source flag)
 ### Linux
 
 - Uses `notify-send` (libnotify) -- available on most desktop distributions
-- Fails silently on headless systems without a GUI (see WSL below for WSL2)
+- On headless systems without a GUI the toast fails and is logged to `~/.anotifier/errors.log`; the other channels still deliver (see WSL below for WSL2)
 
 ### WSL
 

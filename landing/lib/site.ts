@@ -10,5 +10,5 @@ export const SUPPORT_URL = "https://github.com/sponsors/DevinoSolutions";
 /** Latest published npm version. Bump with every release. */
 export const VERSION = "1.2.6";
 /** ISO date of the last content edit — feeds the sitemap and article schema. */
-export const CONTENT_UPDATED = "2026-09-24";
+export const CONTENT_UPDATED = "2026-09-25";
 export const INSTALL_CMD = "npx anotifier@latest setup";

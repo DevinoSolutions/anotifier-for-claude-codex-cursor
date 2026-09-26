@@ -111,7 +111,7 @@ export const DOCS: DocSection[] = [
           [
             "Linux",
             "notify-send (libnotify)",
-            "Optional, for desktop toasts. Headless systems skip toasts silently.",
+            "Optional, for desktop toasts. Without a desktop session the toast fails, is logged to `~/.anotifier/errors.log`, and the other channels still deliver.",
           ],
           [
             "WSL",
@@ -166,7 +166,7 @@ export const DOCS: DocSection[] = [
       },
       {
         kind: "p",
-        text: "Each hook runs `node <path>/src/notify.mjs --source <agent>` with the agent's event JSON on stdin. Hooks time out after 10 seconds and always exit successfully, so a broken channel can never stall the agent.",
+        text: "Each hook runs `node <path>/src/notify.mjs --source <agent>` with the agent's event JSON on stdin. The agent gives the hook 10 seconds (Claude Code, Codex) or 30 (Gemini CLI); inside that, every channel runs in parallel with its own shorter timeout (5 to 7 seconds), and the hook always exits successfully, so a broken channel can never stall the agent.",
       },
     ],
   },
@@ -254,7 +254,7 @@ export const DOCS: DocSection[] = [
           ],
           [
             "`session_start`",
-            "A new session started. Every channel is off for this event by default.",
+            "A new session started (Codex only). Toast, phone push and bell are off for this event by default; an enabled webhook still receives it unless you set `webhookEnabled: false`.",
             "Default",
             "low",
             "rocket",

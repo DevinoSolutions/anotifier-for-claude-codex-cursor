@@ -1,5 +1,5 @@
 // Real-Chrome checks over raw CDP (no browser library): mobile layout, the
-// hero rotator, and a mobile LCP budget. Skips — loudly — when no Chrome is
+// hero rotator, copy buttons and GA events, and a mobile LCP budget. Skips — loudly — when no Chrome is
 // installed; CI runners ship one.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -68,7 +68,10 @@ async function openBrowser(port) {
       awaitPromise: true,
     });
     if (m.result?.exceptionDetails)
-      throw new Error(m.result.exceptionDetails.text);
+      throw new Error(
+        m.result.exceptionDetails.exception?.description ||
+          m.result.exceptionDetails.text,
+      );
     return m.result.result.value;
   };
   const close = () => {
@@ -107,6 +110,8 @@ test(
           "/claude-code/",
           "/docs/",
           "/guides/claude-code-notifications/",
+          "/guides/agent-hooks-explained/",
+          "/guides/notifications-not-working/",
         ]) {
           await load(b, BASE_URL + p, 2500);
           const v = await b.evaluate(
@@ -136,6 +141,92 @@ test(
       ]);
       assert.equal(hero.hidden, "true");
       assert.ok(hero.sr <= 1, "the screen-reader sentence is visible");
+    } finally {
+      b.close();
+    }
+  },
+);
+
+// Records the page's gtag() calls. Local and CI builds ship no GA (it is
+// env-gated), and on the live site this keeps test clicks out of the real
+// analytics: the button and track() code under test are the real ones; only
+// the hop to Google is replaced.
+const RECORD_GTAG = `window.__gtag = [];
+  window.gtag = function () { window.__gtag.push(Array.from(arguments)); };`;
+const GA_EVENTS = `window.__gtag
+  .filter((a) => a[0] === 'event')
+  .map((a) => ({ name: a[1], ...a[2] }))`;
+
+async function realClick(b, selector) {
+  const at = await b.evaluate(`(async () => {
+    const el = document.querySelector(${JSON.stringify(selector)});
+    el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await new Promise((r) => requestAnimationFrame(r));
+    const r = el.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  })()`);
+  for (const type of ["mousePressed", "mouseReleased"]) {
+    await b.send("Input.dispatchMouseEvent", {
+      type,
+      ...at,
+      button: "left",
+      clickCount: 1,
+    });
+  }
+}
+
+test(
+  "copy buttons copy the code and raise GA events; star clicks too",
+  { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },
+  async () => {
+    const b = await openBrowser(9345);
+    try {
+      await b.send("Browser.grantPermissions", {
+        origin: new URL(BASE_URL).origin,
+        permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"],
+      });
+      // Clipboard calls need a focused page, which headless never has.
+      await b.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+      await load(b, BASE_URL + "/guides/ntfy-phone-notifications/", 2500);
+      await b.evaluate(RECORD_GTAG);
+      // A real mouse click gives the page the user activation the clipboard
+      // API asks for; element.click() would not.
+      await realClick(b, ".codeBlock .codeCopy");
+      await sleep(300);
+      const copied = await b.evaluate(`(async () => {
+        const block = document.querySelector('.codeBlock');
+        return {
+          code: block.querySelector('pre').innerText,
+          label: block.querySelector('.codeCopy').textContent,
+          events: ${GA_EVENTS},
+          clip: await navigator.clipboard.readText(),
+        };
+      })()`);
+      assert.equal(
+        // the Windows clipboard stores CRLF line endings
+        copied.clip.replaceAll("\r\n", "\n"),
+        copied.code,
+        "clipboard differs from the block",
+      );
+      assert.match(copied.label, /copied/i);
+      assert.deepEqual(copied.events, [
+        {
+          name: "copy_command",
+          placement: "guide",
+          result: "copied",
+          command: copied.code.slice(0, 100),
+        },
+      ]);
+
+      // Keep the page here instead of following the link to GitHub; the
+      // React click handler still runs.
+      await b.evaluate(
+        `document.addEventListener('click', (e) => e.preventDefault(), true)`,
+      );
+      await realClick(b, "a.starBtn");
+      await sleep(200);
+      const events = await b.evaluate(GA_EVENTS);
+      assert.deepEqual(events.at(-1), { name: "star_click", placement: "nav" });
     } finally {
       b.close();
     }

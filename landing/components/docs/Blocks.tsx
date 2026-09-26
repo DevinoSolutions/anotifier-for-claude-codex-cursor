@@ -1,8 +1,16 @@
 import type { Block } from "@/lib/docs";
+import CodeBlock from "./CodeBlock";
 import Inline from "./Inline";
 
-/** Renders a list of content blocks. Shared by the docs, guides and compare pages. */
-export default function Blocks({ blocks }: { blocks: Block[] }) {
+/** Renders a list of content blocks. Shared by the docs, guides and compare pages.
+    `placement` names the page kind in copy_command analytics events. */
+export default function Blocks({
+  blocks,
+  placement = "docs",
+}: {
+  blocks: Block[];
+  placement?: string;
+}) {
   return (
     <>
       {blocks.map((block, i) => {
@@ -21,9 +29,12 @@ export default function Blocks({ blocks }: { blocks: Block[] }) {
             );
           case "code":
             return (
-              <pre key={i} data-lang={block.lang}>
-                <code>{block.code}</code>
-              </pre>
+              <CodeBlock
+                key={i}
+                code={block.code}
+                lang={block.lang}
+                placement={placement}
+              />
             );
           case "ul":
             return (

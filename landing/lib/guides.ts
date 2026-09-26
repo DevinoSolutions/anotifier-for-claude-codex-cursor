@@ -1,7 +1,9 @@
 import type { Block, DocFaq } from "./docs";
+import { TOPIC_GUIDES } from "./topic-guides";
 
 /**
- * Long-form "how do I get notified when X finishes" guides — one per agent.
+ * Long-form "how do I get notified when X finishes" guides: one per agent,
+ * plus topic guides for platforms and features every agent shares.
  * These answer the question people actually type into Google, cover EVERY
  * option honestly (built-in, DIY hook, DIY phone push, anotifier), and only
  * then explain what anotifier adds. Facts about each agent's own features are
@@ -16,10 +18,14 @@ interface GuideSection {
 
 export interface Guide {
   slug: string;
+  /** "agent": how to get notified by one agent. "topic": a platform or
+      feature (Windows, hooks, ntfy, troubleshooting) across every agent. */
+  kind: "agent" | "topic";
   /** Agent slug on this site, for cross-links (/claude-code/ etc.). */
-  agentSlug: string;
-  agentName: string;
-  icon: string;
+  agentSlug?: string;
+  /** Short label for the kicker, cards, and breadcrumb. */
+  name: string;
+  icon?: string;
   title: string;
   description: string;
   h1: string;
@@ -31,7 +37,7 @@ export interface Guide {
 const WHAT_ANOTIFIER_ADDS: Block[] = [
   {
     kind: "table",
-    head: ["", "Built-in", "DIY hook", "anotifier"],
+    head: ["Feature", "Built-in", "DIY hook", "anotifier"],
     rows: [
       [
         "Desktop toast",
@@ -81,11 +87,12 @@ const WHAT_ANOTIFIER_ADDS: Block[] = [
   },
 ];
 
-export const GUIDES: Guide[] = [
+const AGENT_GUIDES: Guide[] = [
   {
     slug: "claude-code-notifications",
+    kind: "agent",
     agentSlug: "claude-code",
-    agentName: "Claude Code",
+    name: "Claude Code",
     icon: "/assets/icons/claude.png",
     title: "How to Get Notified When Claude Code Finishes (2026)",
     description:
@@ -183,14 +190,15 @@ export const GUIDES: Guide[] = [
       },
       {
         q: "Will notifications slow Claude Code down?",
-        a: "Not noticeably. Claude Code waits for hooks to exit; anotifier's hook returns within its 10-second timeout and delivers channels in the background, and it always exits 0 so it can never stall a session.",
+        a: "Not noticeably. Claude Code waits for the hook to exit, and anotifier sends every channel in parallel, each with its own 5 to 7 second timeout, well inside Claude Code's 10-second hook limit. It always exits 0, so it can never stall a session.",
       },
     ],
   },
   {
     slug: "codex-cli-notifications",
+    kind: "agent",
     agentSlug: "codex",
-    agentName: "Codex CLI",
+    name: "Codex CLI",
     icon: "/assets/icons/codex.png",
     title: "Codex CLI Notifications: Finish and Approval Alerts",
     description:
@@ -272,8 +280,9 @@ export const GUIDES: Guide[] = [
   },
   {
     slug: "cursor-agent-notifications",
+    kind: "agent",
     agentSlug: "cursor",
-    agentName: "Cursor",
+    name: "Cursor",
     icon: "/assets/icons/cursor.png",
     title: "Cursor Agent Notifications: Get Pinged When It Finishes",
     description:
@@ -341,8 +350,9 @@ export const GUIDES: Guide[] = [
   },
   {
     slug: "gemini-cli-notifications",
+    kind: "agent",
     agentSlug: "gemini-cli",
-    agentName: "Gemini CLI",
+    name: "Gemini CLI",
     icon: "/assets/icons/gemini.png",
     title: "Gemini CLI Notifications: Alerts When the Agent Finishes",
     description:
@@ -400,6 +410,13 @@ export const GUIDES: Guide[] = [
   },
 ];
 
+export const GUIDES: Guide[] = [...AGENT_GUIDES, ...TOPIC_GUIDES];
+
 export function getGuide(slug: string): Guide | undefined {
   return GUIDES.find((g) => g.slug === slug);
 }
+
+export const GUIDES_TITLE =
+  "Notification Guides for Claude Code, Codex, Cursor & Gemini";
+export const GUIDES_DESCRIPTION =
+  "Guides to notifications from Claude Code, Codex CLI, Cursor and Gemini CLI: per-agent setup, Windows, WSL, macOS, Linux, hooks, phone push and fixes.";

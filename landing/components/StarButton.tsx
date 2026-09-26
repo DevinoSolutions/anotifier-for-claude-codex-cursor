@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useState } from "react";
 import { GITHUB_REPO, GITHUB_URL } from "@/lib/site";
+import { track } from "@/lib/track";
 
 /* Live stargazer count, cached per tab for an hour. Every StarButton on the
    page shares one in-flight request (the home page renders three), so a
@@ -101,17 +102,22 @@ const StarIcon = ({ size }: { size: number }) => (
 export default function StarButton({
   variant = "large",
   label = "Star on GitHub",
+  placement = variant,
 }: {
   variant?: "nav" | "large";
   label?: string;
+  /** Where the button sits, sent with the star_click analytics event. */
+  placement?: string;
 }) {
   const stars = useStars();
   const nav = variant === "nav";
   const count =
     stars === null ? "" : `${stars} ${stars === 1 ? "star" : "stars"}`;
-  // The accessible name starts with the visible words so voice control
-  // ("click Star on GitHub") matches it.
-  const name = nav ? "Star anotifier on GitHub" : label;
+  // No aria-label: the accessible name is the visible text plus a visually
+  // hidden tail, so it always contains what is on screen (voice control can
+  // say "click Star 28") and still says what the button does.
+  const unit = stars === null ? "" : ` ${stars === 1 ? "star" : "stars"}`;
+  const tail = nav ? `${unit}, anotifier on GitHub` : unit;
   return (
     <a
       href={GITHUB_URL}
@@ -121,7 +127,7 @@ export default function StarButton({
           ? `Star anotifier on GitHub (${count})`
           : "Star anotifier on GitHub"
       }
-      aria-label={count ? `${name}, ${count}` : name}
+      onClick={() => track("star_click", { placement })}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -153,6 +159,7 @@ export default function StarButton({
           {formatCount(stars)}
         </span>
       )}
+      {tail && <span className="srOnly">{tail}</span>}
     </a>
   );
 }

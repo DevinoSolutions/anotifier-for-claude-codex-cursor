@@ -5,6 +5,8 @@ import { AGENTS, getAgent } from "@/lib/agents";
 import { GUIDES } from "@/lib/guides";
 import LogoMark from "@/components/LogoMark";
 import StarButton from "@/components/StarButton";
+import CopyButton from "@/components/home/CopyButton";
+import { INSTALL_CMD } from "@/lib/site";
 import "./agent-page.css";
 
 export const dynamicParams = false;
@@ -42,13 +44,11 @@ export async function generateMetadata({
       url,
       title: agent.title,
       description: agent.description,
-      images: [{ url: "/og.png?v=3", width: 1200, height: 630 }],
     },
     twitter: {
       card: "summary_large_image",
       title: agent.title,
       description: agent.description,
-      images: ["/og.png?v=3"],
     },
   };
 }
@@ -114,7 +114,11 @@ export default async function AgentPage({
 
       <nav>
         <div className="wrap">
-          <Link href="/" style={{ display: "inline-flex" }}>
+          <Link
+            href="/"
+            aria-label="anotifier home"
+            style={{ display: "inline-flex" }}
+          >
             <LogoMark size={28} />
           </Link>
           <Link href="/" className="brand">
@@ -149,7 +153,8 @@ export default async function AgentPage({
           </div>
           <p className="sub">{agent.sub}</p>
           <div className="install">
-            <span className="d">$</span> npx anotifier@latest setup
+            <span className="d">$</span> {INSTALL_CMD}
+            <CopyButton text={INSTALL_CMD} placement="agent_hero" />
           </div>
           {agent.extraInstall && (
             <p

@@ -74,12 +74,12 @@ export default function InstallStandaloneRow() {
       {isWin ? (
         <>
           <code style={codeStyle}>{IRM}</code>
-          <CopyButton text={IRM} />
+          <CopyButton text={IRM} placement="install" />
         </>
       ) : (
         <>
           <code style={codeStyle}>{CURL}</code>
-          <CopyButton text={CURL} />
+          <CopyButton text={CURL} placement="install" />
         </>
       )}
     </div>

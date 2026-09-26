@@ -105,7 +105,7 @@ export default function Install() {
             </span>
           </span>
           <code style={codeStyle}>{NPX}</code>
-          <CopyButton text={NPX} />
+          <CopyButton text={NPX} placement="install" />
         </div>
         <div style={rowStyle}>
           <span style={labelStyle}>
@@ -127,7 +127,7 @@ export default function Install() {
             </span>
           </span>
           <code style={codeStyle}>{PLUGIN_MARKETPLACE}</code>
-          <CopyButton text={PLUGIN_MARKETPLACE} />
+          <CopyButton text={PLUGIN_MARKETPLACE} placement="install" />
         </div>
         <div style={rowStyle}>
           <span style={labelStyle}>
@@ -149,7 +149,7 @@ export default function Install() {
             </span>
           </span>
           <code style={codeStyle}>{PLUGIN_INSTALL}</code>
-          <CopyButton text={PLUGIN_INSTALL} />
+          <CopyButton text={PLUGIN_INSTALL} placement="install" />
         </div>
         <InstallStandaloneRow />
         <div

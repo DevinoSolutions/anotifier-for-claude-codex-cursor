@@ -144,3 +144,68 @@ test("unknown paths are real 404s", async () => {
     assert.equal(res.status, 404, `${p} returned ${res.status}`);
   }
 });
+
+test("the 404 page declares no canonical", async () => {
+  const res = await get("/definitely-not-a-page/");
+  assert.equal(res.status, 404);
+  assert.equal(meta(res.body).canonical, null, "404 page has a canonical");
+});
+
+const TOPIC_GUIDES = [
+  "/guides/windows-wsl-notifications/",
+  "/guides/macos-linux-notifications/",
+  "/guides/agent-hooks-explained/",
+  "/guides/notifications-not-working/",
+  "/guides/ntfy-phone-notifications/",
+];
+
+test("sitemap lists the platform and topic guides", () => {
+  for (const p of TOPIC_GUIDES) {
+    assert.ok(paths.includes(p), `${p} missing from sitemap`);
+  }
+});
+
+const metaContent = (html, key) =>
+  html.match(
+    new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)"`),
+  )?.[1] ?? null;
+
+test("every subpage has its own share image, served as a PNG", async () => {
+  for (const [p, { body }] of pages) {
+    if (p === "/") continue;
+    const og = metaContent(body, "og:image");
+    const tw = metaContent(body, "twitter:image");
+    assert.ok(og && tw, `${p} lacks og:image or twitter:image`);
+    // Per-page paths also make every image unique.
+    assert.equal(new URL(og).pathname, `${p}opengraph-image`, `${p} og:image`);
+    assert.equal(new URL(tw).pathname, `${p}twitter-image`, `${p} twitter`);
+
+    const res = await fetch(BASE_URL + new URL(og).pathname, {
+      headers: { "user-agent": "anotifier-site-tests" },
+    });
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    assert.equal(res.status, 200, `${og} returned ${res.status}`);
+    assert.equal(res.headers.get("content-type"), "image/png", og);
+    assert.deepEqual([...bytes.slice(0, 4)], [0x89, 0x50, 0x4e, 0x47], og);
+  }
+});
+
+test("docs and guide code blocks each have a copy button", () => {
+  for (const [p, { body }] of pages) {
+    if (p !== "/docs/" && !/^\/guides\/.+/.test(p)) continue;
+    const pres = (body.match(/<pre[\s>]/g) || []).length;
+    const blocks = (body.match(/<div class="codeBlock">/g) || []).length;
+    const buttons = (body.match(/<button[^>]*class="codeCopy/g) || []).length;
+    assert.ok(pres > 0, `${p} has no code blocks`);
+    assert.equal(blocks, pres, `${p}: code blocks without a wrapper`);
+    assert.equal(buttons, pres, `${p}: code blocks without a copy button`);
+  }
+});
+
+test("GitHub links keep their visible text as the accessible name", () => {
+  const override =
+    /<a(?=[^>]*href="https:\/\/github\.com\/DevinoSolutions\/anotifier[^"]*")(?=[^>]*aria-label=)[^>]*>/;
+  for (const [p, { body }] of pages) {
+    assert.doesNotMatch(body, override, `${p} aria-labels a GitHub link`);
+  }
+});

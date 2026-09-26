@@ -46,7 +46,7 @@ export default function FinalCta() {
             flexWrap: "wrap",
           }}
         >
-          <StarButton label="Star it on GitHub" />
+          <StarButton label="Star it on GitHub" placement="final_cta" />
           <a
             href={NPM_URL}
             className="hovBorder"

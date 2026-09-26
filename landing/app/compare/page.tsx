@@ -1,20 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import CodeBlock from "@/components/docs/CodeBlock";
 import DocShell from "@/components/docs/DocShell";
 import Inline from "@/components/docs/Inline";
 import {
   ALTERNATIVES,
   COMPARE_COLUMNS,
+  COMPARE_DESCRIPTION,
   COMPARE_INTRO,
+  COMPARE_TITLE,
 } from "@/lib/alternatives";
 import { CONTENT_UPDATED, GITHUB_URL, INSTALL_CMD, SITE_URL } from "@/lib/site";
 import "../[slug]/agent-page.css";
 import "../docs/docs.css";
 
 const URL = `${SITE_URL}/compare/`;
-const TITLE = "anotifier vs code-notify, agent-notify, Pushary & DIY Hooks";
-const DESCRIPTION =
-  "anotifier, code-notify, agent-notify, claude-ntfy-hook, Pushary, AI Done Now and DIY hooks compared: agents, channels, platforms, remote approval, price.";
+const TITLE = COMPARE_TITLE;
+const DESCRIPTION = COMPARE_DESCRIPTION;
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -26,13 +28,11 @@ export const metadata: Metadata = {
     url: URL,
     title: TITLE,
     description: DESCRIPTION,
-    images: [{ url: "/og.png?v=3", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: TITLE,
     description: DESCRIPTION,
-    images: ["/og.png?v=3"],
   },
 };
 
@@ -192,9 +192,7 @@ export default function ComparePage() {
 
         <section>
           <h2>Try anotifier</h2>
-          <pre data-lang="bash">
-            <code>{INSTALL_CMD}</code>
-          </pre>
+          <CodeBlock code={INSTALL_CMD} lang="bash" placement="compare" />
           <div className="docCtaRow">
             <Link href="/docs/" className="primary">
               Read the docs

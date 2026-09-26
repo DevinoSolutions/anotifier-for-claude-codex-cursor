@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { track } from "@/lib/track";
 
 /** The YouTube embed is heavy (~1MB of scripts), so it only mounts once the
     section actually scrolls near the viewport — keeps it out of the critical
     load path while preserving the muted-autoplay behaviour on scroll. */
 export default function DemoVideo() {
   const frameRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [showVideo, setShowVideo] = useState(false);
 
   useEffect(() => {
@@ -28,6 +30,22 @@ export default function DemoVideo() {
     io.observe(el);
     return () => io.disconnect();
   }, []);
+
+  // Clicks inside the cross-origin YouTube frame never reach this page, but
+  // the click moves focus into it: the window blurs with the iframe as the
+  // active element. That is the demo_video_click event, sent once per load.
+  useEffect(() => {
+    if (!showVideo) return;
+    // activeElement can lag the blur event, so it is read a tick later
+    const onBlur = () =>
+      setTimeout(() => {
+        if (document.activeElement !== iframeRef.current) return;
+        track("demo_video_click");
+        window.removeEventListener("blur", onBlur);
+      }, 0);
+    window.addEventListener("blur", onBlur);
+    return () => window.removeEventListener("blur", onBlur);
+  }, [showVideo]);
 
   return (
     <section
@@ -143,6 +161,7 @@ export default function DemoVideo() {
         </div>
         {showVideo ? (
           <iframe
+            ref={iframeRef}
             src="https://www.youtube-nocookie.com/embed/QVVOIIud4-I?autoplay=1&mute=1&loop=1&playlist=QVVOIIud4-I&controls=1&modestbranding=1&rel=0&playsinline=1"
             title="anotifier demo"
             style={{

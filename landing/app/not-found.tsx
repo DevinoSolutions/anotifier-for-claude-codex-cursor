@@ -5,6 +5,8 @@ import LogoMark from "@/components/LogoMark";
 export const metadata: Metadata = {
   title: "Not found — anotifier",
   robots: { index: false, follow: false },
+  // the layout's "./" canonical would resolve to /_not-found/ here
+  alternates: { canonical: null },
 };
 
 export default function NotFound() {
