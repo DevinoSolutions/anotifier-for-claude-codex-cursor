@@ -1,4 +1,5 @@
 import type { Block, DocFaq } from "./docs";
+import { CLAUDE_GUIDES } from "./claude-guides";
 import { TOPIC_GUIDES } from "./topic-guides";
 
 /**
@@ -99,7 +100,7 @@ const AGENT_GUIDES: Guide[] = [
       "Four ways to get alerted when Claude Code finishes or needs input: the built-in terminal setting, a Stop hook, an ntfy phone push, or anotifier.",
     h1: "How to get notified when Claude Code finishes or needs you",
     intro:
-      "Claude Code runs for minutes at a time, and the moment it stops is easy to miss: a finished refactor sits idle, or a permission prompt waits unnoticed. Claude Code exposes two hook events that fire at exactly those moments, `Stop` and `Notification`, and everything below builds on them. Here are all the ways to turn them into an alert, from the zero-install setting to a full multi-agent setup.",
+      "Add two hooks to `~/.claude/settings.json`: `Stop`, which fires when Claude finishes a turn, and `Notification`, which fires when it needs your permission or input. Point each at a command that shows a banner, plays a sound, or sends a push to your phone. Or run `npx anotifier@latest setup`, which wires both for you. Below is every option, from the one-line setting to a full multi-agent setup, with configs you can paste.",
     sections: [
       {
         id: "built-in",
@@ -107,7 +108,7 @@ const AGENT_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "Some terminals already surface a system notification when Claude Code finishes or pauses for permission. Claude Code's docs list iTerm2, Kitty, and Ghostty as terminals with native support. Elsewhere you can ask for a terminal bell with the `preferredNotifChannel` setting in `~/.claude/settings.json`:",
+            text: "Out of the box, Claude Code sends a desktop notification when it finishes or pauses for permission, but only in Ghostty, Kitty, and iTerm2. In any other terminal, set `preferredNotifChannel` in `~/.claude/settings.json` to ring the terminal bell instead:",
           },
           {
             kind: "code",
@@ -115,8 +116,16 @@ const AGENT_GUIDES: Guide[] = [
             code: '{ "preferredNotifChannel": "terminal_bell" }',
           },
           {
+            kind: "ul",
+            items: [
+              "Ghostty and Kitty pass the notification to your OS notification center with no setup. iTerm2 needs **Settings > Profiles > Terminal > Notification Center Alerts** checked, with **Send escape sequence-generated alerts** enabled under Filter Alerts.",
+              "The notification reaches your local machine over SSH, so a remote session can still alert you.",
+              "Inside tmux, add `set -g allow-passthrough on` to `~/.tmux.conf`, or the notification never reaches the outer terminal.",
+            ],
+          },
+          {
             kind: "p",
-            text: "What you get: a beep or a plain banner on the same machine, with no project name, no message content, and nothing on your phone. If Claude Code lives in a VS Code panel you often will not hear it.",
+            text: "What you get: a beep or a plain banner on the machine you are sitting at, with no project name, no message content, and nothing on your phone. Terminals without the built-in notification, such as Warp or the VS Code integrated terminal, need the bell or a hook. For the bell and custom sounds, see [Claude Code notification sounds](/guides/claude-code-notification-sound/).",
           },
         ],
       },
@@ -134,8 +143,20 @@ const AGENT_GUIDES: Guide[] = [
             code: '{\n  "hooks": {\n    "Stop": [\n      {\n        "hooks": [\n          {\n            "type": "command",\n            "command": "osascript -e \'display notification \\"Claude finished\\" with title \\"Claude Code\\"\'"\n          }\n        ]\n      }\n    ],\n    "Notification": [\n      {\n        "hooks": [\n          {\n            "type": "command",\n            "command": "osascript -e \'display notification \\"Claude needs your input\\" with title \\"Claude Code\\"\'"\n          }\n        ]\n      }\n    ]\n  }\n}',
           },
           {
+            kind: "ul",
+            items: [
+              "**macOS**: `osascript` banners come from Script Editor. If Script Editor has no notification permission, the command fails silently and macOS never asks. Run `osascript -e 'display notification \"test\"'` once, then allow Script Editor in **System Settings > Notifications**.",
+              '**Linux**: use `notify-send "Claude Code" "Claude finished"`. It needs a desktop notification daemon, which headless servers, SSH sessions, and most containers lack; install `libnotify-bin` on Debian and Ubuntu if the command is missing.',
+              "**Windows**: Claude Code's docs use a PowerShell `MessageBox`, which is a dialog box and can open behind your terminal. A real toast needs a PowerShell module such as BurntToast. Inside WSL, `powershell.exe` must be reachable through Windows interop.",
+            ],
+          },
+          {
             kind: "p",
-            text: 'On Linux swap the command for `notify-send "Claude Code" "Claude finished"`; on Windows you need a PowerShell script that calls the BurntToast module. The hook receives a JSON payload on stdin (session id, working directory, transcript path, and for `Notification` the message), so a longer script can read the project name and even the last assistant message out of the transcript.',
+            text: 'Without a matcher, the `Notification` hook runs for every notification type, including ones that don\'t need you, such as `auth_success`. To alert only on approvals, set `"matcher": "permission_prompt"`; `idle_prompt` is the reminder Claude Code sends about 60 seconds after it finishes. The [permission notifications guide](/guides/claude-code-permission-notifications/) lists every type and its timing.',
+          },
+          {
+            kind: "p",
+            text: "The hook receives a JSON payload on stdin: session id, working directory, transcript path, and for `Notification` the `message` and `notification_type`. A longer script can read the project name, and even the last assistant message, out of the transcript. Type `/hooks` in Claude Code to check what is registered.",
           },
           {
             kind: "note",
@@ -190,7 +211,19 @@ const AGENT_GUIDES: Guide[] = [
       },
       {
         q: "Will notifications slow Claude Code down?",
-        a: "Not noticeably. Claude Code waits for the hook to exit, and anotifier sends every channel in parallel, each with its own 5 to 7 second timeout, well inside Claude Code's 10-second hook limit. It always exits 0, so it can never stall a session.",
+        a: "Not noticeably. Claude Code waits for the hook to exit, and anotifier sends every channel in parallel, each with its own 5 to 7 second timeout. It registers its hook with a 10-second timeout (Claude Code's default for command hooks is 600 seconds) and always exits 0, so it can never stall a session.",
+      },
+      {
+        q: "Why am I not getting Claude Code notifications?",
+        a: "The built-in desktop notification only works in Ghostty, Kitty and iTerm2; elsewhere set preferredNotifChannel to terminal_bell or add a hook. With a hook, restart Claude Code and check /hooks. On macOS, allow Script Editor in System Settings > Notifications; inside tmux, turn on allow-passthrough.",
+      },
+      {
+        q: "How do I get notified only when Claude Code needs permission?",
+        a: 'Give the Notification hook "matcher": "permission_prompt". It fires when an approval has waited about six seconds. The permission notifications guide covers every notification type.',
+      },
+      {
+        q: "Can Claude Code play a sound when it finishes?",
+        a: "Yes. Set preferredNotifChannel to terminal_bell for the terminal bell, or add a Stop hook that plays a sound file, such as afplay /System/Library/Sounds/Glass.aiff on macOS. The notification sound guide has commands for Linux and Windows.",
       },
     ],
   },
@@ -410,7 +443,11 @@ const AGENT_GUIDES: Guide[] = [
   },
 ];
 
-export const GUIDES: Guide[] = [...AGENT_GUIDES, ...TOPIC_GUIDES];
+export const GUIDES: Guide[] = [
+  ...AGENT_GUIDES,
+  ...CLAUDE_GUIDES,
+  ...TOPIC_GUIDES,
+];
 
 export function getGuide(slug: string): Guide | undefined {
   return GUIDES.find((g) => g.slug === slug);

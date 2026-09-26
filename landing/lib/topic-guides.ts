@@ -489,6 +489,11 @@ export const TOPIC_GUIDES: Guide[] = [
                 "Re-run setup; use the interactive TUI. See [agent hooks](/guides/agent-hooks-explained/)",
               ],
               [
+                "Claude Code approval alerts arrive a few seconds late",
+                "Claude Code holds its `permission_prompt` notification for about six seconds",
+                "Expected. See [Claude Code permission notifications](/guides/claude-code-permission-notifications/)",
+              ],
+              [
                 "Nothing at all, for a while",
                 "Snooze or quiet hours",
                 "`anotifier snooze off`; check `quietHours` in the config",

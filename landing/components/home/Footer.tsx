@@ -29,6 +29,22 @@ const seoLinks = [
     href: "/guides/gemini-cli-notifications/",
     label: "Gemini CLI notifications guide",
   },
+  {
+    href: "/guides/claude-code-permission-notifications/",
+    label: "Claude Code permission alerts",
+  },
+  {
+    href: "/guides/claude-code-notification-sound/",
+    label: "Claude Code notification sound",
+  },
+  { href: "/guides/windows-wsl-notifications/", label: "Windows & WSL" },
+  { href: "/guides/macos-linux-notifications/", label: "macOS & Linux" },
+  { href: "/guides/agent-hooks-explained/", label: "agent hooks explained" },
+  {
+    href: "/guides/notifications-not-working/",
+    label: "notifications not working?",
+  },
+  { href: "/guides/ntfy-phone-notifications/", label: "ntfy phone push" },
   { href: "/claude-code/", label: "Claude Code notifications" },
   { href: "/codex/", label: "Codex CLI notifications" },
   { href: "/cursor/", label: "Cursor notifications" },
