@@ -37,6 +37,10 @@ const seoLinks = [
     href: "/guides/claude-code-notification-sound/",
     label: "Claude Code notification sound",
   },
+  {
+    href: "/guides/codex-notification-sound/",
+    label: "Codex approval ding",
+  },
   { href: "/guides/windows-wsl-notifications/", label: "Windows & WSL" },
   { href: "/guides/macos-linux-notifications/", label: "macOS & Linux" },
   { href: "/guides/agent-hooks-explained/", label: "agent hooks explained" },

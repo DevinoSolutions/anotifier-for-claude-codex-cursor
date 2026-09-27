@@ -1,5 +1,6 @@
 import type { Block, DocFaq } from "./docs";
 import { CLAUDE_GUIDES } from "./claude-guides";
+import { CODEX_GUIDES } from "./codex-guides";
 import { TOPIC_GUIDES } from "./topic-guides";
 
 /**
@@ -233,25 +234,44 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "codex-cli-notifications",
-    updated: "2026-09-25",
+    updated: "2026-09-26",
     kind: "agent",
     agentSlug: "codex",
     name: "Codex CLI",
     icon: "/assets/icons/codex.png",
     title: "Codex CLI Notifications: Finish and Approval Alerts",
     description:
-      "Desktop, phone, or Slack alerts when Codex CLI finishes or waits for approval: the notify setting, Stop and PermissionRequest hooks, or anotifier.",
+      "Desktop, phone, or Slack alerts when Codex CLI finishes or waits for approval: built-in TUI notifications, the notify setting, hooks, or anotifier.",
     h1: "How to get notified when Codex CLI finishes or needs approval",
     intro:
-      "Codex CLI has two moments worth a notification: the end of a turn, and the approval prompt that blocks everything until you answer it. Codex exposes both through its own configuration, so no wrapper process is needed. Here is every way to wire them up.",
+      "Codex CLI already notifies you when a turn ends or an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else. For alerts you can't miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option.",
     sections: [
       {
-        id: "notify",
-        title: "Option 1: Codex's notify command in config.toml",
+        id: "builtin",
+        title: "Option 1: Codex's built-in TUI notifications",
         blocks: [
           {
             kind: "p",
-            text: "Codex CLI can run an external program when a turn completes via the `notify` setting in `~/.codex/config.toml`. Codex invokes it with a JSON argument describing the event, and your script turns that into a toast, sound, or push:",
+            text: "The Codex TUI notifies you out of the box when a turn ends, when it asks to run a command or edit files, and when a Plan mode prompt or a question is waiting. In Ghostty, iTerm2, Kitty, Warp, and WezTerm it sends an OSC 9 desktop notification; in any other terminal it rings the bell. By default it does this only while the terminal is unfocused. Tune it under `[tui]` in `~/.codex/config.toml`:",
+          },
+          {
+            kind: "code",
+            lang: "toml",
+            code: '[tui]\nnotifications = ["agent-turn-complete", "approval-requested"]\nnotification_method = "auto"      # or "osc9", "bel"\nnotification_condition = "always" # default "unfocused"',
+          },
+          {
+            kind: "p",
+            text: "What you get: alerts in this machine's terminal only, nothing on your phone, and no sound if the terminal's bell is muted. To make approvals ding, see [Codex notification sounds](/guides/codex-notification-sound/).",
+          },
+        ],
+      },
+      {
+        id: "notify",
+        title: "Option 2: Codex's notify command in config.toml",
+        blocks: [
+          {
+            kind: "p",
+            text: "Codex CLI can run an external program through the `notify` setting in `~/.codex/config.toml`. Codex currently sends it one event, `agent-turn-complete`, as a JSON argument with fields such as `thread-id`, `last-assistant-message`, and `input-messages`. Your script turns that into a toast, sound, or push. Codex ignores `notify` in a project's `.codex/config.toml`, so set it in your user config:",
           },
           {
             kind: "code",
@@ -266,11 +286,11 @@ const AGENT_GUIDES: Guide[] = [
       },
       {
         id: "hooks",
-        title: "Option 2: Codex hooks (Stop and PermissionRequest)",
+        title: "Option 3: Codex hooks (Stop and PermissionRequest)",
         blocks: [
           {
             kind: "p",
-            text: "Codex CLI 0.144 and newer ship a hooks system modelled on Claude Code's. Hooks live in `~/.codex/hooks.json` and must be enabled with `hooks = true` under `[features]` in `config.toml`. The `Stop` event fires when the turn ends and `PermissionRequest` fires when Codex asks to run a command. A hook entry looks like this:",
+            text: "Codex CLI 0.144 and newer ship a hooks system modelled on Claude Code's. Hooks live in `~/.codex/hooks.json` and are on by default in current releases (early ones needed `hooks = true` under `[features]` in `config.toml`). `Stop` fires when the turn ends. `PermissionRequest` fires when Codex is about to ask for approval, and only then. A hook entry looks like this:",
           },
           {
             kind: "code",
@@ -279,14 +299,14 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "note",
-            text: "Codex records a trust hash for every hook it runs, keyed by file path, event, and position, under `[hooks.state]` in `config.toml`. Editing a hook command by hand invalidates the hash until Codex re-trusts it. anotifier writes the hash for you and removes it on uninstall.",
+            text: "Codex records a trust hash for every hook it runs, keyed by file path, event, and position, under `[hooks.state]` in `config.toml`, and skips a new or edited hook until you trust it with `/hooks` in Codex. anotifier writes the hash for you and removes it on uninstall.",
           },
         ],
       },
       {
         id: "anotifier",
         title:
-          "Option 3: anotifier, one command for Codex and every other agent",
+          "Option 4: anotifier, one command for Codex and every other agent",
         blocks: [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
@@ -300,11 +320,15 @@ const AGENT_GUIDES: Guide[] = [
     faqs: [
       {
         q: "Does Codex CLI have built-in desktop notifications?",
-        a: "Codex's TUI can emit terminal notifications that some terminals (iTerm2, Ghostty, WezTerm and others) display as system notifications; the notify setting in config.toml runs your own program on turn completion. Neither covers approval prompts on their own, and neither reaches your phone.",
+        a: "Yes. The Codex TUI notifies when a turn ends and when an approval, Plan mode prompt, or question is waiting: an OSC 9 desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, the terminal bell elsewhere, and by default only while the terminal is unfocused. It doesn't reach your phone.",
       },
       {
         q: "How do I know when Codex is waiting for approval?",
-        a: "Use the PermissionRequest hook (Codex CLI 0.144+). anotifier registers it during setup and delivers it as an urgent notification on every channel you enabled.",
+        a: "Codex's built-in approval-requested notification covers it on your machine. For an alert on your phone or on every channel, use the PermissionRequest hook (Codex CLI 0.144+); anotifier registers it during setup and delivers it as an urgent notification on every channel you enabled.",
+      },
+      {
+        q: "How do I make Codex ding when it needs approval?",
+        a: 'Set notification_method = "bel" and notification_condition = "always" under [tui] in ~/.codex/config.toml, or add a PermissionRequest hook that plays a sound. The Codex notification sound guide has both configs.',
       },
       {
         q: "Can I approve the command from the notification?",
@@ -453,6 +477,7 @@ const AGENT_GUIDES: Guide[] = [
 export const GUIDES: Guide[] = [
   ...AGENT_GUIDES,
   ...CLAUDE_GUIDES,
+  ...CODEX_GUIDES,
   ...TOPIC_GUIDES,
 ];
 
