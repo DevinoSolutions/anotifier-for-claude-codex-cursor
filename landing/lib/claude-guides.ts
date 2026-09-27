@@ -15,9 +15,9 @@ const hookEntry = (command: string, matcher?: string) => ({
   hooks: [{ type: "command", command }],
 });
 
-const json = (value: unknown) => JSON.stringify(value, null, 2);
+export const json = (value: unknown) => JSON.stringify(value, null, 2);
 
-const WINDOWS_SOUND = (file: string) =>
+export const WINDOWS_SOUND = (file: string) =>
   `powershell.exe -NoProfile -Command "(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\${file}').PlaySync()"`;
 
 export const CLAUDE_GUIDES: Guide[] = [

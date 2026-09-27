@@ -243,7 +243,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "agent-hooks-explained",
-    updated: "2026-09-25",
+    updated: "2026-09-26",
     kind: "topic",
     name: "Agent hooks",
     title: "Agent Hooks Explained: Claude Code, Codex, Cursor, Gemini",
@@ -337,7 +337,7 @@ export const TOPIC_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "Codex only runs hooks when `hooks = true` is set under `[features]` in `~/.codex/config.toml`, and only hooks it trusts. Each hook needs a `trusted_hash` under `[hooks.state]`, keyed by the hooks file path, the event, and the entry's position. Setup writes both, and migrates the older `codex_hooks = true` flag.",
+            text: "Current Codex releases run hooks by default; early ones needed `hooks = true` under `[features]` in `~/.codex/config.toml`, so setup still sets it and migrates the older `codex_hooks = true` flag. Codex also runs only hooks it trusts. Each hook needs a `trusted_hash` under `[hooks.state]`, keyed by the hooks file path, the event, and the entry's position, and setup writes those too.",
           },
           {
             kind: "code",
@@ -346,7 +346,7 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "Codex skips a hook without a matching hash, so if you edit one by hand it stops firing. Running `npx anotifier@latest setup` again rewrites the hashes. Hooks fire in the interactive Codex TUI, not in `codex exec`.",
+            text: "Codex skips a hook without a matching hash, so if you edit one by hand it stops firing until you trust it again with `/hooks` in Codex. Running `npx anotifier@latest setup` again also rewrites the hashes. Hooks fire in the interactive Codex TUI, not in `codex exec`.",
           },
         ],
       },
@@ -491,6 +491,11 @@ export const TOPIC_GUIDES: Guide[] = [
                 "Codex never notifies",
                 "Hooks flag off, stale trust hashes, or running `codex exec`",
                 "Re-run setup; use the interactive TUI. See [agent hooks](/guides/agent-hooks-explained/)",
+              ],
+              [
+                "Codex's own alerts only come when you switch away",
+                'Codex\'s built-in notifications default to `notification_condition = "unfocused"`',
+                'Set `notification_condition = "always"` under `[tui]`. See [Codex notification sounds](/guides/codex-notification-sound/)',
               ],
               [
                 "Claude Code approval alerts arrive a few seconds late",

@@ -154,6 +154,7 @@ test("the 404 page declares no canonical", async () => {
 const TOPIC_GUIDES = [
   "/guides/claude-code-permission-notifications/",
   "/guides/claude-code-notification-sound/",
+  "/guides/codex-notification-sound/",
   "/guides/windows-wsl-notifications/",
   "/guides/macos-linux-notifications/",
   "/guides/agent-hooks-explained/",
