@@ -14,6 +14,8 @@ const CHROME = findChrome();
 // the live home page measured 2200-3000 ms here; after it, ~1000 ms. The
 // budget sits between the two with headroom for slower CI runners.
 const LCP_BUDGET_MS = Number(process.env.LCP_BUDGET_MS || 2000);
+// A cold hosted runner has taken more than 15 s to bring up its first Chrome.
+const CHROME_START_MS = Number(process.env.CHROME_START_MS || 45_000);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function openBrowser(port) {
@@ -30,18 +32,43 @@ async function openBrowser(port) {
     ],
     { stdio: "ignore" },
   );
-  let targets;
-  for (let i = 0; i < 60 && !targets; i++) {
+  const stop = () => {
+    proc.kill();
     try {
-      targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
+      fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5 });
     } catch {
-      await sleep(250);
+      /* Chrome may still hold the profile on Windows; the OS tmp cleanup wins */
     }
+  };
+  try {
+    return await connect(port, stop);
+  } catch (err) {
+    // A Chrome left running keeps this file's process alive, and node --test
+    // then waits on it until the CI job times out instead of failing the test.
+    stop();
+    throw err;
   }
-  if (!targets) throw new Error("Chrome DevTools endpoint never came up");
-  const ws = new WebSocket(
-    targets.find((t) => t.type === "page").webSocketDebuggerUrl,
-  );
+}
+
+async function connect(port, stop) {
+  const deadline = Date.now() + CHROME_START_MS;
+  let page;
+  while (!page) {
+    if (Date.now() > deadline)
+      throw new Error(
+        `Chrome DevTools endpoint never came up in ${CHROME_START_MS} ms`,
+      );
+    try {
+      const targets = await (
+        await fetch(`http://127.0.0.1:${port}/json`)
+      ).json();
+      page = targets.find((t) => t.type === "page");
+    } catch {
+      /* not listening yet */
+    }
+    if (!page) await sleep(250);
+  }
+  const ws = new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((r, j) => {
     ws.addEventListener("open", r);
     ws.addEventListener("error", j);
@@ -76,12 +103,7 @@ async function openBrowser(port) {
   };
   const close = () => {
     ws.close();
-    proc.kill();
-    try {
-      fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5 });
-    } catch {
-      /* Chrome may still hold the profile on Windows; the OS tmp cleanup wins */
-    }
+    stop();
   };
   await send("Page.enable");
   return { send, evaluate, close };
