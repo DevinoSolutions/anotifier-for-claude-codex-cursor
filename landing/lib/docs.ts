@@ -435,7 +435,7 @@ export const DOCS: DocSection[] = [
     blocks: [
       {
         kind: "p",
-        text: "A `needs_input` notification carries Claude's own question; a `task_complete` notification carries the last assistant message. Both are collapsed to one line and trimmed to about 180 characters. Session-start notifications stay generic. Codex, Cursor, and Gemini CLI do not expose a transcript, so they always get `<project>: Task complete` style text. The project name stays in the title on every channel, so a rich body never hides which repo finished.",
+        text: "A `needs_input` notification carries Claude's own question; a `task_complete` notification carries the last assistant message. Both are collapsed to one line and trimmed to about 180 characters. Session-start notifications stay generic. anotifier reads the transcript for Claude Code only, so Codex, Cursor, and Gemini CLI always get `<project>: Task complete` style text. The project name stays in the title on every channel, so a rich body never hides which repo finished. Cursor is the exception: its `stop` event carries no working directory, so Cursor alerts are titled just `Cursor`.",
       },
       {
         kind: "table",
@@ -719,11 +719,11 @@ export const DOCS_FAQ: DocFaq[] = [
   },
   {
     q: "Which AI coding agents does anotifier support?",
-    a: "Claude Code (terminal and VS Code extension), OpenAI Codex CLI, Cursor's agent, and Google Gemini CLI. All four are wired by one setup command and share one config.",
+    a: "Claude Code (terminal and VS Code extension), OpenAI Codex CLI, Cursor's agent, and Google Gemini CLI. All four are wired by one setup command and share one config. Google's Antigravity CLI, which replaced Gemini CLI for Google AI Pro and Ultra subscribers, uses a different hook format and isn't supported yet.",
   },
   {
     q: "Does it work inside VS Code?",
-    a: "Yes. The hooks fire whether the agent runs in a standalone terminal, the VS Code integrated terminal, or the Claude Code extension, and no VS Code extension is required. On Windows, clicking the toast focuses the exact window that fired it.",
+    a: "Yes. The hooks fire whether the agent runs in a standalone terminal, the VS Code integrated terminal, or the Claude Code extension, and no VS Code extension is required. On Windows, clicking the toast brings forward the window whose title contains the project folder.",
   },
   {
     q: "Can a broken notification break my agent?",

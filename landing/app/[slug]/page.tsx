@@ -3,11 +3,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AGENTS, getAgent } from "@/lib/agents";
 import { GUIDES } from "@/lib/guides";
+import Blocks from "@/components/docs/Blocks";
+import CodeBlock from "@/components/docs/CodeBlock";
+import Inline from "@/components/docs/Inline";
 import LogoMark from "@/components/LogoMark";
 import StarButton from "@/components/StarButton";
 import CopyButton from "@/components/home/CopyButton";
 import { INSTALL_CMD } from "@/lib/site";
 import "./agent-page.css";
+import "../docs/docs.css";
 
 export const dynamicParams = false;
 
@@ -18,6 +22,21 @@ export function generateStaticParams() {
 function stripTags(html: string): string {
   return html.replace(/<[^>]+>/g, "");
 }
+
+/** Every agent page ends with the same way to prove it works and to back out. */
+const CHECK_CMDS = [
+  "npx anotifier@latest test       # fire a test alert on every channel",
+  "npx anotifier@latest status     # show which agents and channels are set up",
+  "npx anotifier@latest doctor     # diagnose a channel that stays quiet",
+  "npx anotifier@latest uninstall  # remove the hooks setup added",
+].join("\n");
+
+/** Topic guides that apply to every agent, listed after the agent's own guides. */
+const SHARED_GUIDES = [
+  "agent-hooks-explained",
+  "notifications-not-working",
+  "ntfy-phone-notifications",
+];
 
 const chLink: React.CSSProperties = {
   color: "var(--green)",
@@ -64,7 +83,14 @@ export default async function AgentPage({
 
   const url = `https://anotifier.io/${agent.slug}/`;
   const others = AGENTS.filter((a) => a.slug !== agent.slug);
-  const guide = GUIDES.find((g) => g.agentSlug === agent.slug);
+  const agentGuides = GUIDES.filter((g) => g.agentSlug === agent.slug);
+  const guide = agentGuides[0];
+  const readMore = [
+    ...agentGuides,
+    ...SHARED_GUIDES.map((s) => GUIDES.find((g) => g.slug === s)).filter(
+      (g) => g !== undefined,
+    ),
+  ];
 
   const jsonLd = [
     {
@@ -162,6 +188,11 @@ export default async function AgentPage({
               dangerouslySetInnerHTML={{ __html: agent.extraInstall }}
             />
           )}
+          {agent.notice && (
+            <p className="notice">
+              <Inline text={agent.notice} />
+            </p>
+          )}
           {guide && (
             <p className="guide-link">
               Comparing options first?{" "}
@@ -174,15 +205,29 @@ export default async function AgentPage({
         <section>
           <div className="kicker">[ HOW IT HOOKS IN ]</div>
           <h2>Wired into {agent.name} itself.</h2>
-          <p className="lede">{agent.hooksIntro}</p>
+          <p className="lede">
+            <Inline text={agent.hooksIntro} />
+          </p>
           {agent.hooks.map((hook, i) => (
             <div className="hook" key={i}>
               <code className="ev">{hook.event}</code>
               <span className="what">{hook.what}</span>
-              <span className="how">{hook.how}</span>
+              <span className="how">
+                <Inline text={hook.how} />
+              </span>
             </div>
           ))}
         </section>
+
+        {agent.sections.map((s) => (
+          <section key={s.id} id={s.id}>
+            <div className="kicker">{s.kicker}</div>
+            <h2>{s.title}</h2>
+            <div className="docBody">
+              <Blocks blocks={s.blocks} placement="agent" />
+            </div>
+          </section>
+        ))}
 
         <section>
           <div className="kicker">[ CHANNELS ]</div>
@@ -216,17 +261,32 @@ export default async function AgentPage({
               , any HTTP endpoint.
             </div>
             <div className="ch">
-              <span className="tag">[+]</span> <b>Terminal bell</b> An audible
-              ding in the source terminal.
+              <span className="tag">[+]</span> <b>Terminal bell</b> A ding in
+              the terminal the agent runs in.
             </div>
             <div className="ch">
-              <span className="tag">[+]</span> <b>Click-to-focus</b> Jump
-              straight back to the right window.
+              <span className="tag">[+]</span> <b>Click-to-focus</b> On Windows,
+              a click on the toast brings the project&apos;s window forward.
             </div>
             <div className="ch">
-              <span className="tag">[+]</span> <b>Zero dependencies</b> Pure
-              Node.js, one shared config.
+              <span className="tag">[+]</span> <b>Zero npm dependencies</b>{" "}
+              Plain Node.js 18+, one shared config.
             </div>
+          </div>
+        </section>
+
+        <section id="check">
+          <div className="kicker">[ CHECK IT, UNDO IT ]</div>
+          <h2>Test it, then keep it or remove it.</h2>
+          <div className="docBody">
+            <CodeBlock code={CHECK_CMDS} lang="bash" placement="agent" />
+            <p>
+              <code>test</code> sends straight to your channels without going
+              through {agent.name}, so it proves the channels work.{" "}
+              <code>uninstall</code> removes only the entries anotifier added,
+              and setup keeps a copy of every file it changes in{" "}
+              <code>~/.anotifier/backups/</code>.
+            </p>
           </div>
         </section>
 
@@ -243,6 +303,21 @@ export default async function AgentPage({
             </details>
           ))}
         </section>
+
+        {readMore.length > 0 && (
+          <section id="guides">
+            <div className="kicker">[ GUIDES ]</div>
+            <h2>Every option, explained.</h2>
+            <ul className="guideList">
+              {readMore.map((g) => (
+                <li key={g.slug}>
+                  <Link href={`/guides/${g.slug}/`}>{g.h1}</Link>
+                  <span>{g.description}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section>
           <div className="kicker">[ ALSO WORKS WITH ]</div>
