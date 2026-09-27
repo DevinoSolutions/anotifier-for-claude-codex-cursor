@@ -217,6 +217,49 @@ section {
   flex-basis: 100%;
   font-size: 14px;
   color: var(--dim);
+  overflow-wrap: anywhere;
+}
+/* Inline markdown (lib/agents.ts) outside the .docBody blocks */
+.hook .how code,
+.lede code,
+.notice code {
+  font-family: var(--font-mono-stack);
+  font-size: 0.9em;
+  color: var(--green);
+}
+.hook .how a,
+.lede a,
+.notice a,
+.guideList a {
+  color: var(--green);
+  text-decoration: underline;
+}
+.notice {
+  border-left: 3px solid var(--green);
+  background: var(--panel);
+  border-radius: 0 10px 10px 0;
+  padding: 12px 16px;
+  margin: 22px 0 0;
+  max-width: 72ch;
+  font-size: 14.5px;
+}
+.notice strong {
+  color: var(--ink);
+}
+.guideList {
+  margin: 16px 0 0;
+  padding-left: 22px;
+}
+.guideList li {
+  margin: 8px 0;
+}
+.guideList li::marker {
+  color: var(--green);
+}
+.guideList span {
+  display: block;
+  font-size: 14px;
+  color: var(--dim);
 }
 .channels {
   display: grid;

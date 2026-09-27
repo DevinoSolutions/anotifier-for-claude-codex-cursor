@@ -92,6 +92,27 @@ const WHAT_ANOTIFIER_ADDS: Block[] = [
   },
 ];
 
+/** Cursor's stop event carries no working directory and anotifier hooks only
+    `stop`, so three of the shared rows don't hold for Cursor. */
+const CURSOR_ROWS: Record<string, string> = {
+  "Names the project": "No, the title is `Cursor`",
+  "Urgent for approvals, calm for done": "No, finished runs only",
+  "Click to focus the window": "No",
+};
+
+const WHAT_ANOTIFIER_ADDS_CURSOR: Block[] = WHAT_ANOTIFIER_ADDS.map((block) =>
+  block.kind === "table"
+    ? {
+        ...block,
+        rows: block.rows.map((row) =>
+          row[0] in CURSOR_ROWS
+            ? [...row.slice(0, 3), CURSOR_ROWS[row[0]]]
+            : row,
+        ),
+      }
+    : block,
+);
+
 const AGENT_GUIDES: Guide[] = [
   {
     slug: "claude-code-notifications",
@@ -342,7 +363,7 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "cursor-agent-notifications",
-    updated: "2026-09-25",
+    updated: "2026-09-27",
     kind: "agent",
     agentSlug: "cursor",
     name: "Cursor",
@@ -379,7 +400,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "On macOS use `osascript -e \\'display notification ...\\'`; on Windows a PowerShell script with BurntToast. Cursor can fire `stop` twice for a single run, so a hand-written hook may notify twice unless you de-duplicate.",
+            text: "On macOS use `osascript -e 'display notification ...'`; on Windows a PowerShell script with BurntToast. Cursor can fire `stop` twice for a single run, so a hand-written hook may notify twice unless you de-duplicate.",
           },
         ],
       },
@@ -390,9 +411,9 @@ const AGENT_GUIDES: Guide[] = [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: "The wizard detects `~/.cursor`, adds the `stop` hook (backing up `hooks.json` first), and routes the event to your desktop, phone, and webhook. Duplicate `stop` fires within 1.5 seconds collapse into one notification through an atomic lock, and on Windows clicking the toast focuses the exact Cursor window that owns the agent. Cursor exposes no transcript to hooks, so the body is the generic `my-app: Task complete`; the project name is always in the title.",
+            text: "The wizard detects `~/.cursor`, adds the `stop` hook (backing up `hooks.json` first), and routes the event to your desktop, phone, and webhook. Duplicate `stop` fires within 1.5 seconds collapse into one notification through an atomic lock. The alert is titled `Cursor` and says `Task complete`: Cursor's `stop` event carries no working directory, so the project name isn't in it and a click on the Windows toast can't find the window, and anotifier doesn't read the event's `status`, so an aborted run says the same. anotifier hooks only `stop`, so it doesn't tell you when the agent is waiting for you.",
           },
-          ...WHAT_ANOTIFIER_ADDS,
+          ...WHAT_ANOTIFIER_ADDS_CURSOR,
         ],
       },
     ],
@@ -407,13 +428,13 @@ const AGENT_GUIDES: Guide[] = [
       },
       {
         q: "Why did I get two notifications for one run?",
-        a: "Cursor can emit the stop event twice. anotifier de-duplicates identical events within 1.5 seconds; a hand-written hook needs its own guard.",
+        a: "Cursor can emit the stop event twice. anotifier drops a repeat of the same event from the same session within 1.5 seconds; a hand-written hook needs its own guard.",
       },
     ],
   },
   {
     slug: "gemini-cli-notifications",
-    updated: "2026-09-25",
+    updated: "2026-09-27",
     kind: "agent",
     agentSlug: "gemini-cli",
     name: "Gemini CLI",
@@ -451,9 +472,23 @@ const AGENT_GUIDES: Guide[] = [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: "The wizard detects `~/.gemini`, registers `AfterAgent` and `Notification` in `settings.json` with a backup, and cleans up any stale `hooks.json` from older versions. Completed runs arrive as `my-app · Gemini`; attention requests arrive urgent. Gemini CLI is driven end to end in CI on Linux and macOS, hard-failing if the hook does not deliver a real push.",
+            text: "The wizard detects `~/.gemini`, registers `AfterAgent` and `Notification` in `settings.json` with a backup, and cleans up any stale `hooks.json` from older versions. Completed runs arrive as `my-app · Gemini`; attention requests arrive urgent. Gemini CLI is driven end to end in CI on Linux and macOS, hard-failing if the `AfterAgent` hook does not deliver a real push.",
           },
           ...WHAT_ANOTIFIER_ADDS,
+        ],
+      },
+      {
+        id: "antigravity",
+        title: "Moved to Antigravity CLI?",
+        blocks: [
+          {
+            kind: "p",
+            text: "On June 18, 2026 Google stopped serving Gemini CLI to Google AI Pro and Ultra subscribers and free Gemini Code Assist users, and moved them to Antigravity CLI. Gemini CLI keeps working with a Gemini API key or a Code Assist Standard or Enterprise license, and everything above applies to it.",
+          },
+          {
+            kind: "p",
+            text: "Antigravity CLI has hooks too, in a new format: it reads them from files such as `~/.gemini/config/hooks.json` or a workspace's `.agents/hooks.json`, and its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`. There is no `AfterAgent` or `Notification` event, so neither the hooks above nor anotifier's fire there. anotifier doesn't support Antigravity CLI yet; Google's [Antigravity hooks docs](https://antigravity.google/docs/hooks/) describe the format if you want to write a `Stop` hook yourself.",
+          },
         ],
       },
     ],
@@ -464,11 +499,15 @@ const AGENT_GUIDES: Guide[] = [
       },
       {
         q: "Does the notification include what Gemini said?",
-        a: "No. Gemini CLI does not expose a transcript to hooks, so the body is the generic completion text and the project name is in the title. Rich content is Claude Code-only today.",
+        a: "No. anotifier sends the generic completion text for Gemini CLI, with the project name in the title. Showing the agent's own words is Claude Code-only today.",
       },
       {
         q: "Can I use anotifier for Gemini CLI and Claude Code at the same time?",
         a: "Yes. One config covers every supported agent, and all of them deliver to the same toast, ntfy topic, and webhook.",
+      },
+      {
+        q: "Does this work with Antigravity CLI?",
+        a: "Not yet. Antigravity CLI reads hooks from its own files, such as ~/.gemini/config/hooks.json, and has no AfterAgent or Notification event, so Gemini CLI hooks don't fire there. Gemini CLI itself still works with a Gemini API key or a Code Assist Standard or Enterprise license.",
       },
     ],
   },

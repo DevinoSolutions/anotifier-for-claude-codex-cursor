@@ -1,6 +1,19 @@
+import type { Block } from "./docs";
+import { json } from "./claude-guides";
+
+/**
+ * The per-agent product pages (/claude-code/ etc.). They answer "what does
+ * anotifier do for X": the hooks it registers, the exact entries setup writes,
+ * what each alert says, and the limits. Every claim mirrors the CLI source
+ * (setup/patch-config.mjs, src/parse-input.mjs, src/router.mjs,
+ * config/default-config.json); the how-to for every option, built-in and DIY,
+ * lives in the guides these pages link to.
+ */
+
 interface AgentHook {
   event: string;
   what: string;
+  /** Inline markdown: `code`, **bold**, [text](url). */
   how: string;
 }
 
@@ -16,6 +29,13 @@ interface AgentH1 {
   post: string;
 }
 
+interface AgentSection {
+  id: string;
+  kicker: string;
+  title: string;
+  blocks: Block[];
+}
+
 export interface Agent {
   slug: string;
   /** Last significant edit of this page's content (YYYY-MM-DD): the
@@ -27,20 +47,30 @@ export interface Agent {
   description: string;
   h1: AgentH1;
   sub: string;
-  /** Lede paragraph under the "How it hooks in" section. */
+  /** Inline markdown callout under the hero, for news that decides whether
+      the page applies to the reader at all. */
+  notice?: string;
+  /** Lede under the "How it hooks in" section. Inline markdown. */
   hooksIntro: string;
   hooks: AgentHook[];
   /** Extra install line, rendered as HTML below the install command (claude-code only). */
   extraInstall?: string;
+  /** Agent-specific sections after the hook list: what setup writes, limits. */
+  sections: AgentSection[];
   faqs: AgentFaq[];
   /** Public path to the agent icon. */
   icon: string;
 }
 
+const NOTIFY = "/path/to/anotifier/src/notify.mjs";
+
+const CLICK_TO_FOCUS =
+  "**Click-to-focus is Windows-only.** Clicking the toast brings forward the window whose title contains the project folder. macOS, Linux and WSL toasts have no click action.";
+
 export const AGENTS: Agent[] = [
   {
     slug: "claude-code",
-    updated: "2026-09-25",
+    updated: "2026-09-27",
     name: "Claude Code",
     title: "Claude Code Notifier — Desktop, Phone & Slack Alerts",
     description:
@@ -48,31 +78,95 @@ export const AGENTS: Agent[] = [
     h1: { pre: "anotifier for ", em: "Claude Code", post: "." },
     sub: "Claude Code runs for minutes at a time — refactoring, running tests, waiting on a permission prompt you haven't seen. anotifier hooks into Claude Code's native event system and pings you the moment it finishes or needs you.",
     hooksIntro:
-      "anotifier wires itself into Claude Code's built-in hook system during setup. No extension, no wrapper process — Claude Code itself fires the events.",
+      "Setup adds two entries to Claude Code's own hooks in `~/.claude/settings.json`. There is no extension and no wrapper process: Claude Code runs the hook itself when the event happens.",
     hooks: [
       {
         event: "Stop",
         what: "Claude Code finished its turn",
-        how: "“Task complete — refactored auth module, 14 tests passing” with the real transcript summary.",
+        how: "Titled `my-app · Claude Code`. On the toast and on webhooks the body is the start of Claude's last reply, up to 180 characters; phone push says `my-app: Task complete` unless you turn on rich content. If background tasks are still running, the alert waits for the real finish.",
       },
       {
         event: "Notification",
-        what: "Claude Code needs your input",
-        how: "Permission prompts and questions surface as urgent alerts, so approvals never sit unnoticed.",
+        what: "Claude Code needs you",
+        how: "Claude's own message is the body, such as a permission request or a question, sent urgent. The idle reminder (“Claude is waiting for your input”) goes out at normal priority, because nothing is blocked.",
       },
     ],
     extraInstall:
       "Or install it as a Claude Code plugin, in two steps: <code>/plugin marketplace add DevinoSolutions/anotifier-for-claude-codex-cursor</code> then <code>/plugin install anotifier@anotifier</code>",
+    sections: [
+      {
+        id: "setup",
+        kicker: "[ WHAT SETUP WRITES ]",
+        title: "Two hooks in ~/.claude/settings.json.",
+        blocks: [
+          {
+            kind: "p",
+            text: "Setup only wires Claude Code when `~/.claude/settings.json` already exists (on Windows, in the `.claude` folder of your user profile), so start Claude Code once first. It copies the file to `~/.anotifier/backups/`, then adds this entry under `Stop`:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              hooks: {
+                Stop: [
+                  {
+                    hooks: [
+                      {
+                        type: "command",
+                        command: `node "${NOTIFY}" --source claude`,
+                        timeout: 10,
+                      },
+                    ],
+                    _managed_by: "anotifier",
+                    matcher: "",
+                  },
+                ],
+              },
+            }),
+          },
+          {
+            kind: "p",
+            text: "`Notification` gets an identical entry. The path points at the anotifier package on your machine, which is the npx cache if you ran it with npx. `_managed_by` is how `status` and `uninstall` tell anotifier's entries from your own hooks. Claude Code gives the hook 10 seconds; anotifier sends to every channel in parallel, each with a shorter timeout, and always exits cleanly, so a dead channel never holds Claude up.",
+          },
+          {
+            kind: "p",
+            text: "Installed as a plugin instead? The plugin registers the same two hooks from its own `hooks.json`, and `/anotifier:setup` wires your other agents. Plugin hooks don't show in `anotifier status` and `anotifier uninstall` doesn't remove them; remove the plugin from Claude Code's `/plugin` menu instead.",
+          },
+        ],
+      },
+      {
+        id: "limits",
+        kicker: "[ GOOD TO KNOW ]",
+        title: "What it does, and what it doesn't.",
+        blocks: [
+          {
+            kind: "ul",
+            items: [
+              "**The ding comes from Claude Code itself.** The hook hands Claude Code a bell to print in its own terminal (Claude Code 2.1.141 or newer), so no extra process has to find the right tab.",
+              "**Every notification type alerts.** The hook has no matcher, so types that don't need you, such as `auth_success`, also arrive as urgent. The [permission notifications guide](/guides/claude-code-permission-notifications/) shows how to filter by type in a hook you write yourself.",
+              "**Needs-input alerts stand out.** They go out urgent, which raises the priority on ntfy and Linux `notify-send`, and toasts play a different sound than for a finished task.",
+              CLICK_TO_FOCUS,
+              "**Snooze and quiet hours** silence every channel, the bell included: `npx anotifier@latest snooze 2h`.",
+            ],
+          },
+        ],
+      },
+    ],
     faqs: [
       {
         q: "How does anotifier integrate with Claude Code?",
         aHtml:
-          "<p>It uses Claude Code's native hooks. <code>anotifier setup</code> detects Claude Code and registers <code>Stop</code> and <code>Notification</code> hooks in your Claude settings. When Claude Code finishes a turn or asks for input, the hook fires and anotifier routes it to your channels.</p>",
+          "<p>It uses Claude Code's native hooks. <code>anotifier setup</code> detects Claude Code and registers <code>Stop</code> and <code>Notification</code> hooks in <code>~/.claude/settings.json</code>, after backing the file up. When Claude Code finishes a turn or asks for input, the hook fires and anotifier routes it to your channels.</p>",
       },
       {
         q: "Does it work with Claude Code inside VS Code?",
         aHtml:
-          "<p>Yes. The hooks fire whether Claude Code runs in a terminal or in the VS Code extension, and click-to-focus jumps you back to the right window.</p>",
+          "<p>Yes. The hooks live in Claude Code's own settings, so they fire the same way in a terminal and in the VS Code extension. On Windows, clicking the toast brings forward the window whose title contains the project folder.</p>",
+      },
+      {
+        q: "What does a Claude Code notification say?",
+        aHtml:
+          "<p>The title names the project and the agent, like <code>my-app · Claude Code</code>. On the toast and on webhooks the body is what Claude last said, or its question, trimmed to about 180 characters. Phone push through ntfy says <code>my-app: Task complete</code> unless you set <code>ntfy.richContent</code> to <code>true</code>.</p>",
       },
       {
         q: "Can I get Claude Code alerts on my phone?",
@@ -82,14 +176,19 @@ export const AGENTS: Agent[] = [
       {
         q: "Is my code or conversation sent anywhere?",
         aHtml:
-          "<p>No. anotifier runs locally with zero runtime dependencies. Only the notification text (e.g. the task summary) goes to the channels you explicitly configure.</p>",
+          "<p>Nothing goes to us unless you opt in to error reports. An alert goes only to the channels you set up: by default the toast and any webhook get the start of Claude's last message, and ntfy gets a generic line. Separately, anotifier asks the npm registry for the latest version at most once a day; set <code>updateCheck.enabled</code> to <code>false</code> to stop that.</p>",
+      },
+      {
+        q: "How do I remove it?",
+        aHtml:
+          "<p>Run <code>npx anotifier@latest uninstall</code>. It removes anotifier's two entries and leaves your own hooks in place. If you installed the plugin, remove it from Claude Code's <code>/plugin</code> menu as well.</p>",
       },
     ],
     icon: "/assets/icons/claude.png",
   },
   {
     slug: "codex",
-    updated: "2026-09-25",
+    updated: "2026-09-27",
     name: "Codex CLI",
     title: "Codex CLI Notifier — Desktop, Phone & Approval Alerts",
     description:
@@ -97,54 +196,180 @@ export const AGENTS: Agent[] = [
     h1: { pre: "anotifier for ", em: "Codex CLI", post: "." },
     sub: "Codex works quietly in your terminal until it's done — or until it's stuck waiting for you to approve a command. anotifier turns both moments into notifications on your desktop, phone, or team chat.",
     hooksIntro:
-      "Setup registers anotifier with Codex CLI's own hook system, so Codex reports its own state changes the instant they happen.",
+      "Setup registers three hooks with Codex CLI's own hook system in `~/.codex/hooks.json`, and records them as trusted so Codex runs them without a review step.",
     hooks: [
       {
         event: "Stop",
-        what: "Codex finished the task",
-        how: "A toast with the completion summary the moment the run ends.",
+        what: "Codex finished its turn",
+        how: "Titled `backend · Codex`, with the body `backend: Task complete`. anotifier doesn't read Codex's reply, so the text is the same every time; the project name tells you which run finished.",
       },
       {
         event: "PermissionRequest",
-        what: "Codex wants to run a command",
-        how: "“Needs your input — allow npm test?” flagged urgent so approvals don't stall the run.",
+        what: "Codex is waiting for your approval",
+        how: "`backend: Needs your input`, sent urgent with its own sound. The command isn't in the alert; you see it in the terminal. anotifier never answers the request, so Codex's own approval prompt decides.",
+      },
+      {
+        event: "SessionStart",
+        what: "A Codex session started",
+        how: "Quiet by default: toast, phone push and bell are off for this event. A webhook, if you set one up, still receives `Session started`.",
+      },
+    ],
+    sections: [
+      {
+        id: "setup",
+        kicker: "[ WHAT SETUP WRITES ]",
+        title: "Hooks in hooks.json, trust in config.toml.",
+        blocks: [
+          {
+            kind: "p",
+            text: "Setup wires Codex when a `~/.codex` folder exists. It backs up both files to `~/.anotifier/backups/`, then adds one entry per event to `~/.codex/hooks.json`. This is the `Stop` one:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              hooks: {
+                Stop: [
+                  {
+                    hooks: [
+                      {
+                        type: "command",
+                        command: `node "${NOTIFY}" --source codex --event Stop`,
+                        timeout: 10,
+                        statusMessage: "Sending notification",
+                      },
+                    ],
+                  },
+                ],
+              },
+            }),
+          },
+          {
+            kind: "p",
+            text: "`PermissionRequest` and `SessionStart` get the same entry with their own `--event`. In `~/.codex/config.toml`, setup turns hooks on (renaming an older `codex_hooks = true`) and records a trust hash for each entry:",
+          },
+          {
+            kind: "code",
+            lang: "toml",
+            code: "[features]\nhooks = true\n\n[hooks.state.'/home/you/.codex/hooks.json:stop:0:0']\ntrusted_hash = \"sha256:…\"",
+          },
+          {
+            kind: "p",
+            text: "Codex skips a new or edited hook until it is trusted, which is why setup writes the hashes. Edit an anotifier entry by hand and Codex skips it until you trust it again in `/hooks`, or rerun setup.",
+          },
+        ],
+      },
+      {
+        id: "limits",
+        kicker: "[ GOOD TO KNOW ]",
+        title: "What it does, and what it doesn't.",
+        blocks: [
+          {
+            kind: "ul",
+            items: [
+              "**Interactive sessions only.** Codex runs hooks in its TUI, not in `codex exec`, so scripted runs finish without an alert.",
+              "**Codex waits for the hook.** Hooks run synchronously: Codex shows “Sending notification” until anotifier exits, at most 10 seconds. Every channel sends in parallel with a shorter timeout of its own.",
+              "**Codex's built-in alerts still work.** Its `[tui] notifications` setting can ding or post a desktop notification too; the [Codex sound guide](/guides/codex-notification-sound/) shows how to tune them so you don't hear two dings.",
+              "**The ding** is a bell anotifier writes to the terminal Codex runs in, or to its tmux pane; on Windows, to the console Codex runs in.",
+              CLICK_TO_FOCUS,
+              "**Uninstall** removes the three entries and their trust hashes, and leaves `[features] hooks = true` as it is.",
+              "**Tested with Codex CLI 0.144.0 and later.**",
+            ],
+          },
+        ],
       },
     ],
     faqs: [
       {
         q: "How does anotifier know when Codex CLI is done?",
         aHtml:
-          "<p>Codex CLI has its own hook system for lifecycle events. <code>anotifier setup</code> detects Codex, writes the hooks into <code>~/.codex/hooks.json</code>, and enables the hooks feature in <code>~/.codex/config.toml</code> — so completion and permission events go straight to your notification channels.</p>",
+          "<p>Codex CLI has its own hook system. <code>anotifier setup</code> writes <code>Stop</code>, <code>PermissionRequest</code> and <code>SessionStart</code> hooks into <code>~/.codex/hooks.json</code>, turns hooks on in <code>~/.codex/config.toml</code>, and records a trust hash for each, so Codex runs them straight away.</p>",
       },
       {
-        q: "Can I approve Codex permission requests faster?",
+        q: "Does the approval alert show the command?",
         aHtml:
-          "<p>Permission requests arrive as urgent notifications with the requested command in the body, and click-to-focus takes you straight back to the Codex terminal to approve it.</p>",
+          "<p>No. It says <code>my-app: Needs your input</code>, sent urgent with its own sound. The command itself is in the Codex terminal, where you approve it.</p>",
       },
       {
-        q: "Does it change how Codex runs?",
+        q: "Can I approve a Codex request from the notification?",
         aHtml:
-          "<p>No. anotifier only listens for events Codex already emits — it never wraps, slows, or intercepts the agent itself.</p>",
+          "<p>No. anotifier only tells you that Codex is waiting. It never answers the <code>PermissionRequest</code>, so Codex's normal approval prompt decides.</p>",
+      },
+      {
+        q: "Does it slow Codex down?",
+        aHtml:
+          "<p>Codex waits for each hook to finish, showing “Sending notification”, for at most 10 seconds. anotifier sends to every channel in parallel with shorter timeouts of its own and always exits cleanly, so a dead channel can't stall a run.</p>",
+      },
+      {
+        q: "Why is there no alert when I use codex exec?",
+        aHtml:
+          "<p>Codex runs hooks in the interactive TUI only, so <code>codex exec</code> runs finish without one.</p>",
       },
     ],
     icon: "/assets/icons/codex.png",
   },
   {
     slug: "cursor",
-    updated: "2026-09-25",
+    updated: "2026-09-27",
     name: "Cursor",
     title: "Cursor Agent Notifier — Desktop, Phone & Slack Alerts",
     description:
-      "anotifier is a free Cursor agent notifier: a desktop toast, phone push, or webhook when the agent finishes editing. One-command setup, no extension needed.",
+      "anotifier is a free Cursor agent notifier: a desktop toast, phone push, or webhook when the agent run ends. One-command setup, no extension needed.",
     h1: { pre: "anotifier for ", em: "Cursor", post: "." },
-    sub: "You kick off a Cursor agent, switch to something else, and check back… too late or too often. anotifier watches Cursor's agent lifecycle and tells you the moment the edits are ready to review.",
+    sub: "You kick off a Cursor agent, switch to something else, and check back… too late or too often. anotifier hooks Cursor's agent lifecycle and tells you the moment the run is over.",
     hooksIntro:
-      "Setup detects Cursor and hooks its agent lifecycle, so the notification fires exactly when the agent stops — not when you happen to look.",
+      "Setup adds one hook to Cursor's own hook file, `~/.cursor/hooks.json`, so the alert fires when the agent stops, not when you happen to look.",
     hooks: [
       {
         event: "stop",
-        what: "The Cursor agent finished",
-        how: "“Agent finished — review 3 edits in src/auth” the second the run completes.",
+        what: "The Cursor agent run ended",
+        how: "A toast titled `Cursor` that says `Task complete`, or the same words by phone push or webhook. anotifier doesn't read the project or the run's status from Cursor's event, so every Cursor alert looks the same, however the run ended.",
+      },
+    ],
+    sections: [
+      {
+        id: "setup",
+        kicker: "[ WHAT SETUP WRITES ]",
+        title: "One stop hook in ~/.cursor/hooks.json.",
+        blocks: [
+          {
+            kind: "p",
+            text: "Setup wires Cursor when a `~/.cursor` folder exists. It backs up `~/.cursor/hooks.json` to `~/.anotifier/backups/`, then writes one entry in Cursor's hook format:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              version: 1,
+              hooks: {
+                stop: [
+                  { command: `node "${NOTIFY}" --source cursor --event stop` },
+                ],
+              },
+            }),
+          },
+          {
+            kind: "p",
+            text: "Your other Cursor hooks stay as they are. Cursor can fire `stop` twice for one run; anotifier drops a repeat of the same event from the same session within 1.5 seconds, so you get one alert.",
+          },
+        ],
+      },
+      {
+        id: "limits",
+        kicker: "[ GOOD TO KNOW ]",
+        title: "What it does, and what it doesn't.",
+        blocks: [
+          {
+            kind: "ul",
+            items: [
+              "**Finished runs only.** anotifier registers `stop`, so it tells you a run is over, not that the agent is waiting on you.",
+              "**No project name, so no click-to-focus.** Click-to-focus (Windows only) finds the window by the project folder, and Cursor alerts don't carry one.",
+              "**Usually no bell.** The bell rings in the terminal the agent runs in, and the Cursor editor normally has none.",
+              "**Cursor's editor agent.** The README lists the Cursor CLI as unsupported.",
+              "**How it's tested.** CI checks that setup writes and removes the Cursor hook correctly. Unlike Claude Code, Codex and Gemini CLI, a real Cursor run isn't driven end to end.",
+            ],
+          },
+        ],
       },
     ],
     faqs: [
@@ -156,7 +381,12 @@ export const AGENTS: Agent[] = [
       {
         q: "What does a Cursor notification look like?",
         aHtml:
-          "<p>A desktop toast (or phone push / webhook) with the agent's completion summary, e.g. which files were edited — and clicking it focuses the right Cursor window.</p>",
+          "<p>A toast titled <code>Cursor</code> with the text <code>Task complete</code>, or the same words by phone push or webhook. It doesn't name the project or list the edited files.</p>",
+      },
+      {
+        q: "Will I get an alert when the Cursor agent needs approval?",
+        aHtml:
+          '<p>No. anotifier only hooks the <code>stop</code> event, so you hear about finished runs. The <a href="/guides/cursor-agent-notifications/">Cursor notifications guide</a> covers the other options.</p>',
       },
       {
         q: "Can I use it alongside Claude Code and Codex?",
@@ -168,69 +398,154 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "gemini-cli",
-    updated: "2026-09-25",
+    updated: "2026-09-27",
     name: "Gemini CLI",
     title: "Gemini CLI Notifier — Desktop, Phone & Webhook Alerts",
     description:
       "anotifier is a free Gemini CLI notifier: it hooks Gemini's agent events and sends a desktop, phone, or webhook alert when a run finishes or needs input.",
     h1: { pre: "anotifier for ", em: "Gemini CLI", post: "." },
-    sub: "Gemini CLI chews through long agentic runs in your terminal. anotifier hooks its agent events so the finish line — or a question that blocks it — reaches you wherever you are.",
+    sub: "Gemini CLI chews through long agentic runs in your terminal. anotifier hooks its agent events so the finish line — or a prompt that blocks it — reaches you wherever you are.",
+    notice:
+      "**Gemini CLI or Antigravity CLI?** On June 18, 2026 Google stopped serving Gemini CLI to Google AI Pro and Ultra subscribers and free Gemini Code Assist users, and moved them to Antigravity CLI. Gemini CLI still runs with a Gemini API key or a Code Assist Standard or Enterprise license, and that is what anotifier hooks. [Antigravity CLI isn't supported yet](#antigravity).",
     hooksIntro:
-      "Setup registers hooks for Gemini CLI's agent lifecycle events, so notifications come from Gemini itself, not from polling.",
+      "Setup registers two hooks in Gemini CLI's settings file, `~/.gemini/settings.json`, so the alerts come from Gemini itself, not from polling.",
     hooks: [
       {
         event: "AfterAgent",
-        what: "The Gemini agent run completed",
-        how: "A completion toast with the run summary when the agent loop ends.",
+        what: "The agent loop finished",
+        how: "Titled `frontend · Gemini`, with the body `frontend: Task complete`. anotifier doesn't read Gemini's reply, so the text is the same every time.",
       },
       {
         event: "Notification",
-        what: "Gemini CLI needs attention",
-        how: "Input requests and warnings become alerts instead of silent terminal lines.",
+        what: "Gemini CLI raised a notification",
+        how: "`frontend: Needs your input`, sent urgent. Every notification Gemini CLI sends, such as a tool approval prompt, becomes this alert; anotifier doesn't filter by type.",
+      },
+    ],
+    sections: [
+      {
+        id: "setup",
+        kicker: "[ WHAT SETUP WRITES ]",
+        title: "Two hooks in ~/.gemini/settings.json.",
+        blocks: [
+          {
+            kind: "p",
+            text: "Setup wires Gemini CLI when a `~/.gemini` folder exists. It backs up `settings.json` to `~/.anotifier/backups/` and adds one entry per event. Gemini CLI takes the timeout in milliseconds:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              hooks: {
+                AfterAgent: [
+                  {
+                    hooks: [
+                      {
+                        type: "command",
+                        command: `node "${NOTIFY}" --source gemini`,
+                        timeout: 30000,
+                      },
+                    ],
+                    _managed_by: "anotifier",
+                  },
+                ],
+              },
+            }),
+          },
+          {
+            kind: "p",
+            text: "`Notification` gets an identical entry. Older anotifier versions wrote a separate `~/.gemini/hooks.json`; setup removes those stale entries, because Gemini CLI reads hooks from `settings.json`.",
+          },
+        ],
+      },
+      {
+        id: "antigravity",
+        kicker: "[ ANTIGRAVITY CLI ]",
+        title: "Moved to Antigravity CLI? Not supported yet.",
+        blocks: [
+          {
+            kind: "p",
+            text: "Antigravity CLI keeps hooks, in a new format. It reads them from its own files, such as `~/.gemini/config/hooks.json` or a workspace's `.agents/hooks.json`, and its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`. There is no `AfterAgent` or `Notification` event, so the hooks anotifier writes for Gemini CLI don't fire there, and `anotifier setup` doesn't wire Antigravity CLI today. Google's [Antigravity hooks docs](https://antigravity.google/docs/hooks/) describe the new format.",
+          },
+          {
+            kind: "p",
+            text: "The Gemini CLI entries stay in `~/.gemini/settings.json` until you remove them with `npx anotifier@latest uninstall`.",
+          },
+        ],
+      },
+      {
+        id: "limits",
+        kicker: "[ GOOD TO KNOW ]",
+        title: "What it does, and what it doesn't.",
+        blocks: [
+          {
+            kind: "ul",
+            items: [
+              "**Tested end to end.** CI installs Gemini CLI 0.50.0, runs a prompt with an API key, and fails unless the `AfterAgent` hook delivers a real ntfy push.",
+              "**The ding** is a bell anotifier writes to the terminal Gemini CLI runs in, when it has one.",
+              CLICK_TO_FOCUS,
+            ],
+          },
+        ],
       },
     ],
     faqs: [
       {
         q: "How does the Gemini CLI integration work?",
         aHtml:
-          "<p>Gemini CLI supports lifecycle hooks; <code>anotifier setup</code> detects it and registers for its agent-completion and notification events, then routes them to your channels.</p>",
+          "<p>Gemini CLI supports lifecycle hooks in <code>~/.gemini/settings.json</code>. <code>anotifier setup</code> registers <code>AfterAgent</code> (the run finished) and <code>Notification</code> (Gemini needs attention) there, after backing the file up, and routes both to your channels.</p>",
+      },
+      {
+        q: "Does anotifier work with Antigravity CLI?",
+        aHtml:
+          "<p>Not yet. Antigravity CLI reads hooks from its own files, such as <code>~/.gemini/config/hooks.json</code>, and has no <code>AfterAgent</code> or <code>Notification</code> event, so the Gemini CLI hooks anotifier writes don't fire there.</p>",
+      },
+      {
+        q: "Can I still use Gemini CLI?",
+        aHtml:
+          "<p>With a Gemini API key or a Gemini Code Assist Standard or Enterprise license, yes; anotifier's CI still runs Gemini CLI with an API key. Google stopped serving it to Google AI Pro and Ultra subscribers and free Code Assist users on June 18, 2026, and points them to Antigravity CLI.</p>",
+      },
+      {
+        q: "Does the notification include what Gemini said?",
+        aHtml:
+          "<p>No. The body is <code>my-app: Task complete</code> or <code>my-app: Needs your input</code>, with the project in the title. Only Claude Code alerts carry the agent's own words.</p>",
       },
       {
         q: "Which platforms can receive the alerts?",
         aHtml:
           '<p>macOS, Windows, and Linux/WSL desktop toasts, Android and iOS push via <a href="https://ntfy.sh">ntfy</a>, plus webhooks for Slack, Discord, Telegram, or any HTTP endpoint.</p>',
       },
-      {
-        q: "Is anything from my session uploaded?",
-        aHtml:
-          "<p>No — anotifier is a local, zero-dependency tool. Only the notification text goes to channels you configure yourself.</p>",
-      },
     ],
     icon: "/assets/icons/gemini.png",
   },
   {
     slug: "vscode",
-    updated: "2026-09-25",
+    updated: "2026-09-27",
     name: "VS Code",
     title: "VS Code AI Agent Notifier — Claude Code & Cursor Alerts",
     description:
-      "Running Claude Code or an AI agent inside VS Code? anotifier pings you when it finishes or needs input, and click-to-focus jumps you back to the right window.",
+      "Running Claude Code or another AI agent inside VS Code? anotifier alerts you when it finishes or needs input, by desktop toast, phone push, or webhook.",
     h1: { pre: "Agent notifications, in ", em: "VS Code", post: "." },
-    sub: "Agents running inside your editor are the easiest to forget — the terminal panel is hidden and the agent works in silence. anotifier surfaces every finish and every question as a real notification, then puts you back in the right VS Code window with one click.",
+    sub: "Agents running inside your editor are the easiest to forget — the terminal panel is hidden and the agent works in silence. anotifier surfaces every finish and every question as a real notification, and on Windows a click on the toast brings the project's window forward.",
     hooksIntro:
-      "anotifier's hooks fire no matter where the agent runs — a standalone terminal, the VS Code integrated terminal, or an editor-native agent panel.",
+      "anotifier's hooks fire no matter where the agent runs: a standalone terminal, the VS Code integrated terminal, or an editor's agent panel.",
     hooks: [
       {
         event: "Claude Code in VS Code",
         what: "Stop & Notification hooks",
-        how: "Works identically in the VS Code extension and the integrated terminal.",
+        how: "The same hooks fire in the VS Code extension and in the integrated terminal.",
       },
       {
         event: "Cursor",
         what: "Agent stop hook",
-        how: "Cursor is a VS Code fork — click-to-focus targets the exact window that owns the agent.",
+        how: "Cursor is a VS Code fork with its own hook file. Its alert is titled `Cursor` and says `Task complete`.",
+      },
+      {
+        event: "Codex CLI · Gemini CLI",
+        what: "Their own hooks",
+        how: "Run either in the integrated terminal and its hooks fire as they do anywhere else.",
       },
     ],
+    sections: [],
     faqs: [
       {
         q: "Do I need to install a VS Code extension?",
@@ -240,12 +555,17 @@ export const AGENTS: Agent[] = [
       {
         q: "What is click-to-focus?",
         aHtml:
-          "<p>Clicking a notification brings the exact VS Code (or Cursor) window that fired it to the front — no hunting through windows to find the right session.</p>",
+          "<p>On Windows, clicking a toast brings forward the window whose title contains the project folder, preferring a terminal, then VS Code, then Cursor. Cursor alerts carry no project folder, so they can't do it, and macOS, Linux and WSL toasts have no click action.</p>",
       },
       {
         q: "Which agents does it cover inside VS Code?",
         aHtml:
-          "<p>Claude Code (extension or integrated terminal) and Cursor's agent, plus any supported CLI agent you run in the integrated terminal — Codex CLI and Gemini CLI included.</p>",
+          "<p>Claude Code in the VS Code extension or the integrated terminal, Cursor's agent, and Codex CLI or Gemini CLI when you run them in the integrated terminal.</p>",
+      },
+      {
+        q: "Will I hear the terminal bell in VS Code?",
+        aHtml:
+          "<p>Not always. VS Code can swallow the terminal bell; run <code>anotifier doctor</code> in its terminal and it warns you about that. The toast and phone push don't depend on the bell.</p>",
       },
     ],
     icon: "/assets/icons/vscode.png",
