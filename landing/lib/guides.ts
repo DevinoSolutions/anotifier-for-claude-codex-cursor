@@ -255,7 +255,7 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "codex-cli-notifications",
-    updated: "2026-09-26",
+    updated: "2026-10-01",
     kind: "agent",
     agentSlug: "codex",
     name: "Codex CLI",
@@ -265,7 +265,7 @@ const AGENT_GUIDES: Guide[] = [
       "Desktop, phone, or Slack alerts when Codex CLI finishes or waits for approval: built-in TUI notifications, the notify setting, hooks, or anotifier.",
     h1: "How to get notified when Codex CLI finishes or needs approval",
     intro:
-      "Codex CLI already notifies you when a turn ends or an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else. For alerts you can't miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option.",
+      "Codex CLI already notifies you when a turn ends or an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else. For alerts you can't miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option. To make Codex ding when it needs a response, see [Codex CLI notification sounds](/guides/codex-notification-sound/).",
     sections: [
       {
         id: "builtin",
@@ -346,10 +346,6 @@ const AGENT_GUIDES: Guide[] = [
       {
         q: "How do I know when Codex is waiting for approval?",
         a: "Codex's built-in approval-requested notification covers it on your machine. For an alert on your phone or on every channel, use the PermissionRequest hook (Codex CLI 0.144+); anotifier registers it during setup and delivers it as an urgent notification on every channel you enabled.",
-      },
-      {
-        q: "How do I make Codex ding when it needs approval?",
-        a: 'Set notification_method = "bel" and notification_condition = "always" under [tui] in ~/.codex/config.toml, or add a PermissionRequest hook that plays a sound. The Codex notification sound guide has both configs.',
       },
       {
         q: "Can I approve the command from the notification?",

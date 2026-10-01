@@ -23,7 +23,7 @@
 - [Gemini CLI](https://anotifier.io/guides/gemini-cli-notifications/): AfterAgent/Notification hooks in ~/.gemini/settings.json; Antigravity CLI (Gemini CLI's successor for Google AI Pro/Ultra) uses a different hook format and is not supported yet
 - [Claude Code permission and waiting-for-input notifications](https://anotifier.io/guides/claude-code-permission-notifications/): permission_prompt and idle_prompt matchers, every notification type, timing, PermissionRequest, phone push
 - [Claude Code notification sound](https://anotifier.io/guides/claude-code-notification-sound/): terminal_bell setting, Stop hook with afplay / paplay / PowerShell, per-event sounds
-- [Codex CLI notification sound](https://anotifier.io/guides/codex-notification-sound/): make Codex ding on approval requests: [tui] notifications, notification_method = "bel", notification_condition = "always", PermissionRequest sound hook
+- [Codex CLI notification sound](https://anotifier.io/guides/codex-notification-sound/): make Codex ding when it needs approval or a response (Plan mode prompt, question): [tui] notifications, notification_method = "bel", notification_condition = "always", PermissionRequest sound hook
 - [All guides](https://anotifier.io/guides/)
 
 ## Platform and troubleshooting guides

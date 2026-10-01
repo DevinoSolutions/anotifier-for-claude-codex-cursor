@@ -10,7 +10,7 @@ export const SUPPORT_URL = "https://github.com/sponsors/DevinoSolutions";
 /** Latest published npm version. Bump with every release. */
 export const VERSION = "1.2.6";
 /** ISO date of the newest content edit anywhere on the site (llms-full.txt). */
-export const CONTENT_UPDATED = "2026-09-27";
+export const CONTENT_UPDATED = "2026-10-01";
 /** Last significant content edit of each one-off page (YYYY-MM-DD): its
     sitemap <lastmod> and dateModified. Guide, agent and channel pages carry
     their own `updated` field. Bump only the page you changed — one shared date

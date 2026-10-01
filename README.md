@@ -85,28 +85,28 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
     <th>Needs Input</th>
   </tr>
   <tr>
-    <td><img src="assets/icons/claude.png" width="18" />&nbsp; <strong>Claude Code</strong></td>
+    <td><img src="assets/icons/claude.png" width="18" />&nbsp; <strong><a href="https://anotifier.io/claude-code/">Claude Code</a></strong></td>
     <td align="center">Native</td>
     <td align="center">Native</td>
     <td><code>Stop</code></td>
     <td><code>Notification</code></td>
   </tr>
   <tr>
-    <td><img src="assets/icons/codex.png" width="18" />&nbsp; <strong>Codex CLI</strong></td>
+    <td><img src="assets/icons/codex.png" width="18" />&nbsp; <strong><a href="https://anotifier.io/codex/">Codex CLI</a></strong></td>
     <td align="center">Native</td>
     <td align="center">Native</td>
     <td><code>Stop</code></td>
     <td><code>PermissionRequest</code></td>
   </tr>
   <tr>
-    <td><img src="assets/icons/cursor.png" width="18" />&nbsp; <strong>Cursor</strong></td>
+    <td><img src="assets/icons/cursor.png" width="18" />&nbsp; <strong><a href="https://anotifier.io/cursor/">Cursor</a></strong></td>
     <td align="center">Native</td>
     <td align="center">--</td>
     <td><code>stop</code></td>
     <td>--</td>
   </tr>
   <tr>
-    <td><img src="assets/icons/gemini.png" width="18" />&nbsp; <strong>Gemini CLI</strong></td>
+    <td><img src="assets/icons/gemini.png" width="18" />&nbsp; <strong><a href="https://anotifier.io/gemini-cli/">Gemini CLI</a></strong></td>
     <td align="center">--</td>
     <td align="center">Native</td>
     <td><code>AfterAgent</code></td>
@@ -118,7 +118,7 @@ All four tools are wired automatically by the setup wizard. No manual config edi
 
 ### VS Code Native Support
 
-Claude Code, Codex, and Cursor all run inside VS Code. **anotifier** hooks directly into each tool's native hook system -- no VS Code extension required. The setup wizard detects installed tools and patches their configs automatically. Click a notification toast to jump straight back to your VS Code window.
+Claude Code, Codex, and Cursor all run inside VS Code. **anotifier** hooks directly into each tool's native hook system -- no VS Code extension required. The setup wizard detects installed tools and patches their configs automatically. On Windows, click a notification toast to jump straight back to your VS Code window (Cursor alerts are the exception: Cursor sends no project folder to match). More on the [VS Code page](https://anotifier.io/vscode/).
 
 ## Installation
 
@@ -259,7 +259,7 @@ Off by default. Set `quietHours.enabled` to `true` and every channel goes silent
 
 Set `webhook.enabled: true` and a `webhook.url` to POST a notification to any HTTP endpoint. `format` selects the payload shape:
 
-**Slack:**
+**Slack** ([setup guide](https://anotifier.io/slack/)):
 ```json
 {
   "webhook": {
@@ -270,7 +270,7 @@ Set `webhook.enabled: true` and a `webhook.url` to POST a notification to any HT
 }
 ```
 
-**Discord:**
+**Discord** ([setup guide](https://anotifier.io/discord/)):
 ```json
 {
   "webhook": {
@@ -517,7 +517,7 @@ CI goes further than "the call returned 0." On **Linux** it reads the payload ba
 
 ## Website
 
-The source of [anotifier.io](https://anotifier.io) (docs, per-agent guides, comparison page, `llms.txt`) lives in [`landing/`](landing/) — a static Next.js export, so a fix to the site is a normal PR here. It is not part of the npm package.
+The source of [anotifier.io](https://anotifier.io) ([docs](https://anotifier.io/docs/), [guides](https://anotifier.io/guides/), [comparison page](https://anotifier.io/compare/), [`llms.txt`](https://anotifier.io/llms.txt)) lives in [`landing/`](landing/) — a static Next.js export, so a fix to the site is a normal PR here. It is not part of the npm package.
 
 ```bash
 cd landing && npm ci
