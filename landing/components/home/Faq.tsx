@@ -50,7 +50,9 @@ const items: { q: string; a: ReactNode }[] = [
         </em>{" "}
         — on the public ntfy.sh server your phone only ever sees &quot;task
         complete&quot;, never what the agent said. Enable rich push only if you
-        run a private ntfy server.
+        run a private ntfy server. Versions after 1.2.6 can also send opt-in
+        anonymous usage stats (never message text, paths or topics), off unless
+        you say yes.
       </>
     ),
   },

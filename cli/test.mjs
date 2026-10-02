@@ -101,7 +101,7 @@ export async function run(channel) {
     }
   }
 
-  await track('test_result', { channel: channel || 'all', outcomes }, { config });
+  track('test_result', { channel: channel || 'all', outcomes }, { config });
 
   if (failed) process.exitCode = 1;
   console.log();

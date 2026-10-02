@@ -12,7 +12,8 @@ import { findWslPowerShell } from '../src/platforms/wsl.mjs';
 import { patchClaude, patchCodex, patchCursor, patchGemini } from '../setup/patch-config.mjs';
 import { ask, askYN, log } from './ui.mjs';
 import { DOCS_URL, STAR_LINE, SUPPORT_LINE } from '../src/support.mjs';
-import { telemetryBlockedBy, track } from '../src/telemetry.mjs';
+import { track } from '../src/telemetry.mjs';
+import { resolveSetupConsent } from './telemetry.mjs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -166,7 +167,7 @@ export async function run() {
     log('\n  No supported AI tools found. Install Claude Code, Codex, Gemini CLI, or Cursor first.', 'red');
     rl.close();
     // Sent only if this install opted in on an earlier run; nothing was asked yet.
-    await track('setup_failed', { step: 'no_tools' });
+    track('setup_failed', { step: 'no_tools' });
     process.exitCode = 1;
     return;
   }
@@ -234,12 +235,10 @@ export async function run() {
     config.ntfy.enabled = false;
   }
 
-  // 6b. Anonymous usage stats — opt-in, default Yes, asked here and nowhere
-  // else. Where DO_NOT_TRACK, ANOTIFIER_TELEMETRY=0 or CI rule it out anyway
-  // the question is skipped and the stored choice left alone.
-  if (!telemetryBlockedBy()) {
-    config.telemetry.enabled = await askYN(rl, 'Share anonymous usage stats to help improve anotifier? (never message text, paths or topics)', true);
-  }
+  // 6b. Anonymous usage stats. Only a first-time setup on a real terminal asks
+  // (default Yes); piped/agent-driven runs, closed input, an earlier answer and
+  // DO_NOT_TRACK / CI all leave the stored choice (OFF by default) untouched.
+  await resolveSetupConsent(rl, config);
 
   saveConfig(config, getConfigPath());
   log('    ✓ Config saved', 'green');
@@ -272,7 +271,7 @@ export async function run() {
     for (const f of failures) log(`    ✗ ${f.tool}: ${f.reason}`, 'red');
     log('    Fix the errors above and re-run setup.', 'yellow');
     rl.close();
-    await track('setup_failed', {
+    track('setup_failed', {
       step: 'patch',
       tools_detected: tools.map((t) => t.name),
       failed_tools: failures.map((f) => f.name),
@@ -304,7 +303,7 @@ export async function run() {
   log(`    ${SUPPORT_LINE}\n`, 'dim');
 
   rl.close();
-  await track('setup_completed', {
+  track('setup_completed', {
     tools_detected: tools.map((t) => t.name),
     toast_backend_ready: toastReady,
     icon_ready: iconReady,

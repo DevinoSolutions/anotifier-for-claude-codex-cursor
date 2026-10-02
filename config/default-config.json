@@ -28,7 +28,8 @@
     "enabled": true
   },
   "telemetry": {
-    "enabled": false
+    "enabled": false,
+    "asked": false
   },
   "quietHours": {
     "enabled": false,

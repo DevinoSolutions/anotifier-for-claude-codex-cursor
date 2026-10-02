@@ -7,9 +7,12 @@ import path from 'node:path';
 import http from 'node:http';
 import {
   telemetryBlockedBy, isTelemetryActive, recordHookRun, maybeSendHookSummary,
-  sendEvent, track, readState, clearState, configSnapshot, SUMMARY_INTERVAL_MS, TELEMETRY_KEY,
+  sendEvent, sendEvents, track, flushTelemetry, readState, clearState, configSnapshot, clampIdent,
+  MAX_UNMAPPED_KEYS, SUMMARY_INTERVAL_MS, TELEMETRY_KEY,
 } from '../src/telemetry.mjs';
 import { loadConfigResult } from '../src/config-loader.mjs';
+import { resolveSetupConsent, hasAnswered } from '../cli/telemetry.mjs';
+import { identityProbes } from './telemetry-helpers.mjs';
 
 const ON = { telemetry: { enabled: true } };
 // A clean, opted-in environment: nothing blocks, nothing hits the real host.
@@ -72,6 +75,77 @@ describe('consent', () => {
   });
 });
 
+describe('setup consent (resolveSetupConsent)', () => {
+  const fresh = () => ({ telemetry: { enabled: false } });
+  const lines = [];
+  const say = (m) => lines.push(m);
+  let asked;
+  const answering = (value) => async (...args) => { asked.push(args); return value; };
+  const run = (config, extra) => resolveSetupConsent({}, config, { env: {}, say, ...extra });
+  const reset = () => { asked = []; lines.length = 0; };
+
+  it('a real terminal asks on the first setup, default Yes, and records the answer', async () => {
+    reset();
+    const config = fresh();
+    assert.equal(await run(config, { interactive: true, ask: answering(true) }), 'yes');
+    assert.equal(asked.length, 1);
+    assert.equal(asked[0][2], true, 'default answer is Yes');
+    assert.deepEqual(config.telemetry, { enabled: true, asked: true });
+    assert.ok(lines.some((l) => /anonymous/i.test(l)) && lines.some((l) => /anotifier telemetry off/.test(l)));
+  });
+
+  it('an explicit No is stored as an answer', async () => {
+    reset();
+    const config = fresh();
+    assert.equal(await run(config, { interactive: true, ask: answering(false) }), 'no');
+    assert.deepEqual(config.telemetry, { enabled: false, asked: true });
+  });
+
+  it('a non-interactive setup NEVER opts in and never asks', async () => {
+    reset();
+    const config = fresh();
+    assert.equal(await run(config, { interactive: false, ask: answering(true) }), 'non-interactive');
+    assert.equal(asked.length, 0);
+    assert.equal(config.telemetry.enabled, false);
+    assert.equal(config.telemetry.asked, undefined);
+    assert.ok(lines.some((l) => /Usage stats: off.*anotifier telemetry on/.test(l)), lines.join('|'));
+  });
+
+  it('input that closes before an answer (EOF) is not consent', async () => {
+    reset();
+    const config = fresh();
+    assert.equal(await run(config, { interactive: true, ask: answering(null) }), 'eof');
+    assert.equal(config.telemetry.enabled, false);
+    assert.equal(config.telemetry.asked, undefined);
+  });
+
+  it('re-running setup never overrides a stored choice, and does not ask', async () => {
+    for (const stored of [{ enabled: true }, { enabled: false, asked: true }]) {
+      reset();
+      const config = { telemetry: { ...stored } };
+      const result = await run(config, { interactive: true, ask: answering(!stored.enabled) });
+      assert.equal(result, stored.enabled ? 'kept-on' : 'kept-off');
+      assert.equal(asked.length, 0);
+      assert.deepEqual(config.telemetry, stored);
+      assert.ok(lines.some((l) => /unchanged/.test(l)), lines.join('|'));
+    }
+  });
+
+  it('a bare default enabled:false is not an answer', () => {
+    assert.equal(hasAnswered({ telemetry: { enabled: false } }), false);
+    assert.equal(hasAnswered({ telemetry: { enabled: false, asked: true } }), true);
+    assert.equal(hasAnswered({ telemetry: { enabled: true } }), true);
+  });
+
+  it('DO_NOT_TRACK / CI skip the question and leave the choice alone', async () => {
+    reset();
+    const config = fresh();
+    assert.equal(await resolveSetupConsent({}, config, { interactive: true, env: { DO_NOT_TRACK: '1' }, ask: answering(true), say }), 'blocked');
+    assert.equal(asked.length, 0);
+    assert.equal(config.telemetry.enabled, false);
+  });
+});
+
 describe('recordHookRun', () => {
   it('writes nothing at all when telemetry is off', () => {
     const statePath = tmpState();
@@ -106,6 +180,38 @@ describe('recordHookRun', () => {
     const { counters } = readState(statePath);
     assert.deepEqual(counters.sources, { other: 1 });
     assert.deepEqual(counters.unmapped_events, { other: 1 });
+  });
+
+  it('keeps at most MAX_UNMAPPED_KEYS distinct unrecognized event names, the rest under "other"', () => {
+    const statePath = tmpState();
+    for (let i = 0; i < 30; i++) {
+      recordHookRun(ON, { outcome: 'unmapped', source: 'claude', rawEvent: `Event${i}` }, { env: envWith(), statePath });
+    }
+    recordHookRun(ON, { outcome: 'unmapped', source: 'claude', rawEvent: 'Event0' }, { env: envWith(), statePath });
+    const { unmapped_events: seen } = readState(statePath).counters;
+    assert.equal(Object.keys(seen).length, MAX_UNMAPPED_KEYS);
+    assert.equal(seen.Event0, 2, 'an already-kept name keeps counting');
+    assert.equal(seen.other, 30 - (MAX_UNMAPPED_KEYS - 1));
+    assert.equal(Object.values(seen).reduce((a, b) => a + b, 0), 31);
+  });
+
+  it('a failed state write leaves no temp file behind', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-tel-fail-'));
+    const statePath = path.join(dir, '.telemetry.json');
+    fs.mkdirSync(statePath); // a directory where the file should be: the rename fails
+    recordHookRun(ON, { outcome: 'dispatched', source: 'claude' }, { env: envWith(), statePath });
+    assert.deepEqual(fs.readdirSync(dir).filter((f) => f.endsWith('.tmp')), []);
+  });
+});
+
+describe('clampIdent', () => {
+  it('passes short identifiers and rejects anything else', () => {
+    assert.equal(clampIdent('TypeError'), 'TypeError');
+    assert.equal(clampIdent('ENOENT'), 'ENOENT');
+    assert.equal(clampIdent('/home/me/secret', 'x'), 'x');
+    assert.equal(clampIdent('has space', 'x'), 'x');
+    assert.equal(clampIdent('a'.repeat(41), 'x'), 'x');
+    assert.equal(clampIdent(undefined, null), null);
   });
 });
 
@@ -152,6 +258,19 @@ describe('maybeSendHookSummary', () => {
     assert.equal(after.windowStart, now);
   });
 
+  it('gives a stuck sender at most the 800ms hook budget', async () => {
+    const statePath = tmpState();
+    seed(statePath, 0);
+    const started = Date.now();
+    const sent = await maybeSendHookSummary(secretConfig, {
+      env: envWith(), statePath, now: SUMMARY_INTERVAL_MS + 5, send: () => new Promise(() => {}),
+    });
+    const took = Date.now() - started;
+    assert.equal(sent, false);
+    assert.ok(took >= 700 && took < 1500, `took ${took}ms`);
+    assert.ok(readState(statePath).retryAt, 'backs off after a timeout');
+  });
+
   it('keeps the counts and backs off for an hour when the send fails', async () => {
     const statePath = tmpState();
     seed(statePath, 0);
@@ -187,6 +306,11 @@ describe('configSnapshot', () => {
       assert.ok(value === null || typeof value === 'boolean' || ['generic', 'slack', 'discord', 'telegram'].includes(value), `unexpected ${value}`);
     }
   });
+  it('an unknown webhook format is reported as "other", never verbatim', () => {
+    const snap = configSnapshot({ webhook: { enabled: true, url: 'https://x.example/h', format: 'https://x.example/secret' } });
+    assert.equal(snap.webhook_format, 'other');
+    assertNoSecrets(snap);
+  });
   it('ntfy.sh is not a custom server', () => {
     assert.equal(configSnapshot({ ntfy: { server: 'https://ntfy.sh/' } }).ntfy_custom_server, false);
   });
@@ -195,17 +319,30 @@ describe('configSnapshot', () => {
 describe('transport against a local capture server', () => {
   let server;
   let url;
-  const received = [];
+  let dripping;
+  let dripUrl;
+  const requests = []; // { path, raw, json }
+  const eventsOf = (json) => (json.batch ? json.batch : [json]);
   before(async () => {
     server = http.createServer((req, res) => {
       let body = '';
       req.on('data', (c) => { body += c; });
-      req.on('end', () => { received.push(JSON.parse(body)); res.end('{"status":"Ok"}'); });
+      req.on('end', () => { requests.push({ path: req.url, raw: body, json: JSON.parse(body) }); res.end('{"status":"Ok"}'); });
     });
     await new Promise((r) => server.listen(0, '127.0.0.1', r));
     url = `http://127.0.0.1:${server.address().port}/i/v0/e/`;
+    // Answers with headers and then one byte every 50ms, forever: an idle timeout
+    // that resets per byte would never fire against this.
+    dripping = http.createServer((req, res) => {
+      req.resume();
+      res.writeHead(200);
+      const t = setInterval(() => res.write('.'), 50);
+      res.on('close', () => clearInterval(t));
+    });
+    await new Promise((r) => dripping.listen(0, '127.0.0.1', r));
+    dripUrl = `http://127.0.0.1:${dripping.address().port}/i/v0/e/`;
   });
-  after(() => server.close());
+  after(() => { server.close(); dripping.closeAllConnections?.(); dripping.close(); });
 
   it('posts api_key, a stable random install id, and base properties', async () => {
     const statePath = tmpState();
@@ -213,39 +350,92 @@ describe('transport against a local capture server', () => {
     const first = await sendEvent('probe', { a: 1 }, { env, statePath });
     await sendEvent('probe', { a: 2 }, { env, statePath });
     assert.deepEqual(first, { ok: true, status: 200 });
-    const [one, two] = received.slice(-2);
-    assert.equal(one.api_key, TELEMETRY_KEY);
-    assert.equal(one.event, 'probe');
-    assert.match(one.distinct_id, /^[0-9a-f-]{36}$/);
-    assert.equal(one.distinct_id, two.distinct_id);
-    assert.equal(one.properties.a, 1);
-    assert.equal(one.properties.os, os.platform());
-    assert.ok(one.properties.anotifier_version);
+    const [one, two] = requests.slice(-2);
+    assert.equal(one.path, '/i/v0/e/');
+    assert.equal(one.json.api_key, TELEMETRY_KEY);
+    assert.equal(one.json.event, 'probe');
+    assert.match(one.json.distinct_id, /^[0-9a-f-]{36}$/);
+    assert.equal(one.json.distinct_id, two.json.distinct_id);
+    assert.equal(one.json.properties.a, 1);
+    assert.equal(one.json.properties.os, os.platform());
+    assert.ok(one.json.properties.anotifier_version);
+    assert.equal(one.json.properties.$geoip_disable, true, 'no geolocation is derived');
     // The install id is not derived from the machine or the user.
-    assert.ok(!JSON.stringify(one).includes(os.hostname()));
-    assert.ok(!JSON.stringify(one).includes(os.userInfo().username));
+    for (const value of identityProbes()) assert.ok(!one.raw.toLowerCase().includes(value.toLowerCase()), `body contains ${value}`);
+  });
+
+  it('several events go out in ONE /batch/ request, each with geoip disabled', async () => {
+    const statePath = tmpState();
+    const env = envWith({ ANOTIFIER_TELEMETRY_URL: url });
+    const before = requests.length;
+    const result = await sendEvents([{ event: 'one', properties: {} }, { event: 'two', properties: { b: 2 } }], { env, statePath });
+    assert.equal(result.ok, true);
+    assert.equal(requests.length - before, 1);
+    const { path: reqPath, json } = requests.at(-1);
+    assert.equal(reqPath, '/batch/');
+    assert.equal(json.api_key, TELEMETRY_KEY);
+    assert.deepEqual(eventsOf(json).map((e) => e.event), ['one', 'two']);
+    for (const e of eventsOf(json)) {
+      assert.equal(e.properties.$geoip_disable, true);
+      assert.equal(e.distinct_id, json.batch[0].distinct_id);
+    }
+  });
+
+  it('track() queues; flushTelemetry() sends everything queued as one request', async () => {
+    const statePath = tmpState();
+    const env = envWith({ ANOTIFIER_TELEMETRY_URL: url });
+    const before = requests.length;
+    assert.equal(track('doctor_result', { deep: false }, { config: ON, env, statePath }), true);
+    assert.equal(track('cli_command', { command: 'doctor' }, { config: ON, env, statePath }), true);
+    assert.equal(requests.length, before, 'nothing is sent until the flush');
+    assert.equal(await flushTelemetry(), true);
+    assert.equal(requests.length - before, 1);
+    assert.deepEqual(eventsOf(requests.at(-1).json).map((e) => e.event), ['doctor_result', 'cli_command']);
+    assert.equal(await flushTelemetry(), false, 'the queue is empty after a flush');
   });
 
   it('track() sends nothing when opted out', async () => {
-    const before = received.length;
+    const before = requests.length;
     const env = envWith({ ANOTIFIER_TELEMETRY_URL: url });
-    assert.equal(await track('x', {}, { config: { telemetry: { enabled: false } }, env, statePath: tmpState() }), false);
-    assert.equal(await track('x', {}, { config: ON, env: { ...env, DO_NOT_TRACK: '1' }, statePath: tmpState() }), false);
-    assert.equal(received.length, before);
+    assert.equal(track('x', {}, { config: { telemetry: { enabled: false } }, env, statePath: tmpState() }), false);
+    assert.equal(track('x', {}, { config: ON, env: { ...env, DO_NOT_TRACK: '1' }, statePath: tmpState() }), false);
+    assert.equal(await flushTelemetry(), false);
+    assert.equal(requests.length, before);
   });
 
   it('clearState forgets the install id', async () => {
     const statePath = tmpState();
     const env = envWith({ ANOTIFIER_TELEMETRY_URL: url });
     await sendEvent('probe', {}, { env, statePath });
-    const id = received.at(-1).distinct_id;
+    const id = requests.at(-1).json.distinct_id;
     assert.equal(clearState(statePath), true);
     await sendEvent('probe', {}, { env, statePath });
-    assert.notEqual(received.at(-1).distinct_id, id);
+    assert.notEqual(requests.at(-1).json.distinct_id, id);
   });
 
   it('an unreachable host resolves { ok: false } instead of throwing', async () => {
     const env = envWith({ ANOTIFIER_TELEMETRY_URL: 'http://127.0.0.1:1/i/v0/e/' });
     assert.deepEqual(await sendEvent('probe', {}, { env, statePath: tmpState() }), { ok: false, status: 0 });
+  });
+
+  it('the timeout is an absolute deadline, not an idle timeout that resets per byte', async () => {
+    const env = envWith({ ANOTIFIER_TELEMETRY_URL: dripUrl });
+    const started = Date.now();
+    const result = await sendEvent('probe', {}, { env, statePath: tmpState(), timeoutMs: 400 });
+    const took = Date.now() - started;
+    assert.deepEqual(result, { ok: false, status: 0 });
+    assert.ok(took >= 350 && took < 900, `took ${took}ms`);
+  });
+
+  it('the hook summary against a server that never finishes returns within the 800ms budget', async () => {
+    const statePath = tmpState();
+    recordHookRun(ON, { outcome: 'dispatched', source: 'claude' }, { env: envWith(), statePath, now: 0 });
+    const started = Date.now();
+    const sent = await maybeSendHookSummary(ON, {
+      env: envWith({ ANOTIFIER_TELEMETRY_URL: dripUrl }), statePath, now: SUMMARY_INTERVAL_MS + 1,
+    });
+    const took = Date.now() - started;
+    assert.equal(sent, false);
+    assert.ok(took < 1400, `took ${took}ms`);
   });
 });

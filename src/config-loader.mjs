@@ -93,7 +93,7 @@ function validateUserConfig(user) {
   checkBlock('webhook', { enabled: 'boolean', url: 'string', format: 'string', chatId: 'string', authorization: 'string', richContent: 'boolean' });
   checkBlock('sentry', { enabled: 'boolean', dsn: 'string' });
   checkBlock('updateCheck', { enabled: 'boolean' });
-  checkBlock('telemetry', { enabled: 'boolean' });
+  checkBlock('telemetry', { enabled: 'boolean', asked: 'boolean' });
 
   // Quiet hours is the one block where a bad value must NOT fall through to the
   // defaults: silently silencing every channel from 22:00 to 08:00 because a

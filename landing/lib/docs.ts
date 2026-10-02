@@ -57,7 +57,7 @@ export const DOCS: DocSection[] = [
           "License: AGPL-3.0. Source on [GitHub](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor), package on [npm](https://www.npmjs.com/package/anotifier).",
           "Runtime: Node.js 18 or newer, which every supported agent already requires.",
           "Dependencies: none. Pure Node.js built-ins; `npm i -g anotifier` installs exactly one package.",
-          "Privacy: everything runs locally. Only the notification text goes to the channels you configure, and phone push is generic by default.",
+          "Privacy: everything runs locally. Only the notification text goes to the channels you configure, and phone push is generic by default. The one exception: versions after 1.2.6 can send opt-in anonymous usage stats if you say yes during an interactive `anotifier setup` or run `anotifier telemetry on`; they are off otherwise (see the usage stats section below).",
         ],
       },
     ],
@@ -680,21 +680,23 @@ export const DOCS: DocSection[] = [
   {
     id: "usage-stats",
     title: "Does anotifier collect usage stats?",
-    lead: "Only if you say yes. Versions after 1.2.6 ask once during anotifier setup (default Yes); 1.2.6 and earlier send nothing, and a plugin-only install never runs setup, so it never sends any.",
+    lead: "Only if you say yes, and only in versions after 1.2.6 (1.2.6 and earlier send nothing). They are off by default; a plugin-only install never runs setup, so it never sends any.",
     blocks: [
       {
         kind: "code",
         lang: "bash",
-        code: "anotifier telemetry        # on/off, plus the exact counts waiting to be sent\nanotifier telemetry off    # stop, and delete the install id and pending counts\nanotifier telemetry on",
+        code: "# Versions after 1.2.6 only\nanotifier telemetry        # on/off, your install id, and the exact counts waiting to be sent\nanotifier telemetry off    # stop, and delete the local install id and pending counts\nanotifier telemetry on",
       },
       {
         kind: "ul",
         items: [
-          "Events go to a self-hosted PostHog at `posthog.devino.ca`, keyed by a random install id in `~/.anotifier/.telemetry.json`.",
-          "CLI commands report the command, exit code and duration. `setup` also reports the agents it found and whether it finished; `test`, `doctor` and `uninstall` report each channel's or tool's result.",
-          "Hook runs are counted locally and sent as one summary a day: delivered or failed per agent, event and channel, why a notification was skipped, a latency bucket, and which features are on.",
-          "Never sent: message text, project names, file paths, ntfy topics or servers, webhook URLs, hostnames, error messages, or any argument you typed.",
-          "`DO_NOT_TRACK=1`, `ANOTIFIER_TELEMETRY=0`, or a CI environment turns it off regardless of the setting.",
+          "Versions after 1.2.6: the first `anotifier setup` you run in an interactive terminal asks (default Yes). A setup that is piped, run through an agent, or whose input closes never asks and leaves stats off, and re-running setup never overrides your earlier choice.",
+          "Versions after 1.2.6: events go to the project's self-hosted PostHog at `posthog.devino.ca`, readable by the anotifier maintainers, keyed by a random install id in `~/.anotifier/.telemetry.json`. The server is configured to discard client IP addresses and no location is derived.",
+          "Versions after 1.2.6: `anotifier telemetry` shows your install id; `anotifier telemetry off` deletes it locally. To have data already sent removed, open a GitHub issue with the id.",
+          "Versions after 1.2.6: CLI commands report the command, a clamped argument shape (known flags such as `--deep` or `off`, everything else as `other`), exit code and duration, plus `setup` (agents found, backend ready, config rebuilt) and the per-channel results of `test`, `doctor` and `uninstall`. Errors report only a clamped error class name and code.",
+          "Versions after 1.2.6: hook runs are counted locally and sent as one summary a day: delivered or failed per agent, event and channel, why a notification was skipped, unrecognized hook event names (clamped to 40 safe characters, at most 10), a latency bucket, which features are on, and your OS, architecture and Node and anotifier versions.",
+          "Versions after 1.2.6, never sent: message text, project names, file paths, ntfy topics or servers, webhook URLs, hostnames, session ids, or error messages. The README lists every event and property.",
+          "Versions after 1.2.6: `DO_NOT_TRACK=1`, `ANOTIFIER_TELEMETRY=0`, or a CI environment turns it off regardless of the setting.",
         ],
       },
     ],
@@ -737,7 +739,7 @@ export const DOCS: DocSection[] = [
 export const DOCS_FAQ: DocFaq[] = [
   {
     q: "Does anotifier send my code or conversation anywhere?",
-    a: "No. It runs locally with zero dependencies. Only the notification text goes to channels you configured yourself, and phone push is generic by default because public ntfy topics are guessable.",
+    a: "No. It runs locally with zero dependencies. Only the notification text goes to channels you configured yourself, and phone push is generic by default because public ntfy topics are guessable. Versions after 1.2.6 can also send opt-in anonymous usage stats, which are off unless you say yes and never include code, conversation, message text, paths or topics.",
   },
   {
     q: "Which AI coding agents does anotifier support?",
@@ -765,6 +767,6 @@ export const DOCS_FAQ: DocFaq[] = [
   },
   {
     q: "Is anotifier free?",
-    a: "Yes. It is open source under AGPL-3.0 with no paid tier and no account. Usage stats are opt-in and never include message text, paths or topics. Sponsorship is welcome but never required.",
+    a: "Yes. It is open source under AGPL-3.0 with no paid tier and no account. Versions after 1.2.6 offer opt-in usage stats that never include message text, paths or topics. Sponsorship is welcome but never required.",
   },
 ];

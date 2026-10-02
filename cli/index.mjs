@@ -3,7 +3,7 @@
 import { createRequire } from 'node:module';
 import { checkForUpdate, isNewer } from '../src/update-check.mjs';
 import { DOCS_URL, SUPPORT_URL } from '../src/support.mjs';
-import { track } from '../src/telemetry.mjs';
+import { track, flushTelemetry, clampIdent } from '../src/telemetry.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -60,7 +60,7 @@ async function main() {
     process.exit(0);
   }
 
-  const loader = COMMANDS[command];
+  const loader = Object.hasOwn(COMMANDS, command) ? COMMANDS[command] : undefined;
   if (!loader) {
     console.error(`${c.error('Error:')} Unknown command "${command}"\n  Run ${c.muted('anotifier --help')} for usage.`);
     process.exit(1);
@@ -70,16 +70,19 @@ async function main() {
   const startedAt = Date.now();
   await mod.run(...process.argv.slice(3));
 
-  // Opt-in usage stats (a no-op unless the user said yes). `telemetry` reports
-  // its own opt-in and must send nothing on opt-out, so it is skipped here.
+  // Opt-in usage stats (a no-op unless the user said yes). Everything the
+  // command queued goes out in ONE request, under a 1s deadline. `telemetry`
+  // reports its own opt-in and must send nothing on opt-out, so it queues no
+  // cli_command event.
   if (command !== 'telemetry') {
-    await track('cli_command', {
+    track('cli_command', {
       command,
       args: argShape(process.argv.slice(3)),
       exit_code: process.exitCode ?? 0,
       duration_ms: Date.now() - startedAt,
     });
   }
+  await flushTelemetry();
 
   // Show update banner after command output. status prints its own; doctor
   // --json must stay machine-parseable (valid JSON only), so suppress it there.
@@ -121,10 +124,12 @@ function printHelp(c, banner) {
 main().catch(async (err) => {
   console.error('Error:', err.message);
   // The error's class and code only — a message can carry paths or topics.
-  await track('cli_error', {
-    command: COMMANDS[command] ? command : 'other',
-    error_name: err?.name || 'Error',
-    error_code: typeof err?.code === 'string' ? err.code : null,
+  // Clamped to short identifiers: a custom error class or code could carry text.
+  track('cli_error', {
+    command: Object.hasOwn(COMMANDS, command) ? command : 'other',
+    error_name: clampIdent(err?.name, 'Error'),
+    error_code: typeof err?.code === 'string' ? clampIdent(err.code) : null,
   });
+  await flushTelemetry();
   process.exit(1);
 });

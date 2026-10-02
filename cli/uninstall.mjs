@@ -8,6 +8,8 @@ import { execFileSync } from 'node:child_process';
 import { track } from '../src/telemetry.mjs';
 import { c, spinner } from './ui.mjs';
 
+// The only tool labels an uninstall_result may carry; anything else is "other".
+const KNOWN_TOOLS = ['Claude Code', 'Codex CLI', 'Cursor IDE', 'Gemini CLI', 'agentfocus://'];
 const FOCUS_KEY = 'HKCU\\Software\\Classes\\agentfocus';
 
 // toast.ps1 registers the agentfocus:// click-to-focus protocol in HKCU on the
@@ -80,9 +82,10 @@ export async function run() {
   console.log();
 
   // Opt-in usage stats: which tools were unwired, never the failure reasons.
-  await track('uninstall_result', {
-    removed: results.filter((r) => r.ok).map((r) => r.tool),
-    failed: results.filter((r) => !r.ok).map((r) => r.tool),
+  const toolName = (r) => (KNOWN_TOOLS.includes(r.tool) ? r.tool : 'other');
+  track('uninstall_result', {
+    removed: results.filter((r) => r.ok).map(toolName),
+    failed: results.filter((r) => !r.ok).map(toolName),
   });
 
   if (anyFailed) process.exitCode = 1;
