@@ -115,12 +115,17 @@ test("home: no render-blocking stylesheet and no early gtag.js preload", () => {
     /<link[^>]+gtag\/js[^>]+rel="preload"/,
     "gtag.js is preloaded",
   );
-  // PostHog's loader runs lazyOnload, so the served HTML must never fetch its
-  // library itself: no preload and no <script src> for /static/array.js.
-  assert.doesNotMatch(
-    body,
-    /<(link|script)[^>]+static\/array\.js/,
-    "PostHog's array.js loads before the page's load event",
+});
+
+test("home: PostHog, when the build has a key, loads only after the load event", () => {
+  const { body } = pages.get("/");
+  // Keyless builds (local, CI) ship no PostHog script at all. The live suite
+  // runs against the keyed production build, where the loader must stay
+  // lazyOnload: next/script serialises it into the RSC payload as below.
+  if (!body.includes('\\"id\\":\\"posthog\\"')) return;
+  assert.ok(
+    body.includes('\\"id\\":\\"posthog\\",\\"strategy\\":\\"lazyOnload\\"'),
+    "the PostHog loader is not lazyOnload",
   );
 });
 
