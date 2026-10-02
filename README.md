@@ -166,6 +166,7 @@ anotifier config [section] # Interactive settings (ntfy | webhook | sounds | eve
 anotifier doctor [--deep]  # Diagnose delivery per channel (--deep verifies real delivery)
 anotifier snooze [dur]     # Silence every channel for a while (30m | 2h | 90s | 45 = 45 minutes)
 anotifier snooze off       # Cancel the snooze early
+anotifier telemetry        # Show or change the opt-in anonymous usage stats (on | off); versions after 1.2.6
 anotifier uninstall        # Remove hooks from all tools
 ```
 
@@ -202,6 +203,10 @@ Config lives at `~/.anotifier/config.json`. Abbreviated — see [config/default-
   "updateCheck": {
     "enabled": true
   },
+  "telemetry": {
+    "enabled": false,
+    "asked": false
+  },
   "quietHours": {
     "enabled": false,
     "from": "22:00",
@@ -221,7 +226,7 @@ Config lives at `~/.anotifier/config.json`. Abbreviated — see [config/default-
 }
 ```
 
-`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent -- for Claude Code (>=2.1.141) it rings through Claude Code's own terminal write path (hook JSON `terminalSequence`), which is safe in tmux, GNU screen, and on Windows per Claude Code's docs; other agents get a direct TTY/console bell. `webhook` posts to Slack, Discord, Telegram, or any URL (see below). `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). `updateCheck` announces a newly published anotifier through whichever of your toast / ntfy / webhook channels are already on (never the terminal bell) -- it asks the npm registry at most once per day, tells you at most once per version, and stays silent on any error; set `enabled` to `false` to turn it off entirely, and no check or state write happens at all. `quietHours` is a recurring nightly version of `snooze` (see [Quiet hours](#quiet-hours)). Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound; on macOS the name is mapped to the closest built-in system sound (Windows names like `IM`/`Reminder` are translated, and `Default` or unrecognized names fall back to the system default), while on Linux it is ignored; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
+`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent -- for Claude Code (>=2.1.141) it rings through Claude Code's own terminal write path (hook JSON `terminalSequence`), which is safe in tmux, GNU screen, and on Windows per Claude Code's docs; other agents get a direct TTY/console bell. `webhook` posts to Slack, Discord, Telegram, or any URL (see below). `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). `updateCheck` announces a newly published anotifier through whichever of your toast / ntfy / webhook channels are already on (never the terminal bell) -- it asks the npm registry at most once per day, tells you at most once per version, and stays silent on any error; set `enabled` to `false` to turn it off entirely, and no check or state write happens at all. `telemetry` (versions after 1.2.6) is the opt-in anonymous usage-stats choice: `enabled` is the choice (default `false`), and `asked` records that you made it (`setup` and `anotifier telemetry on|off` set it) so re-running setup does not ask again -- see [Usage stats](#usage-stats). `quietHours` is a recurring nightly version of `snooze` (see [Quiet hours](#quiet-hours)). Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound; on macOS the name is mapped to the closest built-in system sound (Windows names like `IM`/`Reminder` are translated, and `Default` or unrecognized names fall back to the system default), while on Linux it is ignored; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
 
 ### Quiet hours
 
@@ -346,7 +351,42 @@ It takes the same `min` / `low` / `default` / `high` / `urgent` scale as `priori
 
 ### Error visibility
 
-Hook and channel errors never interrupt your agent -- they're appended to `~/.anotifier/errors.log` and surfaced by `npx anotifier status`, so a misconfigured toast backend or unreachable ntfy topic shows up as a logged error instead of a silent no-op. Set `sentry.enabled` to `true` (with a `sentry.dsn`) to also mirror those errors to [Sentry](https://sentry.io) through a built-in, zero-dependency envelope client: no SDK is bundled, no telemetry is collected, and nothing leaves your machine unless you opt in -- only error data is sent.
+Hook and channel errors never interrupt your agent -- they're appended to `~/.anotifier/errors.log` and surfaced by `npx anotifier status`, so a misconfigured toast backend or unreachable ntfy topic shows up as a logged error instead of a silent no-op. Set `sentry.enabled` to `true` (with a `sentry.dsn`) to also mirror those errors to [Sentry](https://sentry.io) through a built-in, zero-dependency envelope client: no SDK is bundled, nothing leaves your machine unless you opt in, and only error data is sent.
+
+### Usage stats
+
+**Versions after 1.2.6** can share anonymous usage stats. They are off unless you say yes, and 1.2.6 and earlier send nothing.
+
+- **Who is asked, and when.** The first `anotifier setup` you run in an interactive terminal asks (the default answer is Yes). A setup that is not run in a terminal -- piped input, or driven by an agent such as the `/anotifier:setup` command -- never asks and leaves stats **off**, and so does a setup whose input closes before you answer. Re-running `setup` never changes a choice you already made. A plugin-only install never runs setup, so it never sends anything.
+- **Change it any time:**
+
+```
+anotifier telemetry        # on/off, your install id, and the exact counts waiting to be sent
+anotifier telemetry off    # stop; deletes the local install id and pending counts
+anotifier telemetry on
+```
+
+- **Where it goes.** Events are sent to the project's own self-hosted [PostHog](https://posthog.com) at `posthog.devino.ca`, which the anotifier maintainers can read. Every event carries a random install id (created on first use, stored in `~/.anotifier/.telemetry.json`, derived from nothing about you or your machine) and `$geoip_disable: true`. Your IP address necessarily reaches the server, as with any connection, but the server is configured to discard client IP addresses, and no location is derived from them.
+- **Deleting what was sent.** `anotifier telemetry` shows your install id, and `anotifier telemetry off` prints the id it just deleted. To have the data already stored under an id removed, [open a GitHub issue](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/issues) with that id. Without it there is no way to tell which events are yours.
+- **Always off** regardless of the setting when `DO_NOT_TRACK=1`, `ANOTIFIER_TELEMETRY=0`, or `CI` is set.
+
+**Never sent:** message text, project names, file paths, ntfy topics or servers, webhook URLs, hostnames, usernames, session ids, or error messages. Anything that is not on a fixed list below is sent as `other`, or as a name clamped to at most 40 letters, digits, `_`, `.` and `-` (which is how an unrecognized hook event name or an error class name is handled -- see `unmapped_events` and `cli_error`).
+
+**Every event, and every property it carries.** All events also carry the install id, a timestamp, and these base properties: `$lib` (`anotifier`), `$lib_version` and `anotifier_version` (the anotifier version), `os` (`win32`, `darwin`, `linux`), `os_release` (the OS kernel/build version string), `arch` (`x64`, `arm64`, ...), `node_version`, and `$geoip_disable` (`true`). When a command produces two events they travel in one request.
+
+| Event | Sent when | Properties |
+| --- | --- | --- |
+| `cli_command` | a CLI command finishes (not for `telemetry`) | `command` (`setup`, `status`, `test`, `config`, `doctor`, `snooze`, `uninstall`), `args` (a list; each is one of `--deep`, `--json`, `--strict`, `toast`, `ntfy`, `webhook`, `bell`, `both`, `sounds`, `events`, `sentry`, `off`, and anything else you typed -- a snooze duration, a typo -- is `other`), `exit_code`, `duration_ms` |
+| `cli_error` | a command throws | `command` (as above, or `other`), `error_name` (the error class name, clamped; `Error` if it does not fit), `error_code` (e.g. `ENOENT`, clamped; `null` if there is none). Never the error message. |
+| `setup_completed` | `setup` finishes | `tools_detected` (any of `claude`, `codex`, `cursor`, `gemini`), `toast_backend_ready`, `icon_ready`, `config_rebuilt`, `ntfy_enabled` (booleans) |
+| `setup_failed` | `setup` finds no tool, or cannot patch one | `step` (`no_tools` or `patch`); for `patch` also `tools_detected` and `failed_tools` (same names as above) |
+| `telemetry_enabled` | you run `anotifier telemetry on` | `via` (`command`) |
+| `test_result` | `anotifier test` | `channel` (`toast`, `ntfy`, `webhook`, `bell`, `both`, or `all`), `outcomes` (per channel: `sent`, `failed`, `not_configured` or `skipped`) |
+| `doctor_result` | `anotifier doctor` | `deep`, `strict` (booleans), `checks` (check id -> `ok`, `info`, `warn` or `fail`; ids: `toast-backend`, `toast-auth`, `toast-deep`, `deep-probe`, `bell`, `ntfy-config`, `webhook-config`, `config`, `focus`). Never the check's detail text. |
+| `uninstall_result` | `anotifier uninstall` | `removed`, `failed` (lists of `Claude Code`, `Codex CLI`, `Cursor IDE`, `Gemini CLI`, `agentfocus://`) |
+| `hook_daily_summary` | at most once per 24 hours, from the end of a hook run | `runs`; `outcomes` (counts of `dispatched`, `suppressed_snooze`, `suppressed_quiet`, `held_back`, `duplicate`, `unmapped`, `error`); `sources` (`claude`, `codex`, `cursor`, `gemini`, `other`); `events` (`task_complete`, `needs_input`, `session_start`, `other`); `unmapped_events` (counts per unrecognized hook event name, clamped as above, at most 10 distinct names, the rest under `other`); `channels` (`toast`, `ntfy`, `webhook`, `bell`, each with `ok` and `fail` counts); `latency` (counts per bucket: `lt_250ms`, `lt_500ms`, `lt_1s`, `lt_2500ms`, `ge_2500ms`); `window_start`, `window_hours`; and `config`, which says which features are on: `toast_enabled`, `toast_rich`, `ntfy_enabled`, `ntfy_rich`, `ntfy_custom_server` (whether the server is not ntfy.sh -- never which server), `webhook_enabled`, `webhook_format` (`generic`, `slack`, `discord`, `telegram`, `other`, or `null`), `bell_enabled`, `quiet_hours_enabled`, `update_check_enabled`, `sentry_enabled` |
+
+Hook runs themselves send nothing: each only bumps counters in `~/.anotifier/.telemetry.json`, and the end of a hook run sends the daily summary (waiting at most 0.8 seconds for the server, never delaying or changing what the hook returns to your agent). CLI commands send their events in one request at the end of the command, waiting at most one second.
 
 ## How It Works
 
@@ -529,7 +569,7 @@ The `Landing` workflow runs those same checks on every PR that touches `landing/
 
 ## Support the project
 
-anotifier is free, open source, and has no telemetry, no account, and no paid tier. It is built and maintained by [DevinoSolutions](https://github.com/DevinoSolutions). If it saves you time, consider supporting its development: **[github.com/sponsors/DevinoSolutions](https://github.com/sponsors/DevinoSolutions)**. The same link is printed once at the end of `anotifier setup` and `anotifier status`; it never appears in a notification or on the hook path. A successful `setup` also ends with one line asking for a [GitHub star](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor), since that is how other developers find the project. That line is printed nowhere else.
+anotifier is free, open source, and has no account and no paid tier. Versions after 1.2.6 add opt-in [usage stats](#usage-stats); with them off (the default unless you answer Yes at an interactive `setup`), nothing is collected. It is built and maintained by [DevinoSolutions](https://github.com/DevinoSolutions). If it saves you time, consider supporting its development: **[github.com/sponsors/DevinoSolutions](https://github.com/sponsors/DevinoSolutions)**. The same link is printed once at the end of `anotifier setup` and `anotifier status`; it never appears in a notification or on the hook path. A successful `setup` also ends with one line asking for a [GitHub star](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor), since that is how other developers find the project. That line is printed nowhere else.
 
 ## Contributing
 

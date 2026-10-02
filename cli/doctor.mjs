@@ -5,6 +5,7 @@
 import os from 'node:os';
 import { loadConfigResult } from '../src/config-loader.mjs';
 import { runChecks } from './doctor-checks.mjs';
+import { track } from '../src/telemetry.mjs';
 import { c } from './ui.mjs';
 
 const ICON = { ok: c.success('✓'), warn: c.warn('⚠'), fail: c.error('✗'), info: c.accent('ℹ') };
@@ -31,6 +32,17 @@ export async function run(...args) {
     }
     console.log();
   }
+
+  // Opt-in usage stats: each check's id and status only, never its detail text.
+  // Two results with the same id keep the worse status.
+  const SEVERITY = ['ok', 'info', 'warn', 'fail'];
+  const checks = {};
+  for (const r of results) {
+    const id = /^[a-z-]{1,20}$/.test(r.id) ? r.id : 'other';
+    const status = SEVERITY.includes(r.status) ? r.status : 'other';
+    if (!(id in checks) || SEVERITY.indexOf(status) > SEVERITY.indexOf(checks[id])) checks[id] = status;
+  }
+  track('doctor_result', { deep, strict, checks }, { config });
 
   // Exit non-zero if any check failed (warns are allowed). CLI strict at the edge.
   if (results.some((r) => r.status === 'fail')) process.exitCode = 1;

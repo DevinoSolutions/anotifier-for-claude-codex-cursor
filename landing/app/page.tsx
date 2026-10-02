@@ -69,7 +69,7 @@ const jsonLd = {
           name: "Is my code or conversation sent anywhere?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "No. Everything runs locally with zero external packages. Push notifications go through ntfy with rich content off by default — on the public ntfy.sh server your phone only ever sees “task complete”, never what the agent said. Enable rich push only if you run a private ntfy server.",
+            text: "No. Everything runs locally with zero external packages. Push notifications go through ntfy with rich content off by default — on the public ntfy.sh server your phone only ever sees “task complete”, never what the agent said. Enable rich push only if you run a private ntfy server. Versions after 1.2.6 can also send opt-in anonymous usage stats (never message text, paths or topics), off unless you say yes.",
           },
         },
         {

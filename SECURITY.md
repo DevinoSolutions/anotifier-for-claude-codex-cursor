@@ -33,6 +33,7 @@ report is confirmed, the fix and an advisory are published together.
 
 `anotifier` runs locally, reads `~/.anotifier/config.json`, and can send
 notifications to third-party endpoints you configure (ntfy topics, webhook
-URLs). Webhook URLs and bot tokens in your config are secrets: errors are logged
+URLs). Versions after 1.2.6 can also send opt-in anonymous usage stats to the
+project's own PostHog (see the README, "Usage stats"). Webhook URLs and bot tokens in your config are secrets: errors are logged
 with the URL's origin only, never the full URL. Reports about secret leakage
 through logs, hook payloads, or notification content are in scope.

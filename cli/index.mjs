@@ -3,12 +3,12 @@
 import { createRequire } from 'node:module';
 import { checkForUpdate, isNewer } from '../src/update-check.mjs';
 import { DOCS_URL, SUPPORT_URL } from '../src/support.mjs';
+import { track, flushTelemetry, clampIdent } from '../src/telemetry.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
 const command = process.argv[2];
-const subcommand = process.argv[3];
 
 const COMMANDS = {
   setup: () => import('./setup.mjs'),
@@ -17,8 +17,17 @@ const COMMANDS = {
   config: () => import('./config.mjs'),
   doctor: () => import('./doctor.mjs'),
   snooze: () => import('./snooze.mjs'),
+  telemetry: () => import('./telemetry.mjs'),
   uninstall: () => import('./uninstall.mjs'),
 };
+
+// Arguments the CLI itself defines. Anything else (a snooze duration, a typo)
+// is reported as 'other' so a usage event can never carry what the user typed.
+const KNOWN_ARGS = new Set([
+  '--deep', '--json', '--strict', 'toast', 'ntfy', 'webhook', 'bell', 'both',
+  'sounds', 'events', 'sentry', 'off',
+]);
+const argShape = (args) => args.filter(Boolean).map((a) => (KNOWN_ARGS.has(a) ? a : 'other'));
 
 async function printUpdateBanner(c, updatePromise) {
   const latest = await updatePromise;
@@ -51,14 +60,29 @@ async function main() {
     process.exit(0);
   }
 
-  const loader = COMMANDS[command];
+  const loader = Object.hasOwn(COMMANDS, command) ? COMMANDS[command] : undefined;
   if (!loader) {
     console.error(`${c.error('Error:')} Unknown command "${command}"\n  Run ${c.muted('anotifier --help')} for usage.`);
     process.exit(1);
   }
 
   const mod = await loader();
+  const startedAt = Date.now();
   await mod.run(...process.argv.slice(3));
+
+  // Opt-in usage stats (a no-op unless the user said yes). Everything the
+  // command queued goes out in ONE request, under a 1s deadline. `telemetry`
+  // reports its own opt-in and must send nothing on opt-out, so it queues no
+  // cli_command event.
+  if (command !== 'telemetry') {
+    track('cli_command', {
+      command,
+      args: argShape(process.argv.slice(3)),
+      exit_code: process.exitCode ?? 0,
+      duration_ms: Date.now() - startedAt,
+    });
+  }
+  await flushTelemetry();
 
   // Show update banner after command output. status prints its own; doctor
   // --json must stay machine-parseable (valid JSON only), so suppress it there.
@@ -83,6 +107,7 @@ function printHelp(c, banner) {
   console.log(`    ${c.accent('config')} ${c.muted('[section]')}  ${c.white('Interactive settings')} ${c.muted('(ntfy | webhook | sounds | events | sentry)')}`);
   console.log(`    ${c.accent('doctor')} ${c.muted('[--deep]')}   ${c.white('Diagnose delivery per channel')} ${c.muted('(--deep verifies real delivery)')}`);
   console.log(`    ${c.accent('snooze')} ${c.muted('<dur|off>')}  ${c.white('Silence every channel for a while')} ${c.muted('(30m | 2h | 90s | 45)')}`);
+  console.log(`    ${c.accent('telemetry')}         ${c.white('Opt-in anonymous usage stats')} ${c.muted('(status | on | off)')}`);
   console.log(`    ${c.accent('uninstall')}         ${c.white('Remove hooks from all tools')}`);
   console.log(`    ${c.muted('--version, -v')}     ${c.white('Show version and check for updates')}`);
   console.log();
@@ -96,7 +121,15 @@ function printHelp(c, banner) {
   console.log();
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('Error:', err.message);
+  // The error's class and code only — a message can carry paths or topics.
+  // Clamped to short identifiers: a custom error class or code could carry text.
+  track('cli_error', {
+    command: Object.hasOwn(COMMANDS, command) ? command : 'other',
+    error_name: clampIdent(err?.name, 'Error'),
+    error_code: typeof err?.code === 'string' ? clampIdent(err.code) : null,
+  });
+  await flushTelemetry();
   process.exit(1);
 });

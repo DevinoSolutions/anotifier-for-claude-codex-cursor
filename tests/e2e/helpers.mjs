@@ -34,7 +34,10 @@ export const SCRUB_KEYS = [
 ];
 
 function scrubbedEnv(home, extraEnv = {}) {
-  const env = { ...process.env, HOME: home, USERPROFILE: home, ...extraEnv };
+  // Usage stats are off in every spawned process unless a test turns them on
+  // (and points ANOTIFIER_TELEMETRY_URL at a local server): a developer's own
+  // test run must never reach the real PostHog project.
+  const env = { ...process.env, HOME: home, USERPROFILE: home, ANOTIFIER_TELEMETRY: '0', ...extraEnv };
   for (const k of SCRUB_KEYS) delete env[k];
   return env;
 }

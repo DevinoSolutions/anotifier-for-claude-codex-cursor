@@ -22,6 +22,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
   anotifier"). It appears only there — not in `status`, `--help`, `doctor`, the
   hook path, or any notification. The URL comes from package.json
   `repository.url`.
+- **Opt-in anonymous usage stats.** Off unless you say yes. The first
+  `anotifier setup` run in an interactive terminal asks (default Yes); a setup
+  that is piped, driven by an agent (`/anotifier:setup`), or whose input closes
+  never asks and leaves stats off, and re-running setup never overrides a choice
+  you already made. `anotifier telemetry [on|off]` shows or changes the choice,
+  prints your install id and the exact counts waiting to be sent, and `off`
+  deletes the local install id and pending counts. CLI commands send their name,
+  clamped argument shape, exit code, duration and per-channel results in one
+  request; hook runs are only counted locally and sent as one summary a day
+  (outcomes per agent, event and channel, skip reasons, unrecognized hook event
+  names clamped to 40 safe characters and capped at 10, a latency bucket, and
+  which features are on). The README lists every event and property. Message
+  text, project names, paths, ntfy topics and servers, webhook URLs, hostnames
+  and error messages are never sent. Data goes to the project's self-hosted
+  PostHog (posthog.devino.ca), keyed by a random install id, with geolocation
+  disabled; the server discards client IP addresses. To delete what was sent,
+  open a GitHub issue with your install id. Off by default in `config.json` (so
+  plugin-only installs send nothing), and forced off by `DO_NOT_TRACK=1`,
+  `ANOTIFIER_TELEMETRY=0` or CI. The hook waits at most 0.8s for the server and
+  the CLI at most 1s.
 
 ### Fixed
 - **WSL is reported as WSL.** `anotifier setup`, `status` and `doctor` described

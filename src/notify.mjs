@@ -15,6 +15,7 @@ import { resolveToastBackend } from './platforms/index.mjs';
 import { enableSentryMirror, logHookError, flushErrorReporting } from './error-log.mjs';
 import { maybeNotifyUpdate } from './update-check.mjs';
 import { isSuppressed } from './suppress.mjs';
+import { recordHookRun, maybeSendHookSummary } from './telemetry.mjs';
 
 // Some tools (Cursor) fire the same hook twice simultaneously. Exclusive file
 // creation is the atomic lock that lets only one invocation notify. The key
@@ -92,6 +93,14 @@ function trackChannel(channel, promise) {
   );
 }
 
+// Count this run toward the opt-in daily usage summary, and send the summary
+// when one is due. Both are no-ops unless the user opted in (see
+// src/telemetry.mjs), and neither can throw or outlast its own budget.
+async function countRun(config, run) {
+  recordHookRun(config, run);
+  await maybeSendHookSummary(config);
+}
+
 async function main() {
   // Function-scoped, not built at the write site: the catch branch and the
   // dedup-skip / unmapped-event early exits must fall through to a plain '{}\n'
@@ -101,6 +110,9 @@ async function main() {
   // would double-ring tmux via the TMUX_PANE pane-tty on Claude Code >=2.1.141,
   // the exact bug this path fixes.
   let responseBody = '{}\n';
+  const startedAt = Date.now();
+  let config;
+  let event;
   try {
     const args = parseArgs(process.argv);
     const stdinData = await readStdin();
@@ -113,8 +125,8 @@ async function main() {
       logHookError('stdin', new Error('malformed hook stdin JSON'), { source: args.source, bytes: stdinData.length });
     }
 
-    const event = parseInput(raw, args.source, args.event);
-    const config = loadConfig();
+    event = parseInput(raw, args.source, args.event);
+    config = loadConfig();
     enableSentryMirror(config.sentry);
 
     // An active snooze or quiet-hours window silences EVERY channel. Checked
@@ -124,7 +136,13 @@ async function main() {
     // no claude terminalSequence (which is only set on the successful path
     // further down). The update notice goes quiet with everything else; its
     // check simply runs on a later un-suppressed run.
-    if (isSuppressed(config)) {
+    const suppressed = isSuppressed(config);
+    if (suppressed) {
+      await countRun(config, {
+        outcome: suppressed.reason === 'snooze' ? 'suppressed_snooze' : 'suppressed_quiet',
+        source: event.source,
+        event: event.event,
+      });
       await flushErrorReporting();
       process.stdout.write('{}\n');
       process.exit(0);
@@ -143,6 +161,7 @@ async function main() {
     // codex/gemini send no such field, and cursor's subagentStop -> task_complete
     // is per-subagent by design, so neither may be gated on it.
     if (event.source === 'claude' && event.event === 'task_complete' && event.hasLiveBackgroundWork) {
+      await countRun(config, { outcome: 'held_back', source: event.source, event: event.event });
       await flushErrorReporting();
       process.stdout.write('{}\n');
       process.exit(0);
@@ -150,6 +169,7 @@ async function main() {
 
     // Deduplicate AFTER parsing so the lock can key on source+event+session
     if (!acquireNotifyLock(dedupKey(event))) {
+      await countRun(config, { outcome: 'duplicate', source: event.source, event: event.event });
       await flushErrorReporting();
       process.stdout.write('{}\n');
       process.exit(0);
@@ -164,6 +184,7 @@ async function main() {
         rawEvent: event.rawEvent,
         source: event.source,
       });
+      await countRun(config, { outcome: 'unmapped', source: event.source, rawEvent: event.rawEvent });
       await flushErrorReporting();
       process.stdout.write('{}\n');
       process.exit(0);
@@ -213,7 +234,10 @@ async function main() {
       }
     }
 
-    await Promise.all(tasks);
+    const results = await Promise.all(tasks);
+    // Measured here, before the update check below, so it is the time the user
+    // actually waited for their notification.
+    const latencyMs = Date.now() - startedAt;
 
     // Ring the claude bell by handing Claude Code a bare BEL to write through
     // its own terminal path (see the responseBody comment above). Same gate as
@@ -229,10 +253,14 @@ async function main() {
     // (every other run is a cached file read), is internally capped, and never
     // throws — so it can neither delay hook exit nor fail a successful run.
     await maybeNotifyUpdate(config);
+
+    await countRun(config, { outcome: 'dispatched', source: event.source, event: event.event, channels: results, latencyMs });
   } catch (err) {
     // Never crash — hooks must not block the AI tool. But never hide it
     // either: errors.log + `status` (+ Sentry when enabled) make it visible.
     logHookError('hook', err);
+    // Only the fact of a crash is counted — never its message.
+    await countRun(config, { outcome: 'error', source: event?.source, event: event?.event });
   }
   await flushErrorReporting();
   // Write the hook response — normally '{}\n' (some tools, e.g. Cursor, expect

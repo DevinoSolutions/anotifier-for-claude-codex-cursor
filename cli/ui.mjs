@@ -86,15 +86,19 @@ export function ask(rl, question, defaultVal) {
   });
 }
 
-export function askYN(rl, question, defaultYes = true) {
+// `eof` is what to resolve when the input closes before an answer arrives
+// (EOF / Ctrl+D). It defaults to the default answer; a consent question passes
+// null so a closed stdin can never be read as Yes.
+export function askYN(rl, question, defaultYes = true, { eof = defaultYes } = {}) {
   return new Promise((resolve) => {
     const hint = defaultYes ? '(Y/n)' : '(y/N)';
     let done = false;
-    const onClose = () => finish('');
-    const finish = (answer) => {
+    const onClose = () => finish(null, true);
+    const finish = (answer, closed = false) => {
       if (done) return;
       done = true;
       if (typeof rl.removeListener === 'function') rl.removeListener('close', onClose);
+      if (closed) { resolve(eof); return; }
       const a = (answer ?? '').trim().toLowerCase();
       if (!a) { resolve(defaultYes); return; }
       resolve(a === 'y' || a === 'yes');
