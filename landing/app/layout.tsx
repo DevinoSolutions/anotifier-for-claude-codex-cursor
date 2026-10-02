@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
+import PostHog from "@/components/PostHog";
 import "./globals.css";
 
 const inter = Inter({
@@ -76,6 +77,7 @@ export default function RootLayout({
       <body>
         {children}
         <GoogleAnalytics />
+        <PostHog />
       </body>
     </html>
   );

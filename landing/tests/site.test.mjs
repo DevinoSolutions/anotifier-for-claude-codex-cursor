@@ -115,6 +115,13 @@ test("home: no render-blocking stylesheet and no early gtag.js preload", () => {
     /<link[^>]+gtag\/js[^>]+rel="preload"/,
     "gtag.js is preloaded",
   );
+  // PostHog's loader runs lazyOnload, so the served HTML must never fetch its
+  // library itself: no preload and no <script src> for /static/array.js.
+  assert.doesNotMatch(
+    body,
+    /<(link|script)[^>]+static\/array\.js/,
+    "PostHog's array.js loads before the page's load event",
+  );
 });
 
 test("one URL per page: slashless and index.html paths 301 to the canonical", async () => {
