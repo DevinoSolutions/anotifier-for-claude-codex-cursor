@@ -99,3 +99,15 @@ export function dumpSession(session) {
 export function killSession(session) {
   tmuxSafe(['kill-session', '-t', session]);
 }
+
+// The model provider refused the request for account reasons (no credits, quota,
+// bad key). The TUI prints the API's message in the pane and the turn never
+// completes. That says nothing about anotifier, so a proof that sees it must fail
+// as INFRA, not PRODUCT. Returns the matching pane line, or null.
+const API_ACCOUNT_ERROR =
+  /no credits remaining|insufficient_quota|exceeded your current quota|check your plan and billing|incorrect api key|invalid_api_key|credit balance is too low/i;
+
+export function apiAccountError(pane) {
+  const line = String(pane || '').split('\n').find((l) => API_ACCOUNT_ERROR.test(l));
+  return line ? line.trim() : null;
+}

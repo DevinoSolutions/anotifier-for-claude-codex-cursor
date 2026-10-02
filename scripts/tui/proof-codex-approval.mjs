@@ -12,9 +12,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   newDetachedWindow, capturePane, sendKeys, resolveBin, killSession, dumpSession, sleep,
+  apiAccountError,
 } from './lib.mjs';
 
 const SESSION = 'aan-codex';
+let agentWin; // set once the codex window exists, so fail() can read its pane
 
 function diagnose(label) {
   console.error(`\n===== F2 DIAGNOSTICS (${label}) =====`);
@@ -23,7 +25,18 @@ function diagnose(label) {
 }
 // Leave the session alive on failure so the workflow always() diag step can also
 // dump it; we already printed a full dump here.
-function fail(msg) { console.error(`FAIL [PRODUCT]: ${msg}`); diagnose('product-fail'); process.exit(1); }
+// An API account error in the pane (out of credits, quota, bad key) means the turn
+// could never complete, whatever anotifier did: report it as INFRA. Still exit 1,
+// because the approval loop was not proven.
+function fail(msg) {
+  const accountErr = agentWin === undefined ? null : apiAccountError(safeCapture(agentWin));
+  if (accountErr) {
+    console.error(`FAIL [INFRA]: ${msg} The OpenAI API refused the request: "${accountErr}"`);
+    diagnose('infra-api-account');
+    process.exit(1);
+  }
+  console.error(`FAIL [PRODUCT]: ${msg}`); diagnose('product-fail'); process.exit(1);
+}
 function infra(msg) { console.error(`FAIL [INFRA]: ${msg}`); process.exit(1); }
 
 async function main() {
@@ -58,6 +71,7 @@ async function main() {
   // -lc) keeps the inherited PATH; we pass codex's absolute path for good measure.
   const cmd = `env CODEX_HOME='${codexHome}' bash -c "cd '${workDir}' && exec '${codexBin}' -a untrusted 'Run this shell command: touch ${sentinel}'"`;
   const win = newDetachedWindow(SESSION, cmd);
+  agentWin = win;
   console.log(`F2: agent window = ${SESSION}:${win} (codex bin: ${codexBin})`);
 
   // Codex first-run onboarding can gate the session before any approval modal:
