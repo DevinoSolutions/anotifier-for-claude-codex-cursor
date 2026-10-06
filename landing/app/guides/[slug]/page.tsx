@@ -134,9 +134,9 @@ export default async function GuidePage({
         </p>
         <div className="guideShortcut">
           <p>
-            Rather skip the manual setup? One command wires every agent you
-            have installed to desktop toasts, phone push, and Slack, Discord
-            or Telegram:
+            Rather skip the manual setup? One command wires every agent you have
+            installed to desktop toasts, phone push, and Slack, Discord or
+            Telegram:
           </p>
           <div className="install">
             <span className="d">$</span> {INSTALL_CMD}
