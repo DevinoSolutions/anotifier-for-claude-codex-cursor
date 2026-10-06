@@ -29,6 +29,9 @@ defaults:
   run:
     working-directory: landing
 
+permissions:
+  contents: read
+
 jobs:
   site:
     name: Landing (lint · format · knip · typecheck · build)

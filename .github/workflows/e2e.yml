@@ -12,6 +12,9 @@ concurrency:
 # The E2E tier deliberately exercises the real public ntfy.sh (an accepted
 # external dependency; hermetic, no-network coverage lives in the unit tier via
 # local HTTP servers). Transient network flakes are retried by the poll helpers.
+permissions:
+  contents: read
+
 jobs:
   e2e:
     name: E2E real-world (${{ matrix.os }})
