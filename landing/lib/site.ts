@@ -8,7 +8,7 @@ export const DEMO_VIDEO_URL = "https://www.youtube.com/watch?v=QVVOIIud4-I";
 /** Devino-wide sponsor profile — the same link the CLI and README point at. */
 export const SUPPORT_URL = "https://github.com/sponsors/DevinoSolutions";
 /** Latest published npm version. Bump with every release. */
-export const VERSION = "1.2.6";
+export const VERSION = "1.3.0";
 /** ISO date of the newest content edit anywhere on the site (llms-full.txt). */
 export const CONTENT_UPDATED = "2026-10-01";
 /** Last significant content edit of each one-off page (YYYY-MM-DD): its
