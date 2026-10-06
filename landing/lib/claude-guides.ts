@@ -4,7 +4,7 @@ import type { Guide } from "./guides";
  * Claude Code deep dives: permission prompts and sounds. Claude Code facts
  * follow its public docs (code.claude.com/docs/en/hooks, hooks-guide and
  * terminal-config); anotifier facts are checked against the package source for
- * the version in lib/site.ts, and say so where 1.2.6 falls short.
+ * the version in lib/site.ts, and say so where 1.3.0 falls short.
  */
 
 const osascript = (text: string) =>
@@ -249,7 +249,7 @@ export const CLAUDE_GUIDES: Guide[] = [
           },
           {
             kind: "note",
-            text: "In 1.2.6 anotifier does not read `notification_type`, so notifications that don't need you, such as `auth_success`, also arrive as urgent needs-input alerts. If that bothers you, register your own hooks with the matchers above instead.",
+            text: "anotifier (1.3.0 included) does not read `notification_type`, so notifications that don't need you, such as `auth_success`, also arrive as urgent needs-input alerts. If that bothers you, register your own hooks with the matchers above instead.",
           },
         ],
       },
