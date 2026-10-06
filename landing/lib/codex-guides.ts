@@ -23,14 +23,14 @@ const soundHook = (macSound: string, windowsFile: string) => ({
 export const CODEX_GUIDES: Guide[] = [
   {
     slug: "codex-notification-sound",
-    updated: "2026-10-01",
+    updated: "2026-10-06",
     kind: "topic",
     agentSlug: "codex",
     name: "Codex CLI sounds",
     icon: "/assets/icons/codex.png",
-    title: "Codex CLI Notification Sound: Ding When It Needs a Response",
+    title: "Codex CLI Notification Sound: Ding When Done or Waiting",
     description:
-      "Make Codex CLI ding when it needs your approval or an answer, or finishes: the [tui] notification settings, the bel method, and a PermissionRequest sound hook.",
+      "By default Codex alerts you only in the background. Set notification_condition = \"always\" under [tui] in ~/.codex/config.toml, or play a sound with a hook.",
     h1: "Make Codex CLI ding when it needs your approval or a response",
     intro:
       'Codex CLI already notifies you when it needs approval or a response from you, but by default only while its terminal is in the background, and in some terminals as a silent banner. Under `[tui]` in `~/.codex/config.toml`, set `notification_condition = "always"` to be alerted even when the window is in front, and `notification_method = "bel"` to get the terminal bell instead of a banner. For a real sound file, add a `PermissionRequest` hook that plays one. Here are both, plus how to ding only when Codex is waiting on you.',

@@ -4,6 +4,17 @@ All notable changes to `anotifier` are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [Unreleased]
+
+### Fixed
+- **Plain output off a terminal.** When stdout is not a terminal (piped, CI
+  logs, or an agent running `npx anotifier setup` through its shell tool) the
+  CLI now prints plain text instead of 24-bit colour escapes, and the setup
+  spinner prints only its result line instead of a run of animation frames.
+  `NO_COLOR` forces plain text and `FORCE_COLOR` forces colour.
+- **Banner.** `anotifier --help` showed the pre-rename "AI Notify" ASCII art; it
+  now spells anotifier.
+
 ## [1.3.0] — 2026-10-06
 
 ### Added

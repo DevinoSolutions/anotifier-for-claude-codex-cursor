@@ -255,14 +255,14 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "codex-cli-notifications",
-    updated: "2026-10-01",
+    updated: "2026-10-06",
     kind: "agent",
     agentSlug: "codex",
     name: "Codex CLI",
     icon: "/assets/icons/codex.png",
-    title: "Codex CLI Notifications: Finish and Approval Alerts",
+    title: "Codex CLI Notifications: Get Alerted When Codex Finishes",
     description:
-      "Desktop, phone, or Slack alerts when Codex CLI finishes or waits for approval: built-in TUI notifications, the notify setting, hooks, or anotifier.",
+      "By default Codex CLI alerts you only in the background. Get finish and approval alerts on your desktop or phone: [tui] settings, notify, or hooks.",
     h1: "How to get notified when Codex CLI finishes or needs approval",
     intro:
       "Codex CLI already notifies you when a turn ends or an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else. For alerts you can't miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option. To make Codex ding when it needs a response, see [Codex CLI notification sounds](/guides/codex-notification-sound/).",
@@ -359,14 +359,14 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "cursor-agent-notifications",
-    updated: "2026-09-27",
+    updated: "2026-10-06",
     kind: "agent",
     agentSlug: "cursor",
     name: "Cursor",
     icon: "/assets/icons/cursor.png",
-    title: "Cursor Agent Notifications: Get Pinged When It Finishes",
+    title: "Cursor Notification When Done: Agent Finish Alerts",
     description:
-      "A desktop toast, phone push, or chat message when the Cursor agent finishes: the completion sound, a stop hook in ~/.cursor/hooks.json, or anotifier.",
+      "Turn on Cursor's completion sound, or add a stop hook to ~/.cursor/hooks.json for a desktop toast, phone push, or Slack message when the agent finishes.",
     h1: "How to get notified when the Cursor agent finishes",
     intro:
       "You kick off a Cursor agent, switch to a browser tab, and check back either too early or twenty minutes late. Cursor exposes an agent lifecycle hook system that fires the instant the agent loop ends, which is all you need to be told rather than to keep checking.",

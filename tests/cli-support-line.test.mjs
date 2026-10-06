@@ -47,8 +47,8 @@ describe('support & docs URLs in CLI output', () => {
     assert.equal(res.status, 0, res.stderr);
     assert.equal(count(res.stdout, SUPPORT_URL), 1, res.stdout);
     assert.match(res.stdout, /consider supporting/i);
-    // "at the end": nothing but whitespace (and ANSI resets — ui.mjs colors
-    // regardless of NO_COLOR) follows the support line.
+    // "at the end": nothing but whitespace follows the support line. The
+    // strip is belt and braces: NO_COLOR already keeps ui.mjs plain.
     const plain = res.stdout.replace(/\x1b\[[0-9;]*m/g, '');
     const after = plain.slice(plain.indexOf(SUPPORT_URL) + SUPPORT_URL.length);
     assert.equal(after.trim(), '', `support line must be last, got trailing: ${JSON.stringify(after)}`);

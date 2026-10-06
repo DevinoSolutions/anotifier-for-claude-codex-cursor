@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Blocks from "@/components/docs/Blocks";
+import CopyButton from "@/components/home/CopyButton";
 import CodeBlock from "@/components/docs/CodeBlock";
 import DocShell from "@/components/docs/DocShell";
 import Inline from "@/components/docs/Inline";
@@ -131,6 +132,17 @@ export default async function GuidePage({
         <p className="sub">
           <Inline text={guide.intro} />
         </p>
+        <div className="guideShortcut">
+          <p>
+            Rather skip the manual setup? One command wires every agent you
+            have installed to desktop toasts, phone push, and Slack, Discord
+            or Telegram:
+          </p>
+          <div className="install">
+            <span className="d">$</span> {INSTALL_CMD}
+            <CopyButton text={INSTALL_CMD} placement="guide_hero" />
+          </div>
+        </div>
         <p className="docMeta">
           Updated {guide.updated} · also see{" "}
           {guide.agentSlug && (
