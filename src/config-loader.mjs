@@ -7,9 +7,14 @@ import { logHookError } from './error-log.mjs';
 const require = createRequire(import.meta.url);
 const defaults = require('../config/default-config.json');
 
+// JSON.parse keeps these as own keys; merging them would write into
+// Object.prototype (or a constructor's prototype) for the whole process.
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 // Deep merge b into a (a is mutated)
 function deepMerge(a, b) {
   for (const key of Object.keys(b)) {
+    if (UNSAFE_KEYS.has(key)) continue;
     if (
       b[key] && typeof b[key] === 'object' && !Array.isArray(b[key]) &&
       a[key] && typeof a[key] === 'object' && !Array.isArray(a[key])

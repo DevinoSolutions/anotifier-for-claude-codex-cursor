@@ -41,7 +41,7 @@ function infra(msg) { console.error(`FAIL [INFRA]: ${msg}`); process.exit(1); }
 function nonce() {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let s = '';
-  for (const b of crypto.randomBytes(12)) s += alphabet[b % alphabet.length];
+  for (let i = 0; i < 12; i++) s += alphabet[crypto.randomInt(alphabet.length)];
   return `AANWIN${s}`;
 }
 

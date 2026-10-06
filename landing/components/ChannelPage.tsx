@@ -8,8 +8,10 @@ import StarButton from "@/components/StarButton";
 import CopyButton from "@/components/home/CopyButton";
 import { INSTALL_CMD } from "@/lib/site";
 
+// Plain text for JSON-LD, which is written into a <script> unescaped: drop any
+// "<" or ">" a tag removal leaves behind (e.g. "<scr<b>ipt>") as well.
 function stripTags(html: string): string {
-  return html.replace(/<[^>]+>/g, "");
+  return html.replace(/<[^>]*>/g, "").replace(/[<>]/g, "");
 }
 
 export function buildChannelMetadata(slug: string): Metadata {

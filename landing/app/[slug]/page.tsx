@@ -19,8 +19,10 @@ export function generateStaticParams() {
   return AGENTS.map((agent) => ({ slug: agent.slug }));
 }
 
+// Plain text for JSON-LD, which is written into a <script> unescaped: drop any
+// "<" or ">" a tag removal leaves behind (e.g. "<scr<b>ipt>") as well.
 function stripTags(html: string): string {
-  return html.replace(/<[^>]+>/g, "");
+  return html.replace(/<[^>]*>/g, "").replace(/[<>]/g, "");
 }
 
 /** Every agent page ends with the same way to prove it works and to back out. */
