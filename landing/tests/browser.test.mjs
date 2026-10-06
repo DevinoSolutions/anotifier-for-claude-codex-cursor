@@ -255,6 +255,69 @@ test(
   },
 );
 
+// The guides draw most of the search traffic; their reader should meet the
+// one-command install without scrolling past the manual config first.
+test(
+  "guides show the install command in the first screen, and copying it is tracked",
+  { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },
+  async () => {
+    const b = await openBrowser(9346);
+    try {
+      await b.send("Emulation.setDeviceMetricsOverride", {
+        width: 1366,
+        height: 768,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      for (const p of [
+        "/guides/codex-notification-sound/",
+        "/guides/codex-cli-notifications/",
+        "/guides/claude-code-notification-sound/",
+        "/guides/claude-code-notifications/",
+        "/guides/cursor-agent-notifications/",
+      ]) {
+        await load(b, BASE_URL + p, 2000);
+        const box = await b.evaluate(`(() => {
+          const el = document.querySelector('.guideShortcut .install');
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return { top: r.top, bottom: r.bottom, vh: innerHeight, text: el.textContent };
+        })()`);
+        assert.ok(box, `${p}: no install shortcut`);
+        assert.match(box.text, /npx anotifier@latest setup/);
+        assert.ok(
+          box.bottom <= box.vh,
+          `${p}: install command ends at ${Math.round(box.bottom)}px, below the ${box.vh}px first screen`,
+        );
+      }
+
+      await b.send("Browser.grantPermissions", {
+        origin: new URL(BASE_URL).origin,
+        permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"],
+      });
+      await b.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+      await b.evaluate(RECORD_GTAG);
+      await realClick(b, ".guideShortcut .install button");
+      await sleep(300);
+      const got = await b.evaluate(`(async () => ({
+        events: ${GA_EVENTS},
+        clip: await navigator.clipboard.readText(),
+      }))()`);
+      assert.equal(got.clip, "npx anotifier@latest setup");
+      assert.deepEqual(got.events, [
+        {
+          name: "copy_command",
+          placement: "guide_hero",
+          result: "copied",
+          command: "npx anotifier@latest setup",
+        },
+      ]);
+    } finally {
+      b.close();
+    }
+  },
+);
+
 test(
   `mobile LCP of the home page stays under ${LCP_BUDGET_MS} ms`,
   { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },

@@ -169,6 +169,17 @@
 .docBody .faq details {
   margin-top: 12px;
 }
+/* Guides: the one-command alternative, shown under the intro so readers
+   who came for the manual config still see it before scrolling. */
+.guideShortcut {
+  margin: -10px 0 0;
+}
+.guideShortcut p {
+  font-size: 14px;
+  color: var(--dim);
+  max-width: 62ch;
+  margin: 0 0 10px;
+}
 .docMeta {
   font-family: var(--font-mono-stack);
   font-size: 12px;

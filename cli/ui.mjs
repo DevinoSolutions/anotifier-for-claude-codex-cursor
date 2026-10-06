@@ -4,25 +4,40 @@
 const ESC = '\x1b[';
 const RESET = `${ESC}0m`;
 
+// Plain text when stdout is not a terminal (piped, CI logs, or an agent's
+// shell tool running `npx anotifier setup`) or when NO_COLOR is set, per
+// no-color.org. FORCE_COLOR turns colour back on; FORCE_COLOR=0 turns it off.
+export function colorEnabled(env = process.env, stream = process.stdout) {
+  if (env.NO_COLOR) return false;
+  if (env.FORCE_COLOR !== undefined) return env.FORCE_COLOR !== '0' && env.FORCE_COLOR !== 'false';
+  return Boolean(stream && stream.isTTY);
+}
+
+const COLOR = colorEnabled();
+
+function paint(code) {
+  return COLOR ? (t) => `${ESC}${code}m${t}${RESET}` : (t) => `${t}`;
+}
+
 function rgb(r, g, b) {
-  return (text) => `${ESC}38;2;${r};${g};${b}m${text}${RESET}`;
+  return paint(`38;2;${r};${g};${b}`);
 }
 
 function bgRgb(r, g, b) {
-  return (text) => `${ESC}48;2;${r};${g};${b}m${text}${RESET}`;
+  return paint(`48;2;${r};${g};${b}`);
 }
 
 export const c = {
-  bold:    (t) => `${ESC}1m${t}${RESET}`,
-  dim:     (t) => `${ESC}2m${t}${RESET}`,
-  italic:  (t) => `${ESC}3m${t}${RESET}`,
-  underline: (t) => `${ESC}4m${t}${RESET}`,
-  green:   (t) => `${ESC}32m${t}${RESET}`,
-  red:     (t) => `${ESC}31m${t}${RESET}`,
-  yellow:  (t) => `${ESC}33m${t}${RESET}`,
-  cyan:    (t) => `${ESC}36m${t}${RESET}`,
-  white:   (t) => `${ESC}37m${t}${RESET}`,
-  gray:    (t) => `${ESC}90m${t}${RESET}`,
+  bold:    paint('1'),
+  dim:     paint('2'),
+  italic:  paint('3'),
+  underline: paint('4'),
+  green:   paint('32'),
+  red:     paint('31'),
+  yellow:  paint('33'),
+  cyan:    paint('36'),
+  white:   paint('37'),
+  gray:    paint('90'),
   // Brand colors
   brand:   rgb(99, 102, 241),   // Indigo
   accent:  rgb(139, 92, 246),   // Purple
@@ -38,7 +53,7 @@ export const c = {
 // ── Gradient Text (internal — used by banner) ───────────────────────
 function gradient(text, from, to) {
   const len = text.length;
-  if (len === 0) return text;
+  if (len === 0 || !COLOR) return text;
   return text.split('').map((ch, i) => {
     const t = len === 1 ? 0 : i / (len - 1);
     const r = Math.round(from[0] + (to[0] - from[0]) * t);
@@ -137,29 +152,34 @@ export function spinner(message) {
   let i = 0;
   let stopped = false;
   const stream = process.stderr;
+  // Off a terminal, animation frames pile up as one long line of "\r ⠋ …"
+  // in the captured output, so print only the final result line.
+  const live = Boolean(stream.isTTY);
+  const lead = live ? '\r' : '';
+  const clear = live ? '\x1b[K' : '';
 
-  const timer = setInterval(() => {
+  const timer = live ? setInterval(() => {
     if (stopped) return;
     const frame = c.brand(SPINNER_FRAMES[i % SPINNER_FRAMES.length]);
     stream.write(`\r  ${frame} ${c.muted(message)}`);
     i++;
-  }, 80);
+  }, 80) : null;
 
   return {
     stop(finalMessage, color = c.success) {
       stopped = true;
       clearInterval(timer);
-      stream.write(`\r  ${color('✓')} ${finalMessage}\x1b[K\n`);
+      stream.write(`${lead}  ${color('✓')} ${finalMessage}${clear}\n`);
     },
     warn(finalMessage) {
       stopped = true;
       clearInterval(timer);
-      stream.write(`\r  ${c.warn('⚠')} ${finalMessage}\x1b[K\n`);
+      stream.write(`${lead}  ${c.warn('⚠')} ${finalMessage}${clear}\n`);
     },
     fail(finalMessage) {
       stopped = true;
       clearInterval(timer);
-      stream.write(`\r  ${c.error('✗')} ${finalMessage}\x1b[K\n`);
+      stream.write(`${lead}  ${c.error('✗')} ${finalMessage}${clear}\n`);
     },
   };
 }
@@ -167,11 +187,11 @@ export function spinner(message) {
 // ── Banner ──────────────────────────────────────────────────────────
 export function banner() {
   const lines = [
-    '    _   ___   _  _     _   _  ___',
-    '   /_\\ |_ _| | \\| |___| |_(_)/ _|_  _',
-    '  / _ \\ | |  | .` / _ \\  _| |  _| || |',
-    ' /_/ \\_\\___|_|_|\\_\\___/\\__|_|_|  \\_, |',
-    '              |___|              |__/',
+    '                    _   _  __ _',
+    '  __ _ _ __   ___ | |_(_)/ _(_) ___ _ __',
+    ' / _` | \'_ \\ / _ \\| __| | |_| |/ _ \\ \'__|',
+    '| (_| | | | | (_) | |_| |  _| |  __/ |',
+    ' \\__,_|_| |_|\\___/ \\__|_|_| |_|\\___|_|',
   ];
   const from = [99, 102, 241];   // Indigo
   const to = [139, 92, 246];     // Purple

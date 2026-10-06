@@ -279,14 +279,14 @@ export const CLAUDE_GUIDES: Guide[] = [
   },
   {
     slug: "claude-code-notification-sound",
-    updated: "2026-09-26",
+    updated: "2026-10-06",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code sounds",
     icon: "/assets/icons/claude.png",
     title: "Claude Code Notification Sound: Play a Sound When Done",
     description:
-      "Make Claude Code play a sound when it finishes or needs you: the terminal bell setting, a Stop hook with afplay, paplay or PowerShell, and per-event sounds.",
+      'Set "preferredNotifChannel": "terminal_bell" in ~/.claude/settings.json, or add a Stop hook that plays a sound file with afplay, paplay or PowerShell.',
     h1: "Make Claude Code play a sound when it finishes",
     intro:
       'Two ways, with nothing to install: set `"preferredNotifChannel": "terminal_bell"` in `~/.claude/settings.json` to ring the terminal bell, or add a `Stop` hook that plays a sound file, such as `afplay /System/Library/Sounds/Glass.aiff` on macOS. Give the `Notification` hook a different sound and you can tell "done" from "needs you" by ear.',

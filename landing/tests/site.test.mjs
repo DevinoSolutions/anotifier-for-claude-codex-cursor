@@ -254,3 +254,18 @@ test("sitemap lastmod is each page's own date, and guides show the same one", as
     .at(-1);
   assert.equal(lastmod.get("/guides/"), newestGuide, "/guides/ lastmod");
 });
+
+test("every guide offers the install command before its first section", () => {
+  const guides = [...pages].filter(([p]) => /^\/guides\/.+/.test(p));
+  assert.ok(guides.length > 0, "no guides in the sitemap");
+  for (const [p, { body }] of guides) {
+    const main = body.slice(body.indexOf("<h1"));
+    const beforeH2 = main.slice(0, main.indexOf("<h2"));
+    assert.match(
+      beforeH2,
+      /npx anotifier@latest setup/,
+      `${p}: install command only appears after the first section`,
+    );
+    assert.match(beforeH2, /<button/, `${p}: no copy button by the command`);
+  }
+});
