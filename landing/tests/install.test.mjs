@@ -46,6 +46,14 @@ test(`every version the site states is npm latest (${LATEST})`, async () => {
     if (!m) wrong.push(`${p} ${label}: not found (pattern ${re})`);
     else if (m[1] !== LATEST) wrong.push(`${p} ${label}: v${m[1]}`);
   }
+  // "(1.3.1 included)" is a claim about the current release, so it goes stale
+  // on every publish. llms-full.txt carries every guide and the docs.
+  if (!bodies.has("/llms-full.txt"))
+    bodies.set("/llms-full.txt", await page("/llms-full.txt"));
+  for (const m of bodies
+    .get("/llms-full.txt")
+    .matchAll(/\((\d+\.\d+\.\d+) included\)/g))
+    if (m[1] !== LATEST) wrong.push(`/llms-full.txt "(${m[1]} included)"`);
   assert.deepEqual(
     wrong,
     [],
