@@ -7,7 +7,7 @@ import path from 'node:path';
 import http from 'node:http';
 import {
   telemetryBlockedBy, isTelemetryActive, recordHookRun, maybeSendHookSummary,
-  sendEvent, sendEvents, track, flushTelemetry, readState, clearState, configSnapshot, clampIdent,
+  sendEvent, sendEvents, track, flushTelemetry, readState, clearState, getInstallId, configSnapshot, clampIdent, CORRUPT,
   MAX_UNMAPPED_KEYS, SUMMARY_INTERVAL_MS, TELEMETRY_KEY,
 } from '../src/telemetry.mjs';
 import { loadConfigResult } from '../src/config-loader.mjs';
@@ -18,6 +18,21 @@ const ON = { telemetry: { enabled: true } };
 // A clean, opted-in environment: nothing blocks, nothing hits the real host.
 const envWith = (extra = {}) => ({ ANOTIFIER_TELEMETRY: '1', ...extra });
 const tmpState = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'aan-tel-')), '.telemetry.json');
+
+// The hook budget bounds the SEND, but maybeSendHookSummary also does plain sync
+// file I/O after the send (re-reading and rewriting the state file), which can
+// take hundreds of ms on a slow disk and is deliberately not part of the budget.
+// This records every fs.readFileSync timestamp so a test can tell when the budget
+// race ended: the re-read is the first thing that happens after it.
+function recordReads() {
+  const real = fs.readFileSync;
+  const times = [];
+  fs.readFileSync = (...args) => { times.push(Date.now()); return real(...args); };
+  return {
+    firstAfter: (t) => times.find((x) => x > t),
+    stop: () => { fs.readFileSync = real; },
+  };
+}
 
 // Content that must never appear in anything sent.
 const SECRETS = {
@@ -195,12 +210,137 @@ describe('recordHookRun', () => {
     assert.equal(Object.values(seen).reduce((a, b) => a + b, 0), 31);
   });
 
-  it('a failed state write leaves no temp file behind', () => {
+  it('a failed state write throws nothing and leaves nothing behind', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-tel-fail-'));
     const statePath = path.join(dir, '.telemetry.json');
-    fs.mkdirSync(statePath); // a directory where the file should be: the rename fails
+    fs.mkdirSync(statePath); // a directory where the file should be: unreadable AND unwritable
     recordHookRun(ON, { outcome: 'dispatched', source: 'claude' }, { env: envWith(), statePath });
-    assert.deepEqual(fs.readdirSync(dir).filter((f) => f.endsWith('.tmp')), []);
+    assert.deepEqual(fs.readdirSync(dir), ['.telemetry.json']);
+    assert.ok(fs.statSync(statePath).isDirectory());
+  });
+
+  it('never replaces the state file with rename: the hook path must not pay for rename-over-existing', async () => {
+    // rename-replace took 1.4-4.7s per call on Windows (antivirus), on EVERY hook run.
+    const statePath = tmpState();
+    const real = fs.renameSync;
+    let renames = 0;
+    fs.renameSync = (...args) => { renames++; return real(...args); };
+    try {
+      const run = { outcome: 'dispatched', source: 'claude' };
+      recordHookRun(ON, run, { env: envWith(), statePath, now: 0 });
+      recordHookRun(ON, run, { env: envWith(), statePath, now: 0 }); // over an EXISTING file
+      await maybeSendHookSummary(ON, { env: envWith(), statePath, now: SUMMARY_INTERVAL_MS + 1, send: async () => ({ ok: true }) });
+      assert.ok(getInstallId(statePath));
+    } finally {
+      fs.renameSync = real;
+    }
+    assert.equal(renames, 0);
+    assert.equal(fs.readdirSync(path.dirname(statePath)).length, 1, 'no temp or stray files');
+  });
+
+  it('a hook-path write costs milliseconds, not the seconds rename-over-existing cost', () => {
+    const statePath = tmpState();
+    const run = { outcome: 'dispatched', source: 'claude', event: 'task_complete', channels: [{ channel: 'toast', ok: true }] };
+    recordHookRun(ON, run, { env: envWith(), statePath });
+    const started = Date.now();
+    for (let i = 0; i < 5; i++) recordHookRun(ON, run, { env: envWith(), statePath });
+    const took = Date.now() - started;
+    assert.equal(readState(statePath).counters.runs, 6);
+    // Generous (a slow antivirus can add hundreds of ms per call) yet far below
+    // what five rename-replaces cost on the machines that hit this (7-23s).
+    assert.ok(took < 4000, `5 recordHookRun calls took ${took}ms`);
+  });
+
+  describe('a torn or corrupt state file', () => {
+    const ID = '0b9a6e0c-4f6e-4a53-9a43-2f0e1f6d9c11';
+    const GOOD = JSON.stringify({ installId: ID, windowStart: 5, counters: { runs: 7 } });
+    const run = { outcome: 'dispatched', source: 'claude' };
+    const age = (file, ms) => { const t = new Date(Date.now() - ms); fs.utimesSync(file, t, t); };
+
+    it('readState tells MISSING ({}) from CORRUPT (the sentinel)', () => {
+      const statePath = tmpState();
+      assert.deepEqual(readState(statePath), {});
+      assert.notEqual(readState(statePath), CORRUPT);
+      for (const text of ['', '{"installId":"' + ID + '","count', 'null', '[]', '"x"', '7']) {
+        fs.writeFileSync(statePath, text);
+        assert.equal(readState(statePath), CORRUPT, JSON.stringify(text));
+      }
+      fs.writeFileSync(statePath, GOOD);
+      assert.equal(readState(statePath).installId, ID);
+    });
+
+    it('recordHookRun skips a half-written file and keeps the install id and counters', () => {
+      for (const torn of [GOOD.slice(0, 40), '']) { // truncated mid-write / just truncated
+        const statePath = tmpState();
+        fs.writeFileSync(statePath, torn);
+        recordHookRun(ON, run, { env: envWith(), statePath, now: 1 });
+        assert.equal(fs.readFileSync(statePath, 'utf8'), torn, 'a reader that caught a torn file writes nothing');
+      }
+    });
+
+    it('a writer that finishes after the skip restores a whole file and nothing was lost but a count', () => {
+      const statePath = tmpState();
+      fs.writeFileSync(statePath, GOOD.slice(0, 30));
+      recordHookRun(ON, run, { env: envWith(), statePath, now: 1 }); // skipped
+      fs.writeFileSync(statePath, GOOD); // the other hook's write completes
+      recordHookRun(ON, run, { env: envWith(), statePath, now: 1 });
+      const state = readState(statePath);
+      assert.equal(state.installId, ID);
+      assert.equal(state.counters.runs, 8);
+    });
+
+    it('a stale corrupt file self-heals: rewritten, install id salvaged, counters restart', () => {
+      const statePath = tmpState();
+      fs.writeFileSync(statePath, GOOD.slice(0, GOOD.indexOf('"counters"') + 12)); // id intact, tail gone
+      age(statePath, 30 * 1000);
+      recordHookRun(ON, run, { env: envWith(), statePath, now: 1 });
+      const state = readState(statePath);
+      assert.notEqual(state, CORRUPT);
+      assert.equal(state.installId, ID);
+      assert.equal(state.counters.runs, 1);
+    });
+
+    it('a stale corrupt file with no readable id heals to a fresh state', () => {
+      const statePath = tmpState();
+      fs.writeFileSync(statePath, '{"wind');
+      age(statePath, 30 * 1000);
+      recordHookRun(ON, run, { env: envWith(), statePath, now: 1 });
+      assert.equal(readState(statePath).counters.runs, 1);
+      assert.match(getInstallId(statePath), /^[0-9a-f-]{36}$/);
+    });
+
+    it('getInstallId never mints a new id over a fresh corrupt file, and a send is skipped', async () => {
+      const statePath = tmpState();
+      fs.writeFileSync(statePath, GOOD.slice(0, 40));
+      assert.equal(getInstallId(statePath), null);
+      assert.deepEqual(await sendEvent('probe', {}, { env: envWith({ ANOTIFIER_TELEMETRY_URL: 'http://127.0.0.1:1/' }), statePath }), { ok: false, status: 0 });
+      assert.equal(fs.readFileSync(statePath, 'utf8'), GOOD.slice(0, 40));
+    });
+
+    it('maybeSendHookSummary neither sends nor writes on a fresh corrupt file', async () => {
+      const statePath = tmpState();
+      fs.writeFileSync(statePath, GOOD.slice(0, 50));
+      let calls = 0;
+      const sent = await maybeSendHookSummary(ON, {
+        env: envWith(), statePath, now: SUMMARY_INTERVAL_MS * 3, send: async () => { calls++; return { ok: true }; },
+      });
+      assert.equal(sent, false);
+      assert.equal(calls, 0);
+      assert.equal(fs.readFileSync(statePath, 'utf8'), GOOD.slice(0, 50));
+      assert.equal(fs.existsSync(`${statePath}.lock`), false, 'no lock left behind');
+    });
+
+    it('maybeSendHookSummary leaves a file that went corrupt DURING the send alone', async () => {
+      const statePath = tmpState();
+      recordHookRun(ON, run, { env: envWith(), statePath, now: 0 });
+      const torn = '{"installId":"' + ID + '","wind';
+      const sent = await maybeSendHookSummary(ON, {
+        env: envWith(), statePath, now: SUMMARY_INTERVAL_MS + 1,
+        send: async () => { fs.writeFileSync(statePath, torn); return { ok: true }; }, // another hook mid-write
+      });
+      assert.equal(sent, true);
+      assert.equal(fs.readFileSync(statePath, 'utf8'), torn);
+    });
   });
 });
 
@@ -259,15 +399,32 @@ describe('maybeSendHookSummary', () => {
   });
 
   it('gives a stuck sender at most the 800ms hook budget', async () => {
+    // The budget bounds the SEND, so it is measured from the moment the sender
+    // is invoked to the moment the race ended (see recordReads). The total-time
+    // bound only has to notice a regression back to multi-second sync file I/O
+    // on the hook path (rename-replace cost 1.4-4.7s per call on Windows).
     const statePath = tmpState();
     seed(statePath, 0);
-    const started = Date.now();
-    const sent = await maybeSendHookSummary(secretConfig, {
-      env: envWith(), statePath, now: SUMMARY_INTERVAL_MS + 5, send: () => new Promise(() => {}),
-    });
-    const took = Date.now() - started;
+    let sendStartedAt = 0;
+    const reads = recordReads();
+    let started;
+    let finished;
+    let sent;
+    try {
+      started = Date.now();
+      sent = await maybeSendHookSummary(secretConfig, {
+        env: envWith(), statePath, now: SUMMARY_INTERVAL_MS + 5,
+        send: () => { sendStartedAt = Date.now(); return new Promise(() => {}); },
+      });
+      finished = Date.now();
+    } finally { reads.stop(); }
     assert.equal(sent, false);
-    assert.ok(took >= 700 && took < 1500, `took ${took}ms`);
+    assert.ok(sendStartedAt > 0, 'the sender was invoked');
+    const raceEnded = reads.firstAfter(sendStartedAt);
+    assert.ok(raceEnded, 'the state file is re-read once the budget fires');
+    const sendTook = raceEnded - sendStartedAt;
+    assert.ok(sendTook >= 750 && sendTook < 800 + 700, `send was held for ${sendTook}ms`);
+    assert.ok(finished - started < 3000, `whole call took ${finished - started}ms`);
     assert.ok(readState(statePath).retryAt, 'backs off after a timeout');
   });
 
@@ -321,6 +478,7 @@ describe('transport against a local capture server', () => {
   let url;
   let dripping;
   let dripUrl;
+  const dripArrivals = []; // Date.now() at which each request reached the drip server
   const requests = []; // { path, raw, json }
   const eventsOf = (json) => (json.batch ? json.batch : [json]);
   before(async () => {
@@ -334,6 +492,7 @@ describe('transport against a local capture server', () => {
     // Answers with headers and then one byte every 50ms, forever: an idle timeout
     // that resets per byte would never fire against this.
     dripping = http.createServer((req, res) => {
+      dripArrivals.push(Date.now());
       req.resume();
       res.writeHead(200);
       const t = setInterval(() => res.write('.'), 50);
@@ -419,23 +578,48 @@ describe('transport against a local capture server', () => {
   });
 
   it('the timeout is an absolute deadline, not an idle timeout that resets per byte', async () => {
+    // The deadline covers the request, not the install-id file work that comes
+    // first, so time it from the request reaching the server (the id is created
+    // up front, and the server shares this event loop, so sync I/O before the
+    // request can only move the arrival, never the measured interval).
     const env = envWith({ ANOTIFIER_TELEMETRY_URL: dripUrl });
+    const statePath = tmpState();
+    getInstallId(statePath);
+    const arrivals = dripArrivals.length;
     const started = Date.now();
-    const result = await sendEvent('probe', {}, { env, statePath: tmpState(), timeoutMs: 400 });
-    const took = Date.now() - started;
+    const result = await sendEvent('probe', {}, { env, statePath, timeoutMs: 400 });
+    const finished = Date.now();
     assert.deepEqual(result, { ok: false, status: 0 });
-    assert.ok(took >= 350 && took < 900, `took ${took}ms`);
+    assert.equal(dripArrivals.length, arrivals + 1, 'the request reached the drip server');
+    const took = finished - dripArrivals.at(-1);
+    assert.ok(took >= 350 && took < 400 + 500, `deadline fired ${took}ms after the request arrived`);
+    assert.ok(finished - started < 3000, `whole call took ${finished - started}ms`);
   });
 
   it('the hook summary against a server that never finishes returns within the 800ms budget', async () => {
     const statePath = tmpState();
     recordHookRun(ON, { outcome: 'dispatched', source: 'claude' }, { env: envWith(), statePath, now: 0 });
-    const started = Date.now();
-    const sent = await maybeSendHookSummary(ON, {
-      env: envWith({ ANOTIFIER_TELEMETRY_URL: dripUrl }), statePath, now: SUMMARY_INTERVAL_MS + 1,
-    });
-    const took = Date.now() - started;
+    const arrivals = dripArrivals.length;
+    const reads = recordReads();
+    let started;
+    let finished;
+    let sent;
+    try {
+      started = Date.now();
+      sent = await maybeSendHookSummary(ON, {
+        env: envWith({ ANOTIFIER_TELEMETRY_URL: dripUrl }), statePath, now: SUMMARY_INTERVAL_MS + 1,
+      });
+      finished = Date.now();
+    } finally { reads.stop(); }
     assert.equal(sent, false);
-    assert.ok(took < 1400, `took ${took}ms`);
+    assert.equal(dripArrivals.length, arrivals + 1, 'the request reached the drip server');
+    // The budget runs from the send; the state-file re-read that follows it is
+    // local sync I/O and is timed separately (the total-time bound below).
+    const arrived = dripArrivals.at(-1);
+    const raceEnded = reads.firstAfter(arrived);
+    assert.ok(raceEnded, 'the state file is re-read once the budget fires');
+    const took = raceEnded - arrived;
+    assert.ok(took >= 750 && took < 800 + 700, `the send was cut off ${took}ms after the request arrived`);
+    assert.ok(finished - started < 3000, `whole call took ${finished - started}ms`);
   });
 });

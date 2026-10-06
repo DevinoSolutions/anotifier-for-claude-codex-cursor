@@ -40,8 +40,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
   disabled; the server discards client IP addresses. To delete what was sent,
   open a GitHub issue with your install id. Off by default in `config.json` (so
   plugin-only installs send nothing), and forced off by `DO_NOT_TRACK=1`,
-  `ANOTIFIER_TELEMETRY=0` or CI. The hook waits at most 0.8s for the server and
-  the CLI at most 1s.
+  `ANOTIFIER_TELEMETRY=0` or CI. The hook waits at most 0.8s for the server (the
+  network send only; the small local counter file is updated in place and is
+  not part of that wait) and the CLI at most 1s.
 
 ### Fixed
 - **WSL is reported as WSL.** `anotifier setup`, `status` and `doctor` described
