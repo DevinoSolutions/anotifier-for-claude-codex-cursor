@@ -21,8 +21,10 @@
 //   command ends (they are rare and interactive).
 // - The hook path runs on every agent turn, so it only bumps local counters in
 //   ~/.anotifier/.telemetry.json and sends ONE summary event per 24h from its
-//   tail, budget-capped like the update check. Counters are best-effort: two
-//   hooks racing on the file can lose an increment, which is fine for stats.
+//   tail. The 800ms budget bounds that network send only; the local state-file
+//   reads and writes around it are plain sync I/O and are not part of it.
+//   Counters are best-effort: two hooks racing on the file can lose an
+//   increment, which is fine for stats (see "State file" for the write rules).
 //
 // Transport is node:https with agent:false and never throws (see sentry.mjs).
 import http from 'node:http';
@@ -89,28 +91,82 @@ function captureUrl(env) {
 }
 
 // ── State file ──────────────────────────────────────────────────────
+//
+// The state file is written IN PLACE (no temp file + rename). Replacing an
+// existing file with rename is by far the slowest call on the hook path on
+// Windows (1.4-4.7s measured, probably antivirus), and recordHookRun runs on
+// every agent hook, so it must not rename. The price of a plain write is that
+// a reader can catch the file half-written (truncated, or two writers
+// interleaved). So a reader tells apart:
+//   - MISSING: no file. Same as an empty state ({}); the first write creates it.
+//   - CORRUPT: unreadable, or not a JSON object. A hook-path writer SKIPS
+//     (never writes) on CORRUPT, so a reader that caught a half-written file
+//     can never replace the install id or counters with a fresh state; the
+//     worst case is one lost count. A file that stays CORRUPT for longer than
+//     CORRUPT_GRACE_MS is not a write in flight but real damage (a hook killed
+//     mid-write): it is then treated as missing and rewritten. The install id
+//     is salvaged from the damaged text when it is still readable, so even
+//     that heal rarely changes it; only the counters are lost.
 
+// What readState() returns for a CORRUPT file. Frozen and empty on purpose:
+// reading .installId / .counters off it is safe, and `=== CORRUPT` is the check.
+export const CORRUPT = Object.freeze({});
+
+// Older than this, a CORRUPT state file is damage, not an in-flight write (one
+// small write finishes in well under a second, even on a slow disk).
+const CORRUPT_GRACE_MS = 5000;
+
+const INSTALL_ID_RE = /"installId"\s*:\s*"([0-9a-f-]{36})"/i;
+
+// {} for MISSING, CORRUPT for anything unreadable or malformed. Pure: it never
+// writes or deletes, so it is safe for the CLI to display.
 export function readState(statePath = STATE_PATH) {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch { return {}; }
+  return inspectState(statePath).state;
 }
 
-// Temp file + rename so a concurrent reader never sees half a JSON document.
-// A failed rename must not leave the temp file behind.
-function writeState(state, statePath) {
+function inspectState(statePath) {
+  let text;
   try {
-    fs.mkdirSync(path.dirname(statePath), { recursive: true });
-    const tmp = `${statePath}.${process.pid}.tmp`;
+    text = fs.readFileSync(statePath, 'utf8');
+  } catch (err) {
+    return { state: err?.code === 'ENOENT' ? {} : CORRUPT, text: '' };
+  }
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return { state: parsed, text };
+  } catch { /* malformed: CORRUPT below */ }
+  return { state: CORRUPT, text };
+}
+
+// What a hook-path writer starts from: the parsed state ({} when missing);
+// CORRUPT when a write may be in flight (the caller must skip); or, once the
+// damage is older than CORRUPT_GRACE_MS, a fresh state that keeps the salvaged
+// install id. The age is the file's real mtime against the real clock, never
+// an injected `now`.
+function loadState(statePath) {
+  const { state, text } = inspectState(statePath);
+  if (state !== CORRUPT) return state;
+  try {
+    if (Date.now() - fs.statSync(statePath).mtimeMs <= CORRUPT_GRACE_MS) return CORRUPT;
+  } catch { return CORRUPT; }
+  const salvaged = INSTALL_ID_RE.exec(text)?.[1];
+  return salvaged ? { installId: salvaged } : {};
+}
+
+// In-place write, installId first so a torn file still starts with it.
+// Best-effort: a lost write only loses a count.
+function writeState(state, statePath) {
+  const { installId, ...rest } = state;
+  const json = JSON.stringify(typeof installId === 'string' ? { installId, ...rest } : rest);
+  try {
     try {
-      fs.writeFileSync(tmp, JSON.stringify(state), 'utf8');
-      fs.renameSync(tmp, statePath);
+      fs.writeFileSync(statePath, json, 'utf8');
     } catch (err) {
-      try { fs.unlinkSync(tmp); } catch { /* never created */ }
-      throw err;
+      if (err?.code !== 'ENOENT') throw err;
+      fs.mkdirSync(path.dirname(statePath), { recursive: true });
+      fs.writeFileSync(statePath, json, 'utf8');
     }
-  } catch { /* best-effort: a lost write only loses a count */ }
+  } catch { /* best-effort */ }
 }
 
 // Opting out removes the install id and every pending count.
@@ -119,9 +175,11 @@ export function clearState(statePath = STATE_PATH) {
 }
 
 // Random, per-install, created on first use. Not derived from anything about
-// the machine or the user, and regenerated after `telemetry off`.
+// the machine or the user, and regenerated after `telemetry off`. null while
+// the file may be mid-write (CORRUPT): a new id is never minted over it.
 export function getInstallId(statePath = STATE_PATH) {
-  const state = readState(statePath);
+  const state = loadState(statePath);
+  if (state === CORRUPT) return null;
   if (typeof state.installId === 'string' && state.installId) return state.installId;
   state.installId = crypto.randomUUID();
   writeState(state, statePath);
@@ -205,6 +263,7 @@ export function sendEvents(events, { env = process.env, statePath = STATE_PATH, 
       if (!events.length) { done(FAILED); return; }
       const base = new URL(captureUrl(env));
       const distinctId = getInstallId(statePath);
+      if (!distinctId) { done(FAILED); return; } // state file mid-write: skip this send
       const timestamp = new Date().toISOString();
       const shape = ({ event, properties }) => ({
         event,
@@ -278,7 +337,8 @@ export async function flushTelemetry() {
 export function recordHookRun(config, run, { env = process.env, statePath = STATE_PATH, now = Date.now() } = {}) {
   try {
     if (!isTelemetryActive(config, env)) return;
-    const state = readState(statePath);
+    const state = loadState(statePath);
+    if (state === CORRUPT) return; // maybe mid-write: skip, never overwrite
     const c = state.counters && typeof state.counters === 'object' ? state.counters : {};
     if (typeof state.windowStart !== 'number') state.windowStart = now;
 
@@ -319,8 +379,9 @@ function acquireSummaryLock(lockPath, now) {
 
 // Called at the tail of every hook run. Sends `hook_daily_summary` when the
 // counting window is 24h old, then starts a fresh window. The whole send is
-// capped at budgetMs of wall time, never throws. Resolves true only when a
-// summary was accepted.
+// capped at budgetMs of wall time, never throws. The cap bounds the network
+// send only; the state-file reads and writes around it are plain sync I/O and
+// are not part of it. Resolves true only when a summary was accepted.
 export async function maybeSendHookSummary(config, {
   env = process.env,
   statePath = STATE_PATH,
@@ -334,7 +395,7 @@ export async function maybeSendHookSummary(config, {
     && !(typeof state.retryAt === 'number' && now < state.retryAt);
   try {
     if (!isTelemetryActive(config, env)) return false;
-    if (!isDue(readState(statePath))) return false;
+    if (!isDue(loadState(statePath))) return false; // CORRUPT has no window: nothing to send
 
     const lockPath = `${statePath}.lock`;
     if (!acquireSummaryLock(lockPath, now)) return false;
@@ -342,7 +403,7 @@ export async function maybeSendHookSummary(config, {
     try {
       // Another hook may have sent (and reset the window) between our first
       // read and taking the lock, so decide again on fresh state.
-      const state = readState(statePath);
+      const state = loadState(statePath);
       if (!isDue(state)) return false;
       const properties = {
         ...state.counters,
@@ -358,7 +419,10 @@ export async function maybeSendHookSummary(config, {
       ]);
       // Re-read so the install id and anything else written meanwhile survive.
       // Counts another hook added during the send are dropped with the reset.
-      const latest = readState(statePath);
+      // CORRUPT means another write is in flight: skip ours (a failed send
+      // simply retries; a successful one may be repeated once).
+      const latest = loadState(statePath);
+      if (latest === CORRUPT) return result.ok;
       if (result.ok) {
         delete latest.counters;
         delete latest.retryAt;
