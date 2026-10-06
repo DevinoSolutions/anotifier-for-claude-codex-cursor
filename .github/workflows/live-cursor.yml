@@ -14,6 +14,9 @@ concurrency:
   group: '${{ github.workflow }}-${{ github.ref }}'
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   live-cursor:
     name: Live Cursor (key + hook wiring validation)

@@ -22,6 +22,9 @@ concurrency:
   group: 'release-${{ github.ref }}'
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Unit (${{ matrix.os }}, node ${{ matrix.node }})
