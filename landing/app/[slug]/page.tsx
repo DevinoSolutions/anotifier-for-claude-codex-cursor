@@ -10,6 +10,7 @@ import LogoMark from "@/components/LogoMark";
 import StarButton from "@/components/StarButton";
 import CopyButton from "@/components/home/CopyButton";
 import { INSTALL_CMD } from "@/lib/site";
+import { stripTags } from "@/lib/strip-tags";
 import "./agent-page.css";
 import "../docs/docs.css";
 
@@ -17,10 +18,6 @@ export const dynamicParams = false;
 
 export function generateStaticParams() {
   return AGENTS.map((agent) => ({ slug: agent.slug }));
-}
-
-function stripTags(html: string): string {
-  return html.replace(/<[^>]+>/g, "");
 }
 
 /** Every agent page ends with the same way to prove it works and to back out. */

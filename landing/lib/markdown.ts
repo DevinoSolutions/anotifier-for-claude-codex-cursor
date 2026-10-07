@@ -7,6 +7,8 @@ import type { Block, DocFaq, DocSection } from "./docs";
  */
 
 function table(head: string[], rows: string[][]): string {
+  // Only the pipe: GFM code spans print backslashes literally, so escaping
+  // them would turn `C:\Windows\Media` in a cell into `C:\\Windows\\Media`.
   const esc = (s: string) => s.replace(/\|/g, "\\|");
   const line = (cells: string[]) => `| ${cells.map(esc).join(" | ")} |`;
   return [

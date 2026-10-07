@@ -51,6 +51,20 @@ describe('config-loader', () => {
     assert.equal(config.events.needs_input.priority, 'urgent');
   });
 
+  it('a "__proto__" key in the user config does not reach Object.prototype', async () => {
+    // JSON.parse keeps "__proto__" as an own key, so a naive deep merge would
+    // walk into Object.prototype and pollute every object in the process.
+    fs.writeFileSync(configPath, '{"__proto__":{"aanPolluted":true},"ntfy":{"constructor":{"prototype":{"aanPolluted":true}},"topic":"t"}}');
+    const { loadConfig } = await import('../src/config-loader.mjs');
+    try {
+      const config = loadConfig(configPath);
+      assert.equal(({}).aanPolluted, undefined);
+      assert.equal(config.ntfy.topic, 't');
+    } finally {
+      delete Object.prototype.aanPolluted;
+    }
+  });
+
   it('saves config to disk', async () => {
     const { loadConfig, saveConfig } = await import('../src/config-loader.mjs');
     const config = loadConfig(configPath);

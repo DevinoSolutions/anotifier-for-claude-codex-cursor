@@ -7,10 +7,7 @@ import LogoMark from "@/components/LogoMark";
 import StarButton from "@/components/StarButton";
 import CopyButton from "@/components/home/CopyButton";
 import { INSTALL_CMD } from "@/lib/site";
-
-function stripTags(html: string): string {
-  return html.replace(/<[^>]+>/g, "");
-}
+import { stripTags } from "@/lib/strip-tags";
 
 export function buildChannelMetadata(slug: string): Metadata {
   const channel = getChannel(slug);
