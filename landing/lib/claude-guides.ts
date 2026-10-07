@@ -23,14 +23,14 @@ export const WINDOWS_SOUND = (file: string) =>
 export const CLAUDE_GUIDES: Guide[] = [
   {
     slug: "claude-code-permission-notifications",
-    updated: "2026-09-26",
+    updated: "2026-10-06",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code permissions",
     icon: "/assets/icons/claude.png",
-    title: "Claude Code Permission & Waiting-for-Input Notifications",
+    title: "Claude Code Notification When It Needs Permission or Input",
     description:
-      "Get alerted when Claude Code waits for a permission approval or your input: the permission_prompt and idle_prompt matchers, timing, and phone push.",
+      "Add a Notification hook with the permission_prompt matcher to ~/.claude/settings.json; idle_prompt covers waiting for input. The JSON, timing and phone push.",
     h1: "Get notified when Claude Code needs your permission or input",
     intro:
       "Add a `Notification` hook with the matcher `permission_prompt` to `~/.claude/settings.json`. Claude Code runs it when a tool approval has waited about six seconds. The `idle_prompt` matcher covers the other case: Claude finished about a minute ago and you haven't typed since. Below are the exact config, every notification type Claude Code sends, the timing rules, and how to get the alert on your phone.",
