@@ -27,9 +27,10 @@ export default function SiteFooter() {
           <Link href="/compare/">compare</Link>
           <a href={GITHUB_URL}>github</a>
           <a href={NPM_URL}>npm</a>
+          <a href="https://ntfy.sh">ntfy</a>
           <a href={SUPPORT_URL}>♥ support</a>
         </div>
-        <div className="siteDir">
+        <nav className="siteDir" aria-label="Agents and channels">
           <span>agents:</span>
           {AGENTS.map((a) => (
             <Link href={`/${a.slug}/`} key={a.slug}>
@@ -42,7 +43,7 @@ export default function SiteFooter() {
               {c.name}
             </Link>
           ))}
-        </div>
+        </nav>
       </div>
     </footer>
   );

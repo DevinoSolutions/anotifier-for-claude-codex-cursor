@@ -123,7 +123,7 @@ const AGENT_GUIDES: Guide[] = [
     icon: "/assets/icons/claude.png",
     title: "Claude Code Notification When It Finishes: Desktop & Phone",
     description:
-      "Add a Stop hook for finished turns and a Notification hook for input prompts to ~/.claude/settings.json. Paste-ready configs for desktop, sound and phone.",
+      "Add a Stop hook for finished turns and a Notification hook for input prompts to ~/.claude/settings.json. Configs for a macOS banner, the bell and ntfy push.",
     h1: "How to get notified when Claude Code finishes or needs you",
     intro:
       "Add two hooks to `~/.claude/settings.json`: `Stop`, which fires when Claude finishes a turn, and `Notification`, which fires when it needs your permission or input. Point each at a command that shows a banner, plays a sound, or sends a push to your phone. Or run `npx anotifier@latest setup`, which wires both for you. Below is every option, from the one-line setting to a full multi-agent setup, with configs you can paste.",

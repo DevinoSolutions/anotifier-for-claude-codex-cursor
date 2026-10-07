@@ -388,8 +388,11 @@ footer .wrap > div:first-child a {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-/* agent and channel directory: its own full-width row under the credit line */
+/* agent and channel directory: its own full-width row under the credit line.
+   It is a <nav>, so it unsets the top nav bar border and background. */
 footer .siteDir {
+  border: 0;
+  background: none;
   flex-basis: 100%;
   display: flex;
   flex-wrap: wrap;
