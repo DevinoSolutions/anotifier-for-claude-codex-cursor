@@ -388,6 +388,13 @@ footer .wrap > div:first-child a {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+/* agent and channel directory: its own full-width row under the credit line */
+footer .siteDir {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
 
 /* Narrow viewports. Desktop (>= 901px) is untouched by everything below. */
 
