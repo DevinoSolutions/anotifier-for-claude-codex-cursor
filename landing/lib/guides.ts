@@ -116,14 +116,14 @@ const WHAT_ANOTIFIER_ADDS_CURSOR: Block[] = WHAT_ANOTIFIER_ADDS.map((block) =>
 const AGENT_GUIDES: Guide[] = [
   {
     slug: "claude-code-notifications",
-    updated: "2026-09-26",
+    updated: "2026-10-07",
     kind: "agent",
     agentSlug: "claude-code",
     name: "Claude Code",
     icon: "/assets/icons/claude.png",
-    title: "How to Get Notified When Claude Code Finishes (2026)",
+    title: "Claude Code Notification When It Finishes: Desktop & Phone",
     description:
-      "Four ways to get alerted when Claude Code finishes or needs input: the built-in terminal setting, a Stop hook, an ntfy phone push, or anotifier.",
+      "Add a Stop hook for finished turns and a Notification hook for input prompts to ~/.claude/settings.json. Configs for a macOS banner, the bell and ntfy push.",
     h1: "How to get notified when Claude Code finishes or needs you",
     intro:
       "Add two hooks to `~/.claude/settings.json`: `Stop`, which fires when Claude finishes a turn, and `Notification`, which fires when it needs your permission or input. Point each at a command that shows a banner, plays a sound, or sends a push to your phone. Or run `npx anotifier@latest setup`, which wires both for you. Below is every option, from the one-line setting to a full multi-agent setup, with configs you can paste.",

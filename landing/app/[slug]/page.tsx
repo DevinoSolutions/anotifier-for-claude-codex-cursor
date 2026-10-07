@@ -7,6 +7,7 @@ import Blocks from "@/components/docs/Blocks";
 import CodeBlock from "@/components/docs/CodeBlock";
 import Inline from "@/components/docs/Inline";
 import LogoMark from "@/components/LogoMark";
+import SiteFooter from "@/components/SiteFooter";
 import StarButton from "@/components/StarButton";
 import CopyButton from "@/components/home/CopyButton";
 import { INSTALL_CMD } from "@/lib/site";
@@ -351,25 +352,7 @@ export default async function AgentPage({
         </section>
       </div>
 
-      <footer>
-        <div className="wrap">
-          <div>
-            <span style={{ display: "inline-flex", verticalAlign: "middle" }}>
-              <LogoMark size={24} />
-            </span>
-            {" "} © 2026{" "}
-            <a href="https://github.com/DevinoSolutions">DevinoSolutions</a> ·
-            AGPL-3.0
-          </div>
-          <div style={{ display: "flex", gap: "18px" }}>
-            <a href="https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor">
-              github
-            </a>
-            <a href="https://www.npmjs.com/package/anotifier">npm</a>
-            <a href="https://ntfy.sh">ntfy</a>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </>
   );
 }
