@@ -9,12 +9,12 @@ import type { Guide } from "./guides";
 export const TOPIC_GUIDES: Guide[] = [
   {
     slug: "windows-wsl-notifications",
-    updated: "2026-09-26",
+    updated: "2026-10-06",
     kind: "topic",
     name: "Windows & WSL",
-    title: "Claude Code & Codex Notifications on Windows and WSL",
+    title: "Claude Code & Codex Windows Notifications, Including WSL",
     description:
-      "How coding-agent notifications work on Windows and inside WSL: BurntToast toasts, click-to-focus, what WSL toasts can't do, and how to test them.",
+      "Windows toasts need PowerShell 7 and BurntToast, which setup installs. In WSL they go through Windows interop: no agent icon, custom sound or click-to-focus.",
     h1: "Agent notifications on Windows and WSL",
     intro:
       "anotifier runs the same hooks on Windows and inside WSL, but the toast takes a different road on each. Native Windows uses PowerShell 7 and the BurntToast module for a full toast with the agent's icon, a sound, and click-to-focus. Inside WSL, the Linux side hands the toast to Windows through interop, which gives a plainer banner. Here is what each path needs and how to check it.",
@@ -578,12 +578,12 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "ntfy-phone-notifications",
-    updated: "2026-09-25",
+    updated: "2026-10-06",
     kind: "topic",
     name: "ntfy phone push",
-    title: "Phone Notifications for Claude Code & Codex with ntfy",
+    title: "Claude Code Phone Notifications with ntfy: Free, No Account",
     description:
-      "Get a push on your phone when Claude Code, Codex, Cursor or Gemini CLI finishes or needs approval: ntfy setup, private topics, self-hosting, testing.",
+      "Install the ntfy app, subscribe to a private topic, run npx anotifier setup: Claude Code, Codex, Cursor and Gemini CLI push to your phone when done or waiting.",
     h1: "Phone push for your coding agents, with ntfy",
     intro:
       "[ntfy](https://ntfy.sh) is a free, open-source push service: you subscribe to a topic in the ntfy app, and anything posted to that topic arrives on your phone. There is no account to create. anotifier uses it as its phone channel, so a finished run or a pending approval reaches you away from your desk.",
