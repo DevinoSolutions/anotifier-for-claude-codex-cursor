@@ -511,7 +511,7 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
       <td><strong>Live Claude</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/actions/workflows/live-claude.yml"><img src="https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/actions/workflows/live-claude.yml/badge.svg?branch=main" alt="Live Claude" /></a></td>
       <td>Linux · macOS</td>
-      <td>Drives the <strong>real</strong> Claude CLI end to end (paid); <strong>hard-fails</strong> if the Stop hook doesn't deliver a real ntfy push · on macOS it also does a <strong>best-effort</strong> Notification Center read-back (logged, non-blocking — the hard osascript→NC delivery proof is the dedicated Toast macOS lane)</td>
+      <td>Drives the <strong>real</strong> Claude CLI end to end (on our proxy when its key is set, else a real Anthropic key); <strong>hard-fails</strong> if the Stop hook doesn't deliver a real ntfy push · on macOS it also does a <strong>best-effort</strong> Notification Center read-back (logged, non-blocking — the hard osascript→NC delivery proof is the dedicated Toast macOS lane)</td>
     </tr>
     <tr>
       <td><strong>Live Gemini</strong></td>

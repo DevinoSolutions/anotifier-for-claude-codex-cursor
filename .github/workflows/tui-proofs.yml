@@ -23,6 +23,8 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 30
     env:
+      # F1's claude and F2's codex run on our proxy (free open models) when
+      # PROXYAI_API_KEY is set; they fall back to the Anthropic / OpenAI keys.
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       # F2's codex runs on our proxy (free open models, Responses API) when
       # PROXYAI_API_KEY is set, and falls back to the OpenAI API otherwise.
@@ -41,14 +43,14 @@ jobs:
           npm install -g @anthropic-ai/claude-code@2.1.205 @openai/codex@0.144.0
       - name: F1 — claude terminal bell (window_bell_flag)
         run: node scripts/tui/proof-bell.mjs
-      # always(): run F2 even when F1 fails, so every paid run exercises both
+      # always(): run F2 even when F1 fails, so every run exercises both
       # proofs (the job still goes red if either fails).
       - name: F2 — codex approval TUI loop
         if: always()
         run: node scripts/tui/proof-codex-approval.mjs
       # Dump every surviving tmux session/window/pane. The proofs self-diagnose on
       # failure (and deliberately leave their session alive), so this captures the
-      # real on-screen state of a failed TUI without needing another paid run.
+      # real on-screen state of a failed TUI without needing another run.
       - name: Diagnostics (always)
         if: always()
         # set +e so a diagnostics command can never turn a green job red.

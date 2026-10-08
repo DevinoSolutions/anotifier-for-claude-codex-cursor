@@ -100,12 +100,10 @@ export function killSession(session) {
   tmuxSafe(['kill-session', '-t', session]);
 }
 
-// The model provider refused the request for account reasons (no credits, quota,
-// bad key). The TUI prints the API's message in the pane and the turn never
-// completes. That says nothing about anotifier, so a proof that sees it must fail
-// as INFRA, not PRODUCT. Returns the matching pane line, or null.
-const API_ACCOUNT_ERROR =
-  /no credits remaining|insufficient_quota|exceeded your current quota|check your plan and billing|incorrect api key|invalid_api_key|credit balance is too low/i;
+// An API account error (no credits, quota, bad key) in a pane or log means the
+// turn could never complete: lanes report it as INFRA. Shared with the Live Claude
+// driver, so it lives in scripts/lib/provider.mjs.
+export { apiAccountError } from '../lib/provider.mjs';
 
 // Which model provider F2's codex runs on. The approval modal is codex's, not
 // the model's, so any model that answers with a shell tool call proves the loop.
@@ -143,9 +141,4 @@ export function codexProvider(env = process.env) {
     };
   }
   return null;
-}
-
-export function apiAccountError(pane) {
-  const line = String(pane || '').split('\n').find((l) => API_ACCOUNT_ERROR.test(l));
-  return line ? line.trim() : null;
 }

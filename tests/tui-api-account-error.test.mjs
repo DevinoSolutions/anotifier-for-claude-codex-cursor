@@ -22,6 +22,15 @@ describe('apiAccountError', () => {
     assert.ok(apiAccountError('Your credit balance is too low to access the Anthropic API.'));
   });
 
+  it('finds the out-of-credits line the claude TUI printed in CI', () => {
+    const pane = [
+      '> Reply with the single word OK.',
+      '  Credit balance too low · Add funds: https://platform.claude.com/settings/billing',
+    ].join('\n');
+    assert.equal(apiAccountError(pane), 'Credit balance too low · Add funds: https://platform.claude.com/settings/billing');
+    assert.ok(apiAccountError('claude stdout: Credit balance is too low'));
+  });
+
   it('returns null for a normal pane, an approval modal, or nothing', () => {
     assert.equal(apiAccountError('Would you like to run the following command?\n1. Yes, proceed (y)'), null);
     assert.equal(apiAccountError(''), null);

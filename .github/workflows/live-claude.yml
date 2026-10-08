@@ -1,7 +1,7 @@
 name: Live Claude
 
 # Required (no continue-on-error) and runs unconditionally: the script hard-fails
-# if ANTHROPIC_API_KEY is missing, so a deleted/renamed secret — or a fork PR
+# if neither PROXYAI_API_KEY nor ANTHROPIC_API_KEY is set, so a deleted/renamed secret — or a fork PR
 # without secret access — turns the build red instead of skipping silently.
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
     permissions:
       contents: read # checkout
       id-token: write # OIDC token DevinoSolutions/artifact trades for storage credentials
-    name: Live Claude E2E (required, paid)
+    name: Live Claude E2E (required)
     strategy:
       fail-fast: false
       matrix:
@@ -27,6 +27,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     env:
+      # Claude runs on our proxy (free open models, Anthropic Messages API) when
+      # PROXYAI_API_KEY is set, and falls back to the real Anthropic key otherwise.
+      PROXYAI_API_KEY: ${{ secrets.PROXYAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
