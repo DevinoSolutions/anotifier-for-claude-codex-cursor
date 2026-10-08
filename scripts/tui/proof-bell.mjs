@@ -125,8 +125,13 @@ async function main() {
   // CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC additionally mutes the auto-updater,
   // telemetry, error reporting, and the extra helper calls that are pure cost
   // here. The interactive recipe itself is unchanged (pinned CLI, same keys).
-  const extraEnv = Object.entries(provider.env).map(([k, v]) => ` ${k}='${v}'`).join('');
-  const cmd = `env HOME='${home}' USERPROFILE='${home}' CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1'${extraEnv} bash -c "cd '${workDir}' && exec '${claudeBin}' --model ${provider.model}"`;
+  // The provider's variables (on the proxy path, its key) go through a 0600 file
+  // sourced inside the shell, never onto the command line where ps, tmux's process
+  // list or a diagnostics dump could show them. Empty on the Anthropic fallback.
+  const envFile = path.join(home, 'provider.env');
+  fs.writeFileSync(envFile, Object.entries(provider.env)
+    .map(([k, v]) => `export ${k}=${shQuote(v)}\n`).join(''), { mode: 0o600 });
+  const cmd = `env HOME='${home}' USERPROFILE='${home}' CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1' bash -c ". '${envFile}' && cd '${workDir}' && exec '${claudeBin}' --model ${shQuote(provider.model)}"`;
   const win = newDetachedWindow(SESSION, cmd);
   agentWin = win;
   console.log(`F1: agent window = ${SESSION}:${win} (claude bin: ${claudeBin})`);
@@ -193,5 +198,7 @@ async function execWire(home, repo) {
   const { patchClaude } = await import(path.join(repo, 'setup', 'patch-config.mjs'));
   patchClaude(path.join(home, '.claude'), path.join(repo, 'src', 'notify.mjs'));
 }
+
+function shQuote(v) { return `'${String(v).replace(/'/g, `'\\''`)}'`; }
 
 main();

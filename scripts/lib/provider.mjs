@@ -28,6 +28,10 @@ export const PROXYAI_ANTHROPIC_URL = 'https://proxyai.devino.ca';
 //   slow    - open models are slow to first byte: widen the waits
 export function claudeProvider(env = process.env) {
   const pinned = env.CLAUDE_LANE_MODEL;
+  // The model lands in a shell command line (F1), so refuse anything but a plain id.
+  if (pinned && !/^[A-Za-z0-9._:\/-]+$/.test(pinned)) {
+    throw new Error(`CLAUDE_LANE_MODEL must be a plain model id, got ${JSON.stringify(pinned)}`);
+  }
   if (env.PROXYAI_API_KEY) {
     // Claude Code ids map to proxy tiers by family word, so `sonnet` and `haiku`
     // both work; sonnet is the sturdier of the two for a full TUI session.

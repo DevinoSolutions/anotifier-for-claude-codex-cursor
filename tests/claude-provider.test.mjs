@@ -32,6 +32,11 @@ describe('claudeProvider', () => {
     assert.equal(p.slow, false);
   });
 
+  it('rejects a model id with shell metacharacters', () => {
+    assert.throws(() => claudeProvider({ PROXYAI_API_KEY: 'pk-x', CLAUDE_LANE_MODEL: 'sonnet; rm -rf ~' }), /plain model id/);
+    assert.equal(claudeProvider({ PROXYAI_API_KEY: 'pk-x', CLAUDE_LANE_MODEL: 'nim/z-ai/glm-5.3' }).model, 'nim/z-ai/glm-5.3');
+  });
+
   it('treats an empty PROXYAI_API_KEY (unset secret) as absent', () => {
     const p = claudeProvider({ PROXYAI_API_KEY: '', ANTHROPIC_API_KEY: 'sk-ant-y' });
     assert.equal(p.label, 'Anthropic API (haiku)');
