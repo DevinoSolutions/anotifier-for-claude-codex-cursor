@@ -17,6 +17,8 @@ import { COMMUNITY_URL } from '../src/support.mjs';
 
 const CANONICAL = 'https://discord.gg/CWDxfEJGcS';
 const INVITE = /https?:\/\/(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/[A-Za-z0-9-]+/g;
+// Every invite in a text, so assertions compare whole URLs, never substrings.
+const invitesIn = (text) => [...text.matchAll(INVITE)].map((m) => m[0]);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function runCli(args) {
@@ -50,29 +52,29 @@ describe('community invite', () => {
   it('--help prints it', () => {
     const res = runCli(['--help']);
     assert.equal(res.status, 0, res.stderr);
-    assert.ok(res.stdout.includes(CANONICAL), res.stdout);
+    assert.ok(invitesIn(res.stdout).some((u) => u === CANONICAL), res.stdout);
   });
 
   it('doctor points at it when there is something to fix, doctor --json never', () => {
     // A fresh HOME has no ntfy topic, so doctor always has at least a warn.
     const human = runCli(['doctor']);
     assert.match(human.stdout, /⚠|✗/, human.stdout);
-    assert.ok(human.stdout.includes(CANONICAL), human.stdout);
+    assert.ok(invitesIn(human.stdout).some((u) => u === CANONICAL), human.stdout);
     const json = runCli(['doctor', '--json']);
     JSON.parse(json.stdout);
-    assert.ok(!json.stdout.includes(CANONICAL), json.stdout);
+    assert.deepEqual(invitesIn(json.stdout), [], json.stdout);
   });
 
   it('the hook path never prints it', () => {
     const notify = fs.readFileSync(path.join(repoRoot, 'src', 'notify.mjs'), 'utf8');
-    assert.ok(!notify.includes('discord.gg'), 'src/notify.mjs must not mention the community invite');
+    assert.deepEqual(invitesIn(notify), [], 'src/notify.mjs must not mention the community invite');
   });
 
   it('the README has a Community section linking it', () => {
     // A Windows checkout (core.autocrlf) has CRLF line endings.
     const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8').replace(/\r\n/g, '\n');
     const section = readme.split('\n## Community\n')[1]?.split('\n## ')[0] ?? '';
-    assert.ok(section.includes(CANONICAL), 'README ## Community must link the invite');
+    assert.ok(invitesIn(section).some((u) => u === CANONICAL), 'README ## Community must link the invite');
   });
 
   it('the website reads the same invite from its one constant', () => {

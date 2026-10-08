@@ -15,6 +15,9 @@ for (const path of await sitemapPaths())
   pages.set(path, (await get(path)).body);
 const llms = (await get("/llms.txt")).body;
 
+// Every invite in a text, so assertions compare whole URLs, never substrings.
+const invitesIn = (text) => [...text.matchAll(INVITE)].map((m) => m[0]);
+
 /** `<a ...>` opening tags whose href is the canonical invite. */
 const inviteTags = (html) =>
   [...html.matchAll(/<a\b[^>]*>/g)]
@@ -70,7 +73,10 @@ test("the help spots point at it: docs, guides and troubleshooting", () => {
       `${path}: no Discord link outside the chrome`,
     );
   }
-  assert.ok(llms.includes(CANONICAL), "llms.txt");
+  assert.ok(
+    invitesIn(llms).some((u) => u === CANONICAL),
+    "llms.txt",
+  );
 });
 
 test("the home JSON-LD lists it in sameAs", () => {
@@ -82,5 +88,8 @@ test("the home JSON-LD lists it in sameAs", () => {
   ].map((m) => JSON.parse(m[1]));
   const nodes = graphs.flatMap((g) => g["@graph"] ?? [g]);
   const app = nodes.find((n) => n["@type"] === "SoftwareApplication");
-  assert.ok(app?.sameAs?.includes(CANONICAL), "SoftwareApplication.sameAs");
+  assert.ok(
+    (app?.sameAs ?? []).some((u) => u === CANONICAL),
+    "SoftwareApplication.sameAs",
+  );
 });
