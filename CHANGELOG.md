@@ -22,6 +22,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
   is no "needs input" alert for it. Hook wiring and payload parsing are
   unit-tested against Google's hooks documentation; there is no live
   Antigravity CLI lane in CI yet.
+- **Where to get help.** `anotifier --help` prints the anotifier Discord
+  invite, and `anotifier doctor` points there whenever a check warns or fails
+  (`doctor --json` is unchanged). The README has a Community section.
 
 ### Fixed
 - **Claude notifications that don't need you are no longer urgent.** The

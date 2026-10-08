@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { COMMUNITY_URL } from "@/lib/site";
 
 /**
  * Renders the tiny inline grammar used by lib/docs.ts, lib/guides.ts and
@@ -27,6 +28,10 @@ export default function Inline({ text }: { text: string }) {
             <Link key={i} href={href}>
               {label}
             </Link>
+          ) : href === COMMUNITY_URL ? (
+            <a key={i} href={href} target="_blank" rel="noopener noreferrer">
+              {label}
+            </a>
           ) : (
             <a key={i} href={href}>
               {label}

@@ -2,6 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import DiscordIcon from "../DiscordIcon";
+import { COMMUNITY_URL } from "@/lib/site";
 
 const questionBtn: React.CSSProperties = {
   display: "flex",
@@ -196,6 +198,32 @@ export default function Faq() {
           </div>
         ))}
       </div>
+      <p
+        style={{
+          margin: "20px 0 0",
+          fontFamily: "var(--font-mono-stack)",
+          fontSize: "13px",
+          color: "#838a92",
+        }}
+      >
+        still have a question?{" "}
+        <a
+          href={COMMUNITY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            verticalAlign: "bottom",
+            color: "#59d499",
+            textDecoration: "underline",
+          }}
+        >
+          <DiscordIcon size={14} />
+          ask in our Discord
+        </a>
+      </p>
     </section>
   );
 }

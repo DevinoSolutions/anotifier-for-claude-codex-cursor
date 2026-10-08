@@ -6,6 +6,7 @@ import os from 'node:os';
 import { loadConfigResult } from '../src/config-loader.mjs';
 import { runChecks } from './doctor-checks.mjs';
 import { track } from '../src/telemetry.mjs';
+import { COMMUNITY_URL } from '../src/support.mjs';
 import { c } from './ui.mjs';
 
 const ICON = { ok: c.success('✓'), warn: c.warn('⚠'), fail: c.error('✗'), info: c.accent('ℹ') };
@@ -31,6 +32,10 @@ export async function run(...args) {
       if (r.hint) console.log(`      ${c.muted('↳ ' + r.hint)}`);
     }
     console.log();
+    if (results.some((r) => r.status === 'warn' || r.status === 'fail')) {
+      console.log(`  ${c.muted('Stuck? Ask in the anotifier Discord:')} ${c.accent(COMMUNITY_URL)}`);
+      console.log();
+    }
   }
 
   // Opt-in usage stats: each check's id and status only, never its detail text.

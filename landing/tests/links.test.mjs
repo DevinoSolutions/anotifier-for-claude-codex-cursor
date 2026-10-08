@@ -54,6 +54,13 @@ const samePage = (a, b) =>
   a.pathname.replace(/\/+$/, "").toLowerCase() ===
     b.pathname.replace(/\/+$/, "").toLowerCase();
 
+// A discord.gg short invite answers with a 301 to the same invite on
+// discord.com; that is where it is meant to land.
+const destination = (url) =>
+  url.host === "discord.gg"
+    ? new URL(`https://discord.com/invite${url.pathname}`)
+    : url;
+
 async function land(href) {
   const res = await fetch(href, {
     headers: { "user-agent": BROWSER_UA },
@@ -99,7 +106,7 @@ test("every external link lands on the page it names", async (t) => {
       unverified.push(`${href}: ${r.status}`);
     } else if (r.status >= 400) {
       broken.push(`${href} -> ${r.status} (on ${where(external, href)})`);
-    } else if (!samePage(want, r.final)) {
+    } else if (!samePage(destination(want), r.final)) {
       broken.push(
         `${href} -> redirected to ${r.final.href} (on ${where(external, href)})`,
       );

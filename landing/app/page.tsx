@@ -13,7 +13,7 @@ import Faq from "@/components/home/Faq";
 import FinalCta from "@/components/home/FinalCta";
 import Footer from "@/components/home/Footer";
 import SoundProvider from "@/components/home/SoundProvider";
-import { VERSION } from "@/lib/site";
+import { COMMUNITY_URL, VERSION } from "@/lib/site";
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -57,6 +57,7 @@ const jsonLd = {
       sameAs: [
         "https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor",
         "https://www.npmjs.com/package/anotifier",
+        COMMUNITY_URL,
       ],
       description:
         "Notifications for AI coding agents: desktop toasts, phone push, and webhooks for Claude Code, Codex CLI, Cursor, and Gemini CLI.",

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import DiscordIcon from "@/components/DiscordIcon";
 import { notFound } from "next/navigation";
 import Blocks from "@/components/docs/Blocks";
 import CopyButton from "@/components/home/CopyButton";
@@ -7,7 +8,13 @@ import CodeBlock from "@/components/docs/CodeBlock";
 import DocShell from "@/components/docs/DocShell";
 import Inline from "@/components/docs/Inline";
 import { GUIDES, getGuide } from "@/lib/guides";
-import { GITHUB_URL, INSTALL_CMD, SITE_URL, SUPPORT_URL } from "@/lib/site";
+import {
+  COMMUNITY_URL,
+  GITHUB_URL,
+  INSTALL_CMD,
+  SITE_URL,
+  SUPPORT_URL,
+} from "@/lib/site";
 import "../../[slug]/agent-page.css";
 import "../../docs/docs.css";
 
@@ -209,6 +216,15 @@ export default async function GuidePage({
               </Link>
               <a href={GITHUB_URL} className="secondary">
                 GitHub
+              </a>
+              <a
+                href={COMMUNITY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="secondary community"
+              >
+                <DiscordIcon size={16} />
+                Join our Discord
               </a>
               <a href={SUPPORT_URL} className="support">
                 ♥ Support the project

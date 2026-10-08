@@ -2,7 +2,8 @@ import Link from "next/link";
 import LogoMark from "@/components/LogoMark";
 import { AGENTS } from "@/lib/agents";
 import { CHANNELS } from "@/lib/channels";
-import { GITHUB_URL, NPM_URL, SUPPORT_URL } from "@/lib/site";
+import DiscordIcon from "@/components/DiscordIcon";
+import { COMMUNITY_URL, GITHUB_URL, NPM_URL, SUPPORT_URL } from "@/lib/site";
 
 /**
  * Footer for every page except home. The second row links each agent and
@@ -21,13 +22,29 @@ export default function SiteFooter() {
           <a href="https://github.com/DevinoSolutions">DevinoSolutions</a> ·
           AGPL-3.0
         </div>
-        <div style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "18px",
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
           <Link href="/docs/">docs</Link>
           <Link href="/guides/">guides</Link>
           <Link href="/compare/">compare</Link>
           <a href={GITHUB_URL}>github</a>
           <a href={NPM_URL}>npm</a>
           <a href="https://ntfy.sh">ntfy</a>
+          <a
+            href={COMMUNITY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+          >
+            <DiscordIcon size={14} />
+            join our Discord
+          </a>
           <a href={SUPPORT_URL}>♥ support</a>
         </div>
         <nav className="siteDir" aria-label="Agents and channels">

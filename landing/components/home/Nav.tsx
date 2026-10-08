@@ -1,7 +1,8 @@
 import Link from "next/link";
 import LogoMark from "../LogoMark";
 import StarButton from "../StarButton";
-import { SUPPORT_URL } from "@/lib/site";
+import DiscordIcon from "../DiscordIcon";
+import { COMMUNITY_URL, SUPPORT_URL } from "@/lib/site";
 
 const linkStyle: React.CSSProperties = {
   fontSize: "14px",
@@ -56,6 +57,17 @@ export default function Nav() {
             Docs
           </Link>
           <StarButton variant="nav" />
+          <a
+            href={COMMUNITY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="navDiscord"
+            aria-label="Join our Discord"
+            title="Join our Discord"
+            style={{ ...linkStyle, display: "inline-flex" }}
+          >
+            <DiscordIcon size={18} />
+          </a>
           <a
             href={SUPPORT_URL}
             className="navSupport"

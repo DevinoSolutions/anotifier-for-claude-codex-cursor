@@ -7,6 +7,9 @@ export const NPM_URL = "https://www.npmjs.com/package/anotifier";
 export const DEMO_VIDEO_URL = "https://www.youtube.com/watch?v=QVVOIIud4-I";
 /** Devino-wide sponsor profile — the same link the CLI and README point at. */
 export const SUPPORT_URL = "https://github.com/sponsors/DevinoSolutions";
+/** The anotifier Discord: where to ask for help. Permanent, unlimited invite;
+    the CLI's src/support.mjs repeats it (tests/community.test.mjs pins both). */
+export const COMMUNITY_URL = "https://discord.gg/CWDxfEJGcS";
 /** Latest published npm version. Bump with every release. */
 export const VERSION = "1.4.0";
 /** ISO date of the newest content edit anywhere on the site (llms-full.txt). */
