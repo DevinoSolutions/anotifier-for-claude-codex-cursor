@@ -26,6 +26,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
   as before. Opt-in usage stats count the silent runs as a new `skipped`
   outcome.
 
+### Security
+- **`config.json` is owner-only.** The config can hold webhook URLs (which are
+  credentials), the ntfy topic and the Sentry DSN, but it was written with the
+  default umask, leaving it world-readable (0644) on macOS and Linux. It is now
+  written with mode 0600, and a newly created `~/.anotifier` directory is 0700.
+  Existing files are tightened the next time the config is saved.
+
 ## [1.3.1] — 2026-10-06
 
 ### Fixed
