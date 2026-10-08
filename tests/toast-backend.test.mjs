@@ -8,8 +8,9 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   applyToastBackendResult, toastOffBySetup, toastOffNoBackendLabel, TOAST_INSTALL_HINT,
+  probeCommand, isProbeTimeout,
 } from '../cli/toast-backend.mjs';
-import { noteSetupDisabledToast } from '../cli/doctor-checks.mjs';
+import { noteSetupDisabledToast, has } from '../cli/doctor-checks.mjs';
 import { loadConfigResult, saveConfig } from '../src/config-loader.mjs';
 
 describe('applyToastBackendResult', () => {
@@ -43,6 +44,20 @@ describe('applyToastBackendResult', () => {
     assert.deepEqual(config.toast, { enabled: false, disabledBySetup: true });
   });
 
+  it('probe could not tell (null, e.g. timeout) never changes the config, flag or no flag', () => {
+    for (const toast of [{ enabled: true }, { enabled: false }, { enabled: true, disabledBySetup: true }, { enabled: false, disabledBySetup: true }]) {
+      const config = { toast: { ...toast } };
+      assert.equal(applyToastBackendResult(config, null), null);
+      assert.deepEqual(config.toast, toast);
+    }
+  });
+
+  it('enabled + stale disabledBySetup + backend missing -> setup turns it off again and keeps the flag (intended)', () => {
+    const config = { toast: { enabled: true, disabledBySetup: true } };
+    assert.equal(applyToastBackendResult(config, false), 'disabled');
+    assert.deepEqual(config.toast, { enabled: false, disabledBySetup: true });
+  });
+
   it('backend present + toasts on -> nothing to do; a stale flag is dropped', () => {
     const on = { toast: { enabled: true } };
     assert.equal(applyToastBackendResult(on, true), null);
@@ -50,6 +65,42 @@ describe('applyToastBackendResult', () => {
     const stale = { toast: { enabled: true, disabledBySetup: true } };
     assert.equal(applyToastBackendResult(stale, true), null);
     assert.deepEqual(stale.toast, { enabled: true });
+  });
+});
+
+describe('probeCommand / isProbeTimeout / has', () => {
+  const failing = (props) => () => { throw Object.assign(new Error('x'), props); };
+
+  it('uses command -v through /bin/sh, not the which binary', () => {
+    let call;
+    const r = probeCommand('notify-send', (cmd, args) => { call = [cmd, args]; });
+    assert.equal(r, 'found');
+    assert.equal(call[0], '/bin/sh');
+    assert.match(call[1][1], /^command -v/);
+    assert.equal(call[1].at(-1), 'notify-send');
+  });
+
+  it('a clean not-found exit is missing; a timeout, kill or unstartable shell is unknown', () => {
+    assert.equal(probeCommand('x', failing({ status: 1 })), 'missing');
+    assert.equal(probeCommand('x', failing({ status: 127 })), 'missing');
+    assert.equal(probeCommand('x', failing({ code: 'ETIMEDOUT', status: null })), 'unknown');
+    assert.equal(probeCommand('x', failing({ killed: true, signal: 'SIGTERM', status: null })), 'unknown');
+    assert.equal(probeCommand('x', failing({ code: 'ENOENT' })), 'unknown');
+  });
+
+  it('isProbeTimeout recognises timeouts and kills only', () => {
+    assert.equal(isProbeTimeout(Object.assign(new Error(), { code: 'ETIMEDOUT' })), true);
+    assert.equal(isProbeTimeout(Object.assign(new Error(), { killed: true })), true);
+    assert.equal(isProbeTimeout(Object.assign(new Error(), { status: 1 })), false);
+  });
+
+  it('doctor has(): unix goes through command -v; windows still uses where', () => {
+    const calls = [];
+    const run = (cmd, args) => { calls.push(cmd); };
+    assert.equal(has('notify-send', { platform: 'linux', run }), true);
+    assert.equal(has('pwsh', { platform: 'win32', run }), true);
+    assert.deepEqual(calls, ['/bin/sh', 'where']);
+    assert.equal(has('x', { platform: 'linux', run: failing({ status: 1 }) }), false);
   });
 });
 
