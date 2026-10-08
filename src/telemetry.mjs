@@ -63,7 +63,7 @@ const KNOWN_SOURCES = ['claude', 'codex', 'cursor', 'gemini'];
 const KNOWN_EVENTS = ['task_complete', 'needs_input', 'session_start'];
 const KNOWN_CHANNELS = ['toast', 'ntfy', 'webhook', 'bell'];
 const WEBHOOK_FORMATS = ['generic', 'slack', 'discord', 'telegram'];
-export const HOOK_OUTCOMES = ['dispatched', 'suppressed_snooze', 'suppressed_quiet', 'held_back', 'duplicate', 'unmapped', 'error'];
+export const HOOK_OUTCOMES = ['dispatched', 'suppressed_snooze', 'suppressed_quiet', 'held_back', 'skipped', 'duplicate', 'unmapped', 'error'];
 const LATENCY_BUCKETS = [[250, 'lt_250ms'], [500, 'lt_500ms'], [1000, 'lt_1s'], [2500, 'lt_2500ms'], [Infinity, 'ge_2500ms']];
 
 const truthy = (v) => v !== undefined && v !== '' && !/^(0|false|no|off)$/i.test(String(v));

@@ -197,3 +197,34 @@ describe('parseInput background_tasks ledger (hasLiveBackgroundWork)', () => {
     assert.equal(parseInput({ session_id: 'cu' }, 'cursor', 'subagentStop').hasLiveBackgroundWork, false);
   });
 });
+
+describe('parseInput claude notification_type', () => {
+  const notif = (extra, source = 'claude') =>
+    parseInput({ session_id: 's', cwd: '/work/app', hook_event_name: 'Notification', ...extra }, source);
+
+  it('captures the type Claude Code sends', () => {
+    const result = notif({ message: 'Claude needs your permission', notification_type: 'permission_prompt' });
+    assert.equal(result.event, 'needs_input');
+    assert.equal(result.notificationType, 'permission_prompt');
+  });
+
+  it('is empty when the field is missing (older Claude Code)', () => {
+    assert.equal(notif({}).notificationType, '');
+  });
+
+  it('is empty for a non-string or blank value', () => {
+    for (const notification_type of [null, 42, true, ['idle_prompt'], { type: 'x' }, '', '   ']) {
+      assert.equal(notif({ notification_type }).notificationType, '', JSON.stringify(notification_type));
+    }
+  });
+
+  it('keeps an unknown string, trimmed and capped at 64 characters', () => {
+    assert.equal(notif({ notification_type: ' brand_new_type ' }).notificationType, 'brand_new_type');
+    assert.equal(notif({ notification_type: 'x'.repeat(500) }).notificationType, 'x'.repeat(64));
+  });
+
+  it('ignores the field for other sources (Gemini has its own vocabulary)', () => {
+    assert.equal(notif({ notification_type: 'ToolPermission' }, 'gemini').notificationType, '');
+    assert.equal(notif({ notification_type: 'auth_success' }, 'gemini').notificationType, '');
+  });
+});

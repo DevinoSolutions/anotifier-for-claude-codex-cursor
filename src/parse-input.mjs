@@ -41,6 +41,14 @@ function detectLiveBackgroundWork(raw) {
   );
 }
 
+// Only a short, non-empty string counts as a notification type. Anything else
+// (missing, null, number, object, blank) reads as "no type", the pre-field
+// behavior. The length cap keeps a pathological value short in dedup keys.
+function readNotificationType(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, 64);
+}
+
 export function parseInput(raw, source, eventOverride) {
   // --event CLI arg takes priority (used by Codex/Cursor which don't send hook_event_name on stdin).
   // Claude and Gemini include hook_event_name in stdin JSON.
@@ -60,6 +68,13 @@ export function parseInput(raw, source, eventOverride) {
     // structured payload can never smuggle newlines/objects downstream.
     transcriptPath: raw.transcript_path || '',
     message: typeof raw.message === 'string' ? raw.message : '',
+    // Claude Code's Notification payload says WHICH notification fired
+    // (permission_prompt, idle_prompt, auth_success, ...); router.mjs decides
+    // label and volume from it. Claude-only on purpose: Gemini's Notification
+    // carries a field of the same name with its own vocabulary, and must keep
+    // today's routing. Empty when absent (older Claude Code) or not a string,
+    // which router.mjs treats exactly as before the field existed.
+    notificationType: source === 'claude' ? readNotificationType(raw.notification_type) : '',
     // True when this Stop fired with work still pending behind it — notify.mjs
     // holds the "Task complete" ping back rather than announcing a turn that
     // isn't over. See detectLiveBackgroundWork above.

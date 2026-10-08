@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseInput } from './parse-input.mjs';
-import { route } from './router.mjs';
+import { route, isSilentNotification } from './router.mjs';
 import { loadConfig } from './config-loader.mjs';
 import { sendNtfy } from './ntfy.mjs';
 import { sendWebhook } from './webhook.mjs';
@@ -24,9 +24,15 @@ import { recordHookRun, maybeSendHookSummary } from './telemetry.mjs';
 // other; only true double-fires of the same event collide.
 const DEDUP_WINDOW_MS = 1500;
 
+// A claude notification_type joins the key too, so an informational notice
+// can never swallow a permission prompt that lands right behind it. Events
+// without a type keep exactly the old key.
 export function dedupKey(event) {
   const sessionSuffix = event.sessionId ? `-${event.sessionId.slice(0, 8)}` : '';
-  return `${event.source}-${event.event}${sessionSuffix}`.replace(/[^A-Za-z0-9_.-]/g, '_');
+  const typeSuffix = typeof event.notificationType === 'string' && event.notificationType
+    ? `-${event.notificationType}`
+    : '';
+  return `${event.source}-${event.event}${typeSuffix}${sessionSuffix}`.replace(/[^A-Za-z0-9_.-]/g, '_');
 }
 
 export function acquireNotifyLock(key, baseDir = os.homedir()) {
@@ -162,6 +168,17 @@ async function main() {
     // is per-subagent by design, so neither may be gated on it.
     if (event.source === 'claude' && event.event === 'task_complete' && event.hasLiveBackgroundWork) {
       await countRun(config, { outcome: 'held_back', source: event.source, event: event.event });
+      await flushErrorReporting();
+      process.stdout.write('{}\n');
+      process.exit(0);
+    }
+
+    // Some claude Notification types are not alerts at all (auth_success, an
+    // answered elicitation; see CLAUDE_NOTIFICATION_TYPES in router.mjs). Same
+    // exit as the held-back Stop above: plain '{}\n', no channel, no bell, no
+    // lock, and nothing in errors.log, because this is expected, not a fault.
+    if (isSilentNotification(event)) {
+      await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
       await flushErrorReporting();
       process.stdout.write('{}\n');
       process.exit(0);
