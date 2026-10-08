@@ -14,6 +14,7 @@ import { ask, askYN, log } from './ui.mjs';
 import { DOCS_URL, STAR_LINE, SUPPORT_LINE } from '../src/support.mjs';
 import { track } from '../src/telemetry.mjs';
 import { resolveSetupConsent } from './telemetry.mjs';
+import { TOAST_INSTALL_HINT, applyToastBackendResult, isProbeTimeout, probeCommand } from './toast-backend.mjs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -70,11 +71,13 @@ function downloadIcon(destPath) {
   });
 }
 
+// 'ready' | 'missing' | 'unknown'. A timeout (slow pwsh start) is 'unknown':
+// it does not prove the module is absent.
 function installBurntToast() {
   try {
     execSync('pwsh -NoProfile -Command "if (-not (Get-Module -ListAvailable -Name BurntToast)) { Install-Module BurntToast -Scope CurrentUser -Force -AcceptLicense }"', { stdio: 'pipe', timeout: 30000 });
-    return true;
-  } catch { return false; }
+    return 'ready';
+  } catch (err) { return isProbeTimeout(err) ? 'unknown' : 'missing'; }
 }
 
 function migrateExistingTopic() {
@@ -179,13 +182,20 @@ export async function run() {
     // Toasts run only through PowerShell 7; without it the BurntToast install
     // below would fail with a message that hides the real cause.
     let hasPwsh = true;
-    try { execSync('where pwsh', { stdio: 'pipe' }); } catch { hasPwsh = false; }
-    if (!hasPwsh) {
+    try { execSync('where pwsh', { stdio: 'pipe', timeout: 10000 }); } catch (err) { hasPwsh = isProbeTimeout(err) ? null : false; }
+    if (hasPwsh === null) {
+      toastReady = null;
+      log('    ? PowerShell 7 check timed out — leaving toasts as they are; re-run setup to retry', 'yellow');
+    } else if (!hasPwsh) {
       toastReady = false;
       log('    ✗ PowerShell 7 (pwsh) not found — Windows toasts need it', 'yellow');
       log('      winget install --id Microsoft.PowerShell --source winget, then re-run: anotifier setup', 'dim');
-    } else if (installBurntToast()) log('    ✓ BurntToast module ready', 'green');
-    else { toastReady = false; log('    ✗ BurntToast install failed — toasts may not work', 'yellow'); }
+    } else {
+      const bt = installBurntToast();
+      if (bt === 'ready') log('    ✓ BurntToast module ready', 'green');
+      else if (bt === 'unknown') { toastReady = null; log('    ? BurntToast check timed out — leaving toasts as they are; re-run setup to retry', 'yellow'); }
+      else { toastReady = false; log('    ✗ BurntToast install failed — toasts may not work', 'yellow'); }
+    }
   } else if (PLATFORM === 'darwin') {
     log('    ✓ osascript (built-in)', 'green');
   } else if (PLATFORM === 'wsl') {
@@ -193,8 +203,10 @@ export async function run() {
     if (exe) log(`    ✓ Windows toast via ${exe} (WSL interop)`, 'green');
     else { toastReady = false; log('    ✗ no Windows PowerShell reachable — check [interop] enabled=true in /etc/wsl.conf', 'yellow'); }
   } else {
-    try { execSync('which notify-send', { stdio: 'pipe' }); log('    ✓ notify-send available', 'green'); }
-    catch { toastReady = false; log('    ✗ notify-send not found — install libnotify for toasts', 'yellow'); }
+    const found = probeCommand('notify-send');
+    if (found === 'found') log('    ✓ notify-send available', 'green');
+    else if (found === 'unknown') { toastReady = null; log('    ? notify-send check timed out — leaving toasts as they are; re-run setup to retry', 'yellow'); }
+    else { toastReady = false; log('    ✗ notify-send not found — install libnotify for toasts', 'yellow'); }
   }
 
   // 4. Icon
@@ -221,6 +233,15 @@ export async function run() {
       return;
     }
     // Proceed: `config` holds a clean, usable config to overwrite the bad file with.
+  }
+
+  // 5b. A toast channel with no backend can only fail on every run, so turn it
+  // off (flagged, so a later setup that finds a backend turns it back on).
+  const toastChange = applyToastBackendResult(config, toastReady);
+  if (toastChange === 'disabled') {
+    log(`    ✗ Toasts turned off: no toast backend found. To enable them, ${TOAST_INSTALL_HINT[toastPlatform()]}, then re-run: anotifier setup`, 'yellow');
+  } else if (toastChange === 'enabled') {
+    log('    ✓ Toast backend found — toasts turned back on', 'green');
   }
 
   // 6. ntfy config
@@ -305,7 +326,7 @@ export async function run() {
   rl.close();
   track('setup_completed', {
     tools_detected: tools.map((t) => t.name),
-    toast_backend_ready: toastReady,
+    toast_backend_ready: toastReady === true,
     icon_ready: iconReady,
     config_rebuilt: Boolean(problem),
     ntfy_enabled: config.ntfy.enabled,

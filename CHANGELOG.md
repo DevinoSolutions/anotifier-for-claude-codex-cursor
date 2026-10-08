@@ -25,6 +25,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
   Payloads with no `notification_type` (older Claude Code) are routed exactly
   as before. Opt-in usage stats count the silent runs as a new `skipped`
   outcome.
+- **Toasts on a machine with no toast backend.** `anotifier setup` used to warn
+  that `notify-send` (Linux), PowerShell 7 / BurntToast (Windows) or Windows
+  PowerShell interop (WSL) was missing but leave the toast channel on, so every
+  run then failed the toast silently while bell and ntfy delivered. Setup now
+  turns the toast channel off (`toast.enabled: false`, recorded as
+  `toast.disabledBySetup: true`) and prints what to install. Re-running
+  `anotifier setup` once the backend exists turns toasts back on; toasts you
+  turned off yourself are left off. `anotifier status` and `anotifier doctor`
+  show "toast: off, no backend (<what to install>)". Only a definite miss turns
+  toasts off: a probe that times out (a slow PowerShell start, say) leaves toasts
+  on, in interactive and non-interactive setup runs alike. The Linux check also
+  no longer depends on the `which` binary being installed.
 
 ### Security
 - **`config.json` is owner-only.** The config can hold webhook URLs (which are

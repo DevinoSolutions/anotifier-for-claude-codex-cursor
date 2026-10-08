@@ -93,7 +93,7 @@ function validateUserConfig(user) {
   };
 
   checkBlock('ntfy', { enabled: 'boolean', server: 'string', topic: 'string', click: 'string', icon: 'string', richContent: 'boolean' });
-  checkBlock('toast', { enabled: 'boolean', clickToFocus: 'boolean', richContent: 'boolean' });
+  checkBlock('toast', { enabled: 'boolean', clickToFocus: 'boolean', richContent: 'boolean', disabledBySetup: 'boolean' });
   checkBlock('terminalBell', { enabled: 'boolean' });
   checkBlock('webhook', { enabled: 'boolean', url: 'string', format: 'string', chatId: 'string', authorization: 'string', richContent: 'boolean' });
   checkBlock('sentry', { enabled: 'boolean', dsn: 'string' });

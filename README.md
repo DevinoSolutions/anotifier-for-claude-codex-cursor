@@ -433,6 +433,7 @@ Hook fires (stdin JSON + --source flag)
 ### Linux
 
 - Uses `notify-send` (libnotify) -- available on most desktop distributions
+- If `setup` cannot find `notify-send` it turns the toast channel off (`toast.enabled: false`, with `toast.disabledBySetup: true`) and tells you what to install; `status` and `doctor` then show "toast: off, no backend". Install it and re-run `anotifier setup` to turn toasts back on. The same applies on Windows without PowerShell 7 / BurntToast and on WSL without reachable Windows PowerShell. Toasts you turned off yourself are never turned back on.
 - On headless systems without a GUI the toast fails and is logged to `~/.anotifier/errors.log`; the other channels still deliver (see WSL below for WSL2)
 
 ### WSL

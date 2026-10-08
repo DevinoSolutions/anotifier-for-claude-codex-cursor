@@ -10,6 +10,7 @@ import { checkForUpdate, isNewer } from '../src/update-check.mjs';
 import { readSnoozeUntil, quietHoursWindow, inQuietHours, formatClock } from '../src/suppress.mjs';
 import { SUPPORT_LINE } from '../src/support.mjs';
 import { toastPlatform } from '../src/platforms/index.mjs';
+import { toastOffNoBackendLabel } from './toast-backend.mjs';
 import { c, box, kv, sectionHeader } from './ui.mjs';
 
 const require = createRequire(import.meta.url);
@@ -56,6 +57,9 @@ export async function run() {
 
   const { platform: platLabel, toast: toastLabel } = PLATFORM_DISPLAY[toastPlatform()];
   const toastExtra = config.toast?.clickToFocus ? c.muted(' (click-to-focus)') : '';
+
+  const toastOff = toastOffNoBackendLabel(config, toastPlatform());
+  const toastValue = toastOff ? c.warn(`toast: ${toastOff}`) : `${toastLabel}${toastExtra}`;
 
   const ntfyValue = config.ntfy?.enabled && config.ntfy?.topic
     ? c.success(`${config.ntfy.server}/${config.ntfy.topic}`)
@@ -106,7 +110,7 @@ export async function run() {
     c.bold(`anotifier ${c.accent(`v${pkg.version}`)}`),
     '',
     kv('Platform', platLabel),
-    kv('Toast', `${toastLabel}${toastExtra}`),
+    kv('Toast', toastValue),
     kv('Sentry', sentryValue),
     kv('Snooze', snoozeValue),
     kv('Quiet hours', quietValue),

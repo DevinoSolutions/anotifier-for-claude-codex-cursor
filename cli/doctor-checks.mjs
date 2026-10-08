@@ -6,6 +6,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { notificationAuthState, verifyDelivery, ncDbPath } from '../src/platforms/macos-delivery.mjs';
 import { toastPlatform } from '../src/platforms/index.mjs';
 import { findWslPowerShell } from '../src/platforms/wsl.mjs';
+import { toastOffBySetup, toastOffNoBackendLabel, probeCommand } from './toast-backend.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -20,9 +21,12 @@ export const CHECK_IDS = {
   default: ['toast-backend', 'bell', 'ntfy-config', 'webhook-config', 'config'],
 };
 
-function has(bin) {
-  try { execFileSync(os.platform() === 'win32' ? 'where' : 'which', [bin], { stdio: 'ignore' }); return true; }
-  catch { return false; }
+// `command -v` through /bin/sh: the `which` binary is missing on some distros.
+export function has(bin, { platform = os.platform(), run = execFileSync } = {}) {
+  if (platform === 'win32') {
+    try { run('where', [bin], { stdio: 'ignore' }); return true; } catch { return false; }
+  }
+  return probeCommand(bin, run) === 'found';
 }
 
 // WSL toasts go through Windows interop (src/platforms/wsl.mjs), not notify-send:
@@ -283,6 +287,19 @@ export async function linuxDeepToastCheck({
 // Run all platform-appropriate checks. `strict` (AAN_DOCTOR_STRICT=1) turns
 // deep-mode warns into fails so CI can gate on the product diagnostic.
 // `p` is the toast platform (win32 | darwin | wsl | linux), injectable for tests.
+// When setup switched toasts off for want of a backend, fold that into the
+// backend row itself (same wording as `status`) instead of adding a second row.
+export function noteSetupDisabledToast(row, config, p) {
+  if (!row || row.id !== 'toast-backend' || !toastOffBySetup(config)) return;
+  if (row.status === 'ok') {
+    row.detail = `${row.detail}; toasts are still off from an earlier setup`;
+    row.hint = 'a backend is present now; re-run: anotifier setup to turn toasts back on';
+  } else {
+    row.detail = `toast: ${toastOffNoBackendLabel(config, p)}`;
+    row.hint = 'then re-run: anotifier setup to turn toasts back on';
+  }
+}
+
 export async function runChecks({ config, configProblem = null, deep = false, strict = false, platform: p = toastPlatform() }) {
   const results = [];
   if (p === 'win32' || p === 'wsl') {
@@ -292,6 +309,7 @@ export async function runChecks({ config, configProblem = null, deep = false, st
   } else {
     results.push(toastBackendCheck(p));
   }
+  noteSetupDisabledToast(results[0], config, p);
   if (p === 'darwin') {
     try { results.push(await toastAuthCheck(deep, strict)); }
     catch (err) { results.push({ id: 'toast-auth', channel: 'toast', status: 'warn', detail: `auth check errored: ${err.message}` }); }
