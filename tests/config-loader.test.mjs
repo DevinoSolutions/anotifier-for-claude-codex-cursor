@@ -74,6 +74,19 @@ describe('config-loader', () => {
     assert.equal(raw.ntfy.topic, 'saved-topic');
   });
 
+  it('writes config.json owner-only and replaces an existing 0644 file', { skip: process.platform === 'win32' }, async () => {
+    const { saveConfig } = await import('../src/config-loader.mjs');
+    fs.writeFileSync(configPath, '{}\n', { mode: 0o644 });
+    fs.chmodSync(configPath, 0o644);
+    saveConfig({ ntfy: { topic: 'secret' } }, configPath);
+    assert.equal(fs.statSync(configPath).mode & 0o777, 0o600);
+
+    const freshPath = path.join(tmpDir, 'fresh', 'config.json');
+    saveConfig({ ntfy: { topic: 'secret' } }, freshPath);
+    assert.equal(fs.statSync(freshPath).mode & 0o777, 0o600);
+    assert.equal(fs.statSync(path.dirname(freshPath)).mode & 0o777, 0o700);
+  });
+
   it('getConfigDir returns ~/.anotifier', async () => {
     const { getConfigDir } = await import('../src/config-loader.mjs');
     const dir = getConfigDir();

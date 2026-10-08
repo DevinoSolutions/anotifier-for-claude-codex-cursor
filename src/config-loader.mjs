@@ -242,11 +242,14 @@ export function loadConfig(configPath = getConfigPath()) {
 }
 
 // Atomic write: temp file + rename so a crash mid-write can never leave a
-// truncated config.json behind.
+// truncated config.json behind. The file can hold webhook URLs, the ntfy topic
+// and the Sentry DSN, so it is written owner-only (0600) and a newly created
+// directory is 0700. The rename replaces any older 0644 file.
 export function saveConfig(config, configPath = getConfigPath()) {
   const dir = path.dirname(configPath);
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const tmpPath = `${configPath}.${process.pid}.tmp`;
-  fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+  try { fs.chmodSync(tmpPath, 0o600); } catch { /* Windows: no POSIX modes */ }
   fs.renameSync(tmpPath, configPath);
 }
