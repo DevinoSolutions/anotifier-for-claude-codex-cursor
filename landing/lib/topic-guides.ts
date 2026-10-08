@@ -243,7 +243,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "agent-hooks-explained",
-    updated: "2026-09-27",
+    updated: "2026-10-08",
     kind: "topic",
     name: "Agent hooks",
     title: "Agent Hooks Explained: Claude Code, Codex, Cursor, Gemini",
@@ -309,7 +309,7 @@ export const TOPIC_GUIDES: Guide[] = [
             items: [
               "**Codex and Cursor** validate their files strictly, so their entries carry no `_managed_by` marker. Instead they pass `--event <name>`, because those agents don't include the event name in the hook's input. Codex entries also set `statusMessage: \"Sending notification\"`.",
               '**Cursor** uses its flat format: `{ "command": "node ... --source cursor --event stop" }` under `hooks.stop`, with `version: 1`.',
-              "**Gemini CLI** reads hooks from `settings.json`, not a separate hooks file, and takes its timeout in milliseconds (`30000`). Google's newer **Antigravity CLI**, which replaced Gemini CLI for Google AI Pro and Ultra subscribers in June 2026, reads hooks from its own files (such as `~/.gemini/config/hooks.json`) with different events (`PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation`, `Stop`), so Gemini CLI hooks don't carry over.",
+              "**Gemini CLI** reads hooks from `settings.json`, not a separate hooks file, and takes its timeout in milliseconds (`30000`). Google's newer **Antigravity CLI**, which replaced Gemini CLI for Google AI Pro and Ultra subscribers in June 2026, reads hooks from its own files (such as `~/.gemini/config/hooks.json`) with different events (`PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation`, `Stop`), so Gemini CLI hooks don't carry over. anotifier 1.4.0 and later write an `anotifier` group with a `Stop` handler there.",
             ],
           },
         ],

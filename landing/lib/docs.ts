@@ -49,7 +49,7 @@ export const DOCS: DocSection[] = [
     blocks: [
       {
         kind: "p",
-        text: "It hooks into the native event system of Claude Code, OpenAI Codex CLI, Cursor, and Google Gemini CLI, then delivers to the channels you enable: a desktop toast (Windows, macOS, Linux, WSL), a phone push via ntfy (Android and iOS, no account), a webhook (Slack, Discord, Telegram, or any HTTP endpoint), and a terminal bell. All agents share one config file at `~/.anotifier/config.json`.",
+        text: "It hooks into the native event system of Claude Code, OpenAI Codex CLI, Cursor, Google Gemini CLI, and Antigravity CLI, then delivers to the channels you enable: a desktop toast (Windows, macOS, Linux, WSL), a phone push via ntfy (Android and iOS, no account), a webhook (Slack, Discord, Telegram, or any HTTP endpoint), and a terminal bell. All agents share one config file at `~/.anotifier/config.json`.",
       },
       {
         kind: "ul",
@@ -743,7 +743,7 @@ export const DOCS_FAQ: DocFaq[] = [
   },
   {
     q: "Which AI coding agents does anotifier support?",
-    a: "Claude Code (terminal and VS Code extension), OpenAI Codex CLI, Cursor's agent, and Google Gemini CLI. All four are wired by one setup command and share one config. Google's Antigravity CLI, which replaced Gemini CLI for Google AI Pro and Ultra subscribers, uses a different hook format and isn't supported yet.",
+    a: "Claude Code (terminal and VS Code extension), OpenAI Codex CLI, Cursor's agent, Google Gemini CLI, and, from 1.4.0, Google's Antigravity CLI. All are wired by one setup command and share one config. Antigravity CLI, which replaced Gemini CLI for Google AI Pro and Ultra subscribers, uses its own hook file (`~/.gemini/config/hooks.json`) and only a `Stop` event, so it alerts on \"Task complete\" and has no needs-input alert; it has not yet been tested against a live Antigravity CLI.",
   },
   {
     q: "Does it work inside VS Code?",

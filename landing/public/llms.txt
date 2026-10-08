@@ -2,7 +2,7 @@
 
 > anotifier is a free, open-source (AGPL-3.0), zero-dependency CLI that sends
 > notifications when AI coding agents finish a task or need input. It wires into
-> each agent's native hook system — Claude Code, Codex CLI, Cursor, Gemini CLI,
+> each agent's native hook system — Claude Code, Codex CLI, Cursor, Gemini CLI, Antigravity CLI,
 > and any of them inside VS Code — and delivers desktop toasts (Windows/macOS/
 > Linux/WSL), phone push via ntfy (Android/iOS, no account), webhooks (Slack,
 > Discord, Telegram, any HTTP endpoint), and a terminal bell. Setup is one
@@ -21,7 +21,7 @@
 - [Claude Code](https://anotifier.io/guides/claude-code-notifications/): built-in terminal setting, Stop/Notification hook, ntfy phone push, anotifier
 - [Codex CLI](https://anotifier.io/guides/codex-cli-notifications/): built-in [tui] notifications, notify command, Stop/PermissionRequest hooks, approval alerts
 - [Cursor](https://anotifier.io/guides/cursor-agent-notifications/): completion sound, stop hook in ~/.cursor/hooks.json; anotifier alerts are titled "Cursor" (the stop event has no working directory)
-- [Gemini CLI](https://anotifier.io/guides/gemini-cli-notifications/): AfterAgent/Notification hooks in ~/.gemini/settings.json; Antigravity CLI (Gemini CLI's successor for Google AI Pro/Ultra) uses a different hook format and is not supported yet
+- [Gemini CLI](https://anotifier.io/guides/gemini-cli-notifications/): AfterAgent/Notification hooks in ~/.gemini/settings.json; Antigravity CLI (Gemini CLI's successor for Google AI Pro/Ultra) uses a different hook format; anotifier 1.4.0+ wires it separately with a Stop hook in ~/.gemini/config/hooks.json (Task complete only, no needs-input alert, not yet tested against a live Antigravity CLI)
 - [Claude Code permission and waiting-for-input notifications](https://anotifier.io/guides/claude-code-permission-notifications/): permission_prompt and idle_prompt matchers, every notification type, timing, PermissionRequest, phone push
 - [Claude Code notification sound](https://anotifier.io/guides/claude-code-notification-sound/): terminal_bell setting, Stop hook with afplay / paplay / PowerShell, per-event sounds
 - [Codex CLI notification sound](https://anotifier.io/guides/codex-notification-sound/): make Codex ding when it needs approval or a response (Plan mode prompt, question): [tui] notifications, notification_method = "bel", notification_condition = "always", PermissionRequest sound hook

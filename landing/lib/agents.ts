@@ -398,7 +398,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "gemini-cli",
-    updated: "2026-09-27",
+    updated: "2026-10-08",
     name: "Gemini CLI",
     title: "Gemini CLI Notifier — Desktop, Phone & Webhook Alerts",
     description:
@@ -406,7 +406,7 @@ export const AGENTS: Agent[] = [
     h1: { pre: "anotifier for ", em: "Gemini CLI", post: "." },
     sub: "Gemini CLI chews through long agentic runs in your terminal. anotifier hooks its agent events so the finish line — or a prompt that blocks it — reaches you wherever you are.",
     notice:
-      "**Gemini CLI or Antigravity CLI?** On June 18, 2026 Google stopped serving Gemini CLI to Google AI Pro and Ultra subscribers and free Gemini Code Assist users, and moved them to Antigravity CLI. Gemini CLI still runs with a Gemini API key or a Code Assist Standard or Enterprise license, and that is what anotifier hooks. [Antigravity CLI isn't supported yet](#antigravity).",
+      "**Gemini CLI or Antigravity CLI?** On June 18, 2026 Google stopped serving Gemini CLI to Google AI Pro and Ultra subscribers and free Gemini Code Assist users, and moved them to Antigravity CLI. Gemini CLI still runs with a Gemini API key or a Code Assist Standard or Enterprise license, and that is what anotifier hooks. [anotifier 1.4.0 and later also support Antigravity CLI](#antigravity).",
     hooksIntro:
       "Setup registers two hooks in Gemini CLI's settings file, `~/.gemini/settings.json`, so the alerts come from Gemini itself, not from polling.",
     hooks: [
@@ -460,15 +460,19 @@ export const AGENTS: Agent[] = [
       {
         id: "antigravity",
         kicker: "[ ANTIGRAVITY CLI ]",
-        title: "Moved to Antigravity CLI? Not supported yet.",
+        title: "Moved to Antigravity CLI? Supported from 1.4.0.",
         blocks: [
           {
             kind: "p",
-            text: "Antigravity CLI keeps hooks, in a new format. It reads them from its own files, such as `~/.gemini/config/hooks.json` or a workspace's `.agents/hooks.json`, and its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`. There is no `AfterAgent` or `Notification` event, so the hooks anotifier writes for Gemini CLI don't fire there, and `anotifier setup` doesn't wire Antigravity CLI today. Google's [Antigravity hooks docs](https://antigravity.google/docs/hooks/) describe the new format.",
+            text: "Antigravity CLI keeps hooks, in a new format. It reads them from its own files, such as `~/.gemini/config/hooks.json` or a workspace's `.agents/hooks.json`, and its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`. There is no `AfterAgent` or `Notification` event, so the hooks anotifier writes for Gemini CLI don't fire there. anotifier 1.4.0 and later wire Antigravity CLI separately: run `npx anotifier setup` and, when `~/.gemini/antigravity-cli` exists, it adds one group named `anotifier` with a `Stop` handler to `~/.gemini/config/hooks.json`, beside any groups of your own, after backing the file up. A finished run sends \"Task complete\", titled `<project> · Antigravity`. Google's [Antigravity hooks docs](https://antigravity.google/docs/hooks/) describe the format.",
           },
           {
             kind: "p",
-            text: "The Gemini CLI entries stay in `~/.gemini/settings.json` until you remove them with `npx anotifier@latest uninstall`.",
+            text: "Limits: Antigravity has no notification or permission event, so there is no needs-input alert for it, and a `Stop` caused by an error or a cancel also says \"Task complete\". Google's Antigravity 2.0 app and the Antigravity IDE read the same global file, so the alert fires there too. Hook wiring and payload parsing are unit-tested against Google's hooks docs; anotifier has not yet been tested against a live Antigravity CLI.",
+          },
+          {
+            kind: "p",
+            text: "The Gemini CLI entries stay in `~/.gemini/settings.json` until you remove them with `npx anotifier@latest uninstall`, which removes only the `anotifier` group from the Antigravity file.",
           },
         ],
       },
@@ -497,7 +501,7 @@ export const AGENTS: Agent[] = [
       {
         q: "Does anotifier work with Antigravity CLI?",
         aHtml:
-          "<p>Not yet. Antigravity CLI reads hooks from its own files, such as <code>~/.gemini/config/hooks.json</code>, and has no <code>AfterAgent</code> or <code>Notification</code> event, so the Gemini CLI hooks anotifier writes don't fire there.</p>",
+          "<p>Yes, from anotifier 1.4.0. Antigravity CLI has no <code>AfterAgent</code> or <code>Notification</code> event, so the Gemini CLI hooks don't fire there; instead <code>npx anotifier setup</code> adds an <code>anotifier</code> group with a <code>Stop</code> handler to <code>~/.gemini/config/hooks.json</code> when <code>~/.gemini/antigravity-cli</code> exists. You get a &quot;Task complete&quot; alert. There is no needs-input alert, a stop caused by an error or cancel also says &quot;Task complete&quot;, and it has not yet been tested against a live Antigravity CLI.</p>",
       },
       {
         q: "Can I still use Gemini CLI?",
