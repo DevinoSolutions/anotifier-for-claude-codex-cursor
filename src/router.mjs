@@ -38,12 +38,19 @@ const IDLE_REMINDER_TAGS = 'hourglass_flowing_sand';
 //               input".
 //   idle        the ~60s idle nag: "Needs your input" at the idle-reminder
 //               volume (see isIdleReminder), now detected by type, not text.
-//   info        something happened, nothing waits on you: sent, never urgent.
-//               Also every type this table does not know, so a future Claude
-//               type stays visible without ever shouting.
+//   info        something happened, nothing waits on you: sent at normal
+//               priority with the info ntfy tag (no bell/warning ntfy tags, no
+//               urgent priority). The desktop bell is separate and unchanged.
+//               These ignore events.needs_input overrides.
 //   skip        no alert at all: the type echoes something you just did at the
 //               keyboard (a finished login, an answered elicitation), so a
 //               toast or phone push would only be noise.
+//
+// An unlisted type is treated as `input`, not `info`: every documented
+// non-blocking type is listed above, so only a type added after this table
+// reaches that path, and we cannot tell whether it blocks. Drift must fail
+// loud (see IDLE_REMINDER_TEXT): an extra urgent ping costs less than a
+// permission prompt that went quiet and stalled the agent.
 //
 // A Map, not an object literal: a type of "constructor" or "__proto__" must
 // look up as unknown, never as an Object.prototype member.
@@ -64,7 +71,7 @@ const CLAUDE_NOTIFICATION_TYPES = new Map([
   ['elicitation_response', { kind: 'skip', text: '' }],
   ['elicitation_complete', { kind: 'skip', text: '' }],
 ]);
-const UNKNOWN_NOTIFICATION = Object.freeze({ kind: 'info', text: 'Notification' });
+const UNKNOWN_NOTIFICATION = Object.freeze({ kind: 'input', text: 'Needs your attention' });
 const INFO_PRIORITY = 'default';
 const INFO_TAGS = 'information_source';
 const INFO_SOUND = 'Default';

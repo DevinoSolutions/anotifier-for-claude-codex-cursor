@@ -20,7 +20,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
   instead of by wording; `agent_completed` and the other `quota_auto_resume_*`
   types become a `default`-priority notice with an info tag; `auth_success`,
   `elicitation_response` and `elicitation_complete` send nothing; and an
-  unrecognized type is a `default`-priority "Notification", never urgent.
+  unrecognized type is an urgent "Needs your attention" (a type added by a
+  future Claude Code release may be waiting on you, so it fails loud).
   Payloads with no `notification_type` (older Claude Code) are routed exactly
   as before. Opt-in usage stats count the silent runs as a new `skipped`
   outcome.

@@ -345,9 +345,9 @@ Controlled per channel:
 | `elicitation_dialog`, `elicitation_url_dialog`, `agent_needs_input` | "Needs your input" at the `needs_input` priority |
 | `quota_auto_resume_stale` | "Needs you to resume" at the `needs_input` priority (Claude Code is waiting for Enter after a usage-limit reset) |
 | `idle_prompt` | "Needs your input" at the idle-reminder level, `default` unless you set `idleReminderPriority` (see below) |
-| `agent_completed`, `quota_auto_resume_fired`, `quota_auto_resume_disabled` | A short notice at `default` priority with an info tag. It is never urgent. |
+| `agent_completed`, `quota_auto_resume_fired`, `quota_auto_resume_disabled` | A short notice at `default` priority with an info tag. It is never urgent. These use a fixed normal priority, tags and sound and do not inherit `events.needs_input` overrides. |
 | `auth_success`, `elicitation_response`, `elicitation_complete` | No alert, because each one follows something you just did at the keyboard |
-| Any other value | A "Notification" notice at `default` priority, never urgent, so a new Claude type stays visible without sounding the alarm |
+| Any other value | "Needs your attention" at the `needs_input` priority (urgent by default), so a type added in a future Claude Code release can never go quiet while Claude waits on you |
 | No `notification_type` (older Claude Code) | Same as before: urgent "Needs your input", with the idle-reminder wording check below |
 
 **Claude's idle reminder is quieter than a real prompt.** About a minute after a turn ends, Claude Code sends a second notification along the lines of *"Claude is waiting for your input"* (`idle_prompt`). Nothing is blocked -- the work is done -- so anotifier delivers that one at `default` priority with a calm tag instead of the urgent `needs_input` treatment. A genuine permission prompt is untouched and still arrives urgent. The reminder is never suppressed, only turned down. On older Claude Code that sends no `notification_type`, the reminder is recognized by its wording, and if Claude ever changes that wording the reminder simply goes back to being urgent -- it can never go silent. To pick your own level for it, set `idleReminderPriority` on the event:

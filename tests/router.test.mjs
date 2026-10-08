@@ -266,18 +266,19 @@ describe('route: claude notification_type', () => {
     });
   }
 
-  it('an unknown type is a default-priority "Notification", never urgent', () => {
+  it('an unknown type fails loud: urgent "Needs your attention"', () => {
     for (const type of ['brand_new_type', 'PERMISSION_PROMPT', '__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
       const notif = route(typed(type), defaultConfig);
       assert.ok(notif, type);
-      assert.equal(notif.priority, 'default', type);
-      assert.equal(notif.ntfyTags, 'information_source', type);
-      assert.equal(notif.message, 'app: Notification', type);
+      assert.equal(notif.priority, 'urgent', type);
+      assert.equal(notif.ntfyTags, 'bell,warning', type);
+      assert.equal(notif.toastSound, 'Reminder', type);
+      assert.equal(notif.message, 'app: Needs your attention', type);
       assert.equal(isSilentNotification(typed(type)), false, type);
     }
   });
 
-  it('an unknown type ignores a user-set urgent needs_input priority', () => {
+  it('an informational notice ignores a user-set urgent needs_input priority', () => {
     const config = {
       ...defaultConfig,
       events: { ...defaultConfig.events, needs_input: { priority: 'urgent', ntfyTags: 'rotating_light', toastSound: 'Alarm' } },
