@@ -6,8 +6,9 @@ import { CHANNELS, getChannel } from "@/lib/channels";
 import LogoMark from "@/components/LogoMark";
 import SiteFooter from "@/components/SiteFooter";
 import StarButton from "@/components/StarButton";
+import DiscordIcon from "@/components/DiscordIcon";
 import CopyButton from "@/components/home/CopyButton";
-import { INSTALL_CMD } from "@/lib/site";
+import { COMMUNITY_URL, INSTALL_CMD } from "@/lib/site";
 import { stripTags } from "@/lib/strip-tags";
 
 export function buildChannelMetadata(slug: string): Metadata {
@@ -103,6 +104,17 @@ export default function ChannelPage({ slug }: { slug: string }) {
             <Link href="/">Home</Link>
             <a href="https://www.npmjs.com/package/anotifier">npm</a>
             <StarButton variant="nav" />
+            <a
+              href={COMMUNITY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="navDiscord"
+              aria-label="Join our Discord"
+              title="Join our Discord"
+              style={{ display: "inline-flex" }}
+            >
+              <DiscordIcon size={18} />
+            </a>
           </div>
         </div>
       </nav>

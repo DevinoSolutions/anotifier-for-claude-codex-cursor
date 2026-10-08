@@ -151,3 +151,31 @@ a:focus-visible {
     white-space: nowrap;
   }
 }
+
+/* Discord icon button in the nav of every page (home Nav and DocShell). */
+.navDiscord {
+  align-items: center;
+  color: #9c9c9d;
+  transition: color 0.15s;
+}
+.navDiscord:hover {
+  color: #f4f4f6;
+}
+.navDiscord:focus-visible {
+  outline: 2px solid #59d499;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+/* Phones: the icon is the one nav item to drop (the footer of every page links
+   the same invite). The home nav is wider (Support + Get started), so it gives
+   the icon up earlier. */
+@media (max-width: 519px) {
+  .navDiscord {
+    display: none !important;
+  }
+}
+@media (max-width: 599px) {
+  .navLinks .navDiscord {
+    display: none !important;
+  }
+}

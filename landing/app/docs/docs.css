@@ -213,6 +213,9 @@
   border: 1px solid #2a3038;
   color: var(--ink);
 }
+.docCtaRow .community {
+  gap: 8px;
+}
 .docCtaRow .support {
   border: 1px solid #3a2530;
   color: #f4a6bd;

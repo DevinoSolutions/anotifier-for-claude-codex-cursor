@@ -1,6 +1,13 @@
 import Link from "next/link";
 import LogoMark from "../LogoMark";
-import { DEMO_VIDEO_URL, GITHUB_URL, NPM_URL, SUPPORT_URL } from "@/lib/site";
+import DiscordIcon from "../DiscordIcon";
+import {
+  COMMUNITY_URL,
+  DEMO_VIDEO_URL,
+  GITHUB_URL,
+  NPM_URL,
+  SUPPORT_URL,
+} from "@/lib/site";
 
 const primaryLinks = [
   { href: "/docs/", label: "docs", internal: true },
@@ -9,6 +16,7 @@ const primaryLinks = [
   { href: GITHUB_URL, label: "github" },
   { href: NPM_URL, label: "npm" },
   { href: DEMO_VIDEO_URL, label: "demo video" },
+  { href: COMMUNITY_URL, label: "join our Discord", community: true },
   { href: SUPPORT_URL, label: "♥ support", accent: true },
 ];
 
@@ -98,6 +106,7 @@ export default function Footer() {
           style={{
             display: "flex",
             flexWrap: "wrap",
+            alignItems: "center",
             gap: "10px 20px",
             fontFamily: "var(--font-mono-stack)",
             fontSize: "12px",
@@ -108,6 +117,22 @@ export default function Footer() {
               <Link key={l.href} href={l.href} style={{ color: "#9c9c9d" }}>
                 {l.label}
               </Link>
+            ) : l.community ? (
+              <a
+                key={l.href}
+                href={l.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: "#9c9c9d",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <DiscordIcon size={14} />
+                {l.label}
+              </a>
             ) : (
               <a
                 key={l.href}

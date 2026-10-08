@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import DiscordIcon from "@/components/DiscordIcon";
 import Blocks from "@/components/docs/Blocks";
 import DocShell from "@/components/docs/DocShell";
 import Inline from "@/components/docs/Inline";
 import CopyButton from "@/components/home/CopyButton";
 import { DOCS, DOCS_DESCRIPTION, DOCS_FAQ, DOCS_TITLE } from "@/lib/docs";
 import {
+  COMMUNITY_URL,
   GITHUB_URL,
   INSTALL_CMD,
   PAGE_UPDATED,
@@ -174,6 +176,15 @@ export default function DocsPage() {
               </Link>
               <a href={GITHUB_URL} className="secondary">
                 GitHub
+              </a>
+              <a
+                href={COMMUNITY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="secondary community"
+              >
+                <DiscordIcon size={16} />
+                Join our Discord
               </a>
               <a href={SUPPORT_URL} className="support">
                 ♥ Support the project

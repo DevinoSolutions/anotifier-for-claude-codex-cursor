@@ -3,6 +3,8 @@ import Link from "next/link";
 import LogoMark from "@/components/LogoMark";
 import SiteFooter from "@/components/SiteFooter";
 import StarButton from "@/components/StarButton";
+import DiscordIcon from "@/components/DiscordIcon";
+import { COMMUNITY_URL } from "@/lib/site";
 
 /**
  * Chrome shared by every long-form page (docs, guides, compare): the compact
@@ -37,6 +39,17 @@ export default function DocShell({
               Compare
             </Link>
             <StarButton variant="nav" />
+            <a
+              href={COMMUNITY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="navDiscord"
+              aria-label="Join our Discord"
+              title="Join our Discord"
+              style={{ display: "inline-flex" }}
+            >
+              <DiscordIcon size={18} />
+            </a>
           </div>
         </div>
       </nav>

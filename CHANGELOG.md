@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+### Added
+- **Where to get help.** `anotifier --help` prints the anotifier Discord
+  invite, and `anotifier doctor` points there whenever a check warns or fails
+  (`doctor --json` is unchanged). The README has a Community section.
+
 ## [1.4.0] — 2026-10-08
 
 ### Added

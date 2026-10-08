@@ -13,6 +13,11 @@ const pkg = require('../package.json');
 export const SUPPORT_URL = pkg.funding?.url ?? 'https://github.com/sponsors/DevinoSolutions';
 export const DOCS_URL = 'https://anotifier.io/docs/';
 
+// The anotifier Discord: where to ask for help. A permanent, unlimited invite;
+// landing/lib/site.ts repeats it for the website (tests/community.test.mjs pins
+// the two together).
+export const COMMUNITY_URL = 'https://discord.gg/CWDxfEJGcS';
+
 // The repo page, derived from package.json `repository.url`
 // ("git+https://github.com/o/r.git" → "https://github.com/o/r").
 export const STAR_URL = String(pkg.repository?.url ?? 'https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor')

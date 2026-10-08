@@ -1,4 +1,5 @@
 import type { Guide } from "./guides";
+import { COMMUNITY_URL } from "./site";
 
 /**
  * Topic guides: platforms and features every agent shares. Every claim here is
@@ -387,7 +388,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "notifications-not-working",
-    updated: "2026-09-27",
+    updated: "2026-10-08",
     kind: "topic",
     name: "Troubleshooting",
     title: "Agent Notifications Not Working? Troubleshooting Guide",
@@ -553,6 +554,10 @@ export const TOPIC_GUIDES: Guide[] = [
           {
             kind: "p",
             text: "Open an issue on [GitHub](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/issues) with the output of `anotifier doctor --json` and `anotifier status`, plus the matching lines from `~/.anotifier/errors.log`. Remove your ntfy topic first: `status` prints the full ntfy URL (it only shows a webhook's origin).",
+          },
+          {
+            kind: "p",
+            text: `For a quick question, or to check whether someone has hit the same thing, ask in the [anotifier Discord](${COMMUNITY_URL}).`,
           },
         ],
       },
