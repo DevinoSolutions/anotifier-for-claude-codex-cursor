@@ -13,7 +13,15 @@ export const TOOL_EVENTS = {
   codex: { dir: '.codex', file: 'hooks.json', label: 'Codex CLI', events: ['Stop', 'SessionStart', 'PermissionRequest'] },
   cursor: { dir: '.cursor', file: 'hooks.json', label: 'Cursor IDE', events: ['stop'] },
   gemini: { dir: '.gemini', file: 'settings.json', label: 'Gemini CLI', events: ['AfterAgent', 'Notification'] },
+  // Antigravity CLI keeps hooks in named groups at the TOP LEVEL of the file
+  // ({ "<group>": { "<Event>": [handlers] } }), not under a "hooks" key, so
+  // layout: 'groups' routes it through the group helpers instead.
+  antigravity: { dir: '.gemini', file: path.join('config', 'hooks.json'), label: 'Antigravity CLI', events: ['Stop'], layout: 'groups' },
 };
+
+// The group name our hooks live under in Antigravity's hooks.json. Ours alone:
+// the user's own groups are never touched.
+const ANTIGRAVITY_GROUP = 'anotifier';
 
 // Read JSON, returning null ONLY when the file is absent (or empty — an empty
 // file has no user content to lose). A file that EXISTS with non-empty, invalid
@@ -76,7 +84,7 @@ function makeHookEntry(notifyPath, source, { tag = true, timeout = 10, statusMes
 }
 
 function isOurHook(command) {
-  return command?.includes('notify.mjs') &&
+  return typeof command === 'string' && command.includes('notify.mjs') &&
     (command.includes('anotifier') || command.includes('agent-notify'));
 }
 
@@ -89,7 +97,7 @@ export function isManagedHookEntry(entry) {
   if (!entry || typeof entry !== 'object') return false;
   return Boolean(
     entry._managed_by === MANAGED_TAG ||
-    (Array.isArray(entry.hooks) && entry.hooks.some((hh) => isOurHook(hh.command))) ||
+    (Array.isArray(entry.hooks) && entry.hooks.some((hh) => isOurHook(hh?.command))) ||
     isOurHook(entry.command)
   );
 }
@@ -354,6 +362,84 @@ export function patchGemini(geminiDir, notifyPath, backupDir) {
   }
 }
 
+// Antigravity CLI (https://antigravity.google/docs/hooks): ~/.gemini/config/hooks.json
+// maps group names to event arrays. Stop handlers sit directly under the event
+// key (no matcher wrapper). The payload names no event, so --event Stop is
+// passed; the timeout is in seconds (default 30).
+export function patchAntigravity(geminiDir, notifyPath, backupDir) {
+  const hooksPath = path.join(geminiDir, TOOL_EVENTS.antigravity.file);
+  backup(hooksPath, backupDir);
+  const data = readJSONOrNull(hooksPath) || {};
+  if (!isPlainObject(data)) {
+    throw new Error(`${hooksPath} is not a JSON object — fix or remove it before patching`);
+  }
+  const existing = data[ANTIGRAVITY_GROUP];
+  if (existing !== undefined && !isPlainObject(existing)) {
+    throw new Error(`${hooksPath}: "${ANTIGRAVITY_GROUP}" is not an object — fix or remove it before patching`);
+  }
+  if (existing && existing.Stop !== undefined && !Array.isArray(existing.Stop)) {
+    throw new Error(`${hooksPath}: "${ANTIGRAVITY_GROUP}.Stop" is not an array — fix or remove it before patching`);
+  }
+  // Re-running setup must not undo the user's choices: a group they muted with
+  // enabled:false stays muted, and a timeout they tuned on our handler stays.
+  const enabled = existing && typeof existing.enabled === 'boolean' ? existing.enabled : undefined;
+  const ours = existing?.Stop?.find(isManagedHookEntry);
+  const timeout = Number.isFinite(ours?.timeout) && ours.timeout > 0 ? ours.timeout : 30;
+
+  stripAntigravityHooks(data);
+  const group = isPlainObject(data[ANTIGRAVITY_GROUP]) ? data[ANTIGRAVITY_GROUP] : {};
+  if (enabled !== undefined) group.enabled = enabled;
+  const safePath = notifyPath.replace(/\\/g, '/');
+  for (const event of TOOL_EVENTS.antigravity.events) {
+    const handler = { type: 'command', command: `node "${safePath}" --source antigravity --event ${event}`, timeout };
+    group[event] = [...(Array.isArray(group[event]) ? group[event] : []), handler];
+  }
+  data[ANTIGRAVITY_GROUP] = group;
+  writeJSON(hooksPath, data);
+}
+
+function isPlainObject(v) {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+// Remove our managed handlers from a parsed Antigravity hooks.json, in place,
+// wherever they sit. Only OUR handlers go: a group (including one the user
+// named "anotifier") survives with its own handlers, and is deleted only when
+// nothing but an optional enabled flag is left after our removal.
+// Returns true when something was removed.
+function stripAntigravityHooks(data) {
+  let removed = false;
+  for (const [name, group] of Object.entries(data)) {
+    if (!isPlainObject(group)) continue;
+    let changed = false;
+    for (const event of TOOL_EVENTS.antigravity.events) {
+      if (!Array.isArray(group[event])) continue;
+      const kept = removeManagedHooks(group[event]);
+      if (kept.length === group[event].length) continue;
+      changed = true;
+      if (kept.length) group[event] = kept; else delete group[event];
+    }
+    if (changed) {
+      removed = true;
+      if (Object.keys(group).every((k) => k === 'enabled')) delete data[name];
+    }
+  }
+  return removed;
+}
+
+// Events with a managed handler in a parsed Antigravity hooks.json (status).
+export function detectAntigravityEvents(data) {
+  if (!isPlainObject(data)) return [];
+  const found = new Set();
+  for (const group of Object.values(data)) {
+    if (!isPlainObject(group)) continue;
+    for (const event of TOOL_EVENTS.antigravity.events) {
+      if (Array.isArray(group[event]) && group[event].some(isManagedHookEntry)) found.add(event);
+    }
+  }
+  return [...found];
+}
+
 // Indices of our managed hooks within an event's hook array (same predicate as
 // removeManagedHooks). Used to reconstruct the codex trust-state keys, which
 // encode each hook's position.
@@ -432,6 +518,17 @@ export function unpatchAll(homeDir, backupDir) {
       } catch (err) {
         // Corrupt config: report loudly rather than silently skipping.
         results.push({ tool: tool.label, ok: false, reason: err.message });
+        continue;
+      }
+
+      if (tool.layout === 'groups') {
+        if (!data || !stripAntigravityHooks(data)) {
+          results.push({ tool: tool.label, ok: true, reason: 'nothing to remove' });
+          continue;
+        }
+        backup(filePath, backupDir);
+        writeJSON(filePath, data);
+        results.push({ tool: tool.label, ok: true, reason: 'hooks removed' });
         continue;
       }
 

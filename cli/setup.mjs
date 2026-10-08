@@ -9,7 +9,7 @@ import { execSync } from 'node:child_process';
 import { getConfigDir, getConfigPath, loadConfigResult, saveConfig } from '../src/config-loader.mjs';
 import { toastPlatform } from '../src/platforms/index.mjs';
 import { findWslPowerShell } from '../src/platforms/wsl.mjs';
-import { patchClaude, patchCodex, patchCursor, patchGemini } from '../setup/patch-config.mjs';
+import { patchClaude, patchCodex, patchCursor, patchGemini, patchAntigravity } from '../setup/patch-config.mjs';
 import { ask, askYN, log } from './ui.mjs';
 import { DOCS_URL, STAR_LINE, SUPPORT_LINE } from '../src/support.mjs';
 import { track } from '../src/telemetry.mjs';
@@ -23,23 +23,41 @@ const HOME = os.homedir();
 const PLATFORM = toastPlatform();
 const PLATFORM_LABELS = { win32: 'Windows', darwin: 'macOS', wsl: 'WSL', linux: 'Linux' };
 
-function detectTools() {
+// What Antigravity CLI / IDE put in ~/.gemini. A ~/.gemini holding only these
+// belongs to an Antigravity-only user and is not a Gemini CLI install.
+const ANTIGRAVITY_ONLY_ENTRIES = new Set(['antigravity-cli', 'antigravity', 'antigravity-ide', 'config']);
+
+// Conservative on purpose: Gemini CLI is detected whenever settings.json exists
+// or ~/.gemini is empty or holds anything that is not an Antigravity marker.
+export function hasGeminiCli(geminiDir) {
+  let entries;
+  try { entries = fs.readdirSync(geminiDir); } catch { return false; }
+  if (entries.length === 0) return true;
+  return entries.some((name) => name === 'settings.json' || !ANTIGRAVITY_ONLY_ENTRIES.has(name));
+}
+
+export function detectTools(home = HOME) {
   const tools = [];
-  const claudeDir = path.join(HOME, '.claude');
+  const claudeDir = path.join(home, '.claude');
   if (fs.existsSync(path.join(claudeDir, 'settings.json'))) {
     tools.push({ name: 'claude', label: 'Claude Code', dir: claudeDir });
   }
-  const codexDir = path.join(HOME, '.codex');
+  const codexDir = path.join(home, '.codex');
   if (fs.existsSync(codexDir)) {
     tools.push({ name: 'codex', label: 'Codex CLI', dir: codexDir });
   }
-  const cursorDir = path.join(HOME, '.cursor');
+  const cursorDir = path.join(home, '.cursor');
   if (fs.existsSync(cursorDir)) {
     tools.push({ name: 'cursor', label: 'Cursor IDE', dir: cursorDir });
   }
-  const geminiDir = path.join(HOME, '.gemini');
-  if (fs.existsSync(geminiDir)) {
+  const geminiDir = path.join(home, '.gemini');
+  if (hasGeminiCli(geminiDir)) {
     tools.push({ name: 'gemini', label: 'Gemini CLI', dir: geminiDir });
+  }
+  // Antigravity CLI keeps its app data in ~/.gemini/antigravity-cli; its hooks
+  // file sits beside Gemini CLI's, under ~/.gemini/config (see patchAntigravity).
+  if (fs.existsSync(path.join(geminiDir, 'antigravity-cli'))) {
+    tools.push({ name: 'antigravity', label: 'Antigravity CLI', dir: geminiDir });
   }
   return tools;
 }
@@ -158,7 +176,7 @@ export async function run() {
   // 2. Detect tools
   log('  Detecting tools...', 'cyan');
   const tools = detectTools();
-  const allTools = ['Claude Code', 'Codex CLI', 'Cursor IDE', 'Gemini CLI'];
+  const allTools = ['Claude Code', 'Codex CLI', 'Cursor IDE', 'Gemini CLI', 'Antigravity CLI'];
   const foundNames = tools.map(t => t.label);
   for (const t of allTools) {
     if (foundNames.includes(t)) log(`    ✓ ${t}`, 'green');
@@ -167,7 +185,7 @@ export async function run() {
 
   if (tools.length === 0) {
     // Nothing was set up — fail loud so scripts and users don't read this as success.
-    log('\n  No supported AI tools found. Install Claude Code, Codex, Gemini CLI, or Cursor first.', 'red');
+    log('\n  No supported AI tools found. Install Claude Code, Codex, Gemini CLI, Antigravity CLI, or Cursor first.', 'red');
     rl.close();
     // Sent only if this install opted in on an earlier run; nothing was asked yet.
     track('setup_failed', { step: 'no_tools' });
@@ -274,6 +292,7 @@ export async function run() {
     codex: patchCodex,
     cursor: patchCursor,
     gemini: patchGemini,
+    antigravity: patchAntigravity,
   };
 
   const failures = [];

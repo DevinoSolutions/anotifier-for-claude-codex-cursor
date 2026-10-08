@@ -112,9 +112,18 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
     <td><code>AfterAgent</code></td>
     <td><code>Notification</code></td>
   </tr>
+  <tr>
+    <td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>Antigravity CLI</strong></td>
+    <td align="center">--</td>
+    <td align="center">Native</td>
+    <td><code>Stop</code></td>
+    <td>--</td>
+  </tr>
 </table>
 
-All four tools are wired automatically by the setup wizard. No manual config editing needed. Codex's `PermissionRequest` hook fires the same "needs your input" alert when Codex asks for approval to run a command -- verified with Codex CLI >=0.144.0.
+All five tools are wired automatically by the setup wizard. No manual config editing needed. Codex's `PermissionRequest` hook fires the same "needs your input" alert when Codex asks for approval to run a command -- verified with Codex CLI >=0.144.0.
+
+**Antigravity CLI** (Google's successor to Gemini CLI for Google AI Pro/Ultra and free Code Assist users) reads hooks from its own file, `~/.gemini/config/hooks.json`. Setup wires it when `~/.gemini/antigravity-cli` exists, adding one group named `anotifier` with a `Stop` handler and leaving your other groups alone; `anotifier uninstall` removes only that group. Google's Antigravity 2.0 app and Antigravity IDE read the same global file, so the handler fires when they finish too. The `Stop` handler answers `{"decision":"stop"}` so it can never keep the agent running. The notification is the generic "Task complete" line, and a `Stop` caused by an error or a cancel says "Task complete" too: anotifier does not read `terminationReason` (its values are not fully documented) or `fullyIdle`, so every `Stop` alerts. Antigravity has no notification or permission event (its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`), so there is no "needs input" alert for it. What is verified: hook wiring and payload parsing are unit-tested against the format in [Google's hooks docs](https://antigravity.google/docs/hooks). What is not: there is no live Antigravity CLI lane in CI yet, so it has not been exercised against a real Antigravity CLI run.
 
 ### VS Code Native Support
 
@@ -250,7 +259,7 @@ Off by default. Set `quietHours.enabled` to `true` and every channel goes silent
 
 `anotifier status` shows the window and whether you are currently inside it.
 
-**How quiet hours and `snooze` interact:** they are independent, and either one alone silences the run -- there is no per-channel scoping, it is all channels or none. A silenced run is silenced completely: no toast, no ntfy push, no webhook POST, no terminal bell, and no update notice either. What does *not* change is the hook contract -- the hook still exits successfully and still returns the response its agent expects, so silencing notifications can never stall or break Claude Code, Codex, Cursor or Gemini CLI. The daily update check simply runs on the next un-silenced run.
+**How quiet hours and `snooze` interact:** they are independent, and either one alone silences the run -- there is no per-channel scoping, it is all channels or none. A silenced run is silenced completely: no toast, no ntfy push, no webhook POST, no terminal bell, and no update notice either. What does *not* change is the hook contract -- the hook still exits successfully and still returns the response its agent expects, so silencing notifications can never stall or break Claude Code, Codex, Cursor, Gemini CLI or Antigravity CLI. The daily update check simply runs on the next un-silenced run.
 
 ### ntfy -- Phone Push Notifications
 
@@ -317,7 +326,7 @@ Test it with `anotifier test webhook`, or turn it off for one event type with `"
 
 ### Rich notification content
 
-For Claude Code, toast and webhook notifications show what actually happened instead of a generic "task complete" line: a "needs input" notification carries Claude's own question, and a "task complete" notification carries the last assistant message, both read from the Claude Code transcript and trimmed to a short snippet. Session-start notifications stay generic (nothing to show yet). Other agents (Codex, Cursor, Gemini) always get the generic text -- transcript reading is Claude Code-only.
+For Claude Code, toast and webhook notifications show what actually happened instead of a generic "task complete" line: a "needs input" notification carries Claude's own question, and a "task complete" notification carries the last assistant message, both read from the Claude Code transcript and trimmed to a short snippet. Session-start notifications stay generic (nothing to show yet). Other agents (Codex, Cursor, Gemini, Antigravity) always get the generic text -- transcript reading is Claude Code-only.
 
 Controlled per channel:
 
@@ -391,13 +400,13 @@ anotifier telemetry on
 | --- | --- | --- |
 | `cli_command` | a CLI command finishes (not for `telemetry`) | `command` (`setup`, `status`, `test`, `config`, `doctor`, `snooze`, `uninstall`), `args` (a list; each is one of `--deep`, `--json`, `--strict`, `toast`, `ntfy`, `webhook`, `bell`, `both`, `sounds`, `events`, `sentry`, `off`, and anything else you typed -- a snooze duration, a typo -- is `other`), `exit_code`, `duration_ms` |
 | `cli_error` | a command throws | `command` (as above, or `other`), `error_name` (the error class name, clamped; `Error` if it does not fit), `error_code` (e.g. `ENOENT`, clamped; `null` if there is none). Never the error message. |
-| `setup_completed` | `setup` finishes | `tools_detected` (any of `claude`, `codex`, `cursor`, `gemini`), `toast_backend_ready`, `icon_ready`, `config_rebuilt`, `ntfy_enabled` (booleans) |
+| `setup_completed` | `setup` finishes | `tools_detected` (any of `claude`, `codex`, `cursor`, `gemini`, `antigravity`), `toast_backend_ready`, `icon_ready`, `config_rebuilt`, `ntfy_enabled` (booleans) |
 | `setup_failed` | `setup` finds no tool, or cannot patch one | `step` (`no_tools` or `patch`); for `patch` also `tools_detected` and `failed_tools` (same names as above) |
 | `telemetry_enabled` | you run `anotifier telemetry on` | `via` (`command`) |
 | `test_result` | `anotifier test` | `channel` (`toast`, `ntfy`, `webhook`, `bell`, `both`, or `all`), `outcomes` (per channel: `sent`, `failed`, `not_configured` or `skipped`) |
 | `doctor_result` | `anotifier doctor` | `deep`, `strict` (booleans), `checks` (check id -> `ok`, `info`, `warn` or `fail`; ids: `toast-backend`, `toast-auth`, `toast-deep`, `deep-probe`, `bell`, `ntfy-config`, `webhook-config`, `config`, `focus`). Never the check's detail text. |
-| `uninstall_result` | `anotifier uninstall` | `removed`, `failed` (lists of `Claude Code`, `Codex CLI`, `Cursor IDE`, `Gemini CLI`, `agentfocus://`) |
-| `hook_daily_summary` | at most once per 24 hours, from the end of a hook run | `runs`; `outcomes` (counts of `dispatched`, `suppressed_snooze`, `suppressed_quiet`, `held_back`, `skipped`, `duplicate`, `unmapped`, `error`); `sources` (`claude`, `codex`, `cursor`, `gemini`, `other`); `events` (`task_complete`, `needs_input`, `session_start`, `other`); `unmapped_events` (counts per unrecognized hook event name, clamped as above, at most 10 distinct names, the rest under `other`); `channels` (`toast`, `ntfy`, `webhook`, `bell`, each with `ok` and `fail` counts); `latency` (counts per bucket: `lt_250ms`, `lt_500ms`, `lt_1s`, `lt_2500ms`, `ge_2500ms`); `window_start`, `window_hours`; and `config`, which says which features are on: `toast_enabled`, `toast_rich`, `ntfy_enabled`, `ntfy_rich`, `ntfy_custom_server` (whether the server is not ntfy.sh -- never which server), `webhook_enabled`, `webhook_format` (`generic`, `slack`, `discord`, `telegram`, `other`, or `null`), `bell_enabled`, `quiet_hours_enabled`, `update_check_enabled`, `sentry_enabled` |
+| `uninstall_result` | `anotifier uninstall` | `removed`, `failed` (lists of `Claude Code`, `Codex CLI`, `Cursor IDE`, `Gemini CLI`, `Antigravity CLI`, `agentfocus://`) |
+| `hook_daily_summary` | at most once per 24 hours, from the end of a hook run | `runs`; `outcomes` (counts of `dispatched`, `suppressed_snooze`, `suppressed_quiet`, `held_back`, `skipped`, `duplicate`, `unmapped`, `error`); `sources` (`claude`, `codex`, `cursor`, `gemini`, `antigravity`, `other`); `events` (`task_complete`, `needs_input`, `session_start`, `other`); `unmapped_events` (counts per unrecognized hook event name, clamped as above, at most 10 distinct names, the rest under `other`); `channels` (`toast`, `ntfy`, `webhook`, `bell`, each with `ok` and `fail` counts); `latency` (counts per bucket: `lt_250ms`, `lt_500ms`, `lt_1s`, `lt_2500ms`, `ge_2500ms`); `window_start`, `window_hours`; and `config`, which says which features are on: `toast_enabled`, `toast_rich`, `ntfy_enabled`, `ntfy_rich`, `ntfy_custom_server` (whether the server is not ntfy.sh -- never which server), `webhook_enabled`, `webhook_format` (`generic`, `slack`, `discord`, `telegram`, `other`, or `null`), `bell_enabled`, `quiet_hours_enabled`, `update_check_enabled`, `sentry_enabled` |
 
 Hook runs themselves send nothing: each only bumps counters in `~/.anotifier/.telemetry.json`, and the end of a hook run sends the daily summary (waiting at most 0.8 seconds for the server; the limit covers the network send, and a failure never changes what the hook returns to your agent). CLI commands send their events in one request at the end of the command, waiting at most one second.
 

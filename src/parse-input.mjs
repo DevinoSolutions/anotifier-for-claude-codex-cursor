@@ -16,6 +16,17 @@ const EVENT_MAP = {
     Notification: 'needs_input',
     SessionStart: 'session_start',
   },
+  // Antigravity CLI's payload names no event, so setup passes --event Stop.
+  // It has no notification/permission event (only PreToolUse, PostToolUse,
+  // PreInvocation, PostInvocation, Stop), so nothing maps to needs_input.
+  // Stop also carries terminationReason, fullyIdle and error, deliberately NOT
+  // used: terminationReason values are only partly documented, and fullyIdle
+  // false (background work still running) is not known to be followed by a
+  // second Stop, so holding the alert back could lose it for good. A missed
+  // alert costs more than an early one, so every Stop alerts.
+  antigravity: {
+    Stop: 'task_complete',
+  },
   cursor: {
     stop: 'task_complete',
     sessionEnd: 'task_complete',
@@ -53,7 +64,10 @@ export function parseInput(raw, source, eventOverride) {
   // --event CLI arg takes priority (used by Codex/Cursor which don't send hook_event_name on stdin).
   // Claude and Gemini include hook_event_name in stdin JSON.
   const hookEvent = eventOverride || raw.hook_event_name || raw.hookEventName || '';
-  const cwd = raw.cwd || '';
+  // Antigravity sends the workspace folders as an array; the first is the project.
+  const workspace = Array.isArray(raw.workspacePaths) && typeof raw.workspacePaths[0] === 'string'
+    ? raw.workspacePaths[0] : '';
+  const cwd = raw.cwd || workspace;
   const map = EVENT_MAP[source] || {};
 
   return {
@@ -61,7 +75,7 @@ export function parseInput(raw, source, eventOverride) {
     event: map[hookEvent] || 'unknown',
     cwd,
     projectName: cwd ? (cwd.split(/[\\/]/).filter(Boolean).pop() || '') : '',
-    sessionId: raw.session_id || raw.sessionId || '',
+    sessionId: raw.session_id || raw.sessionId || raw.conversationId || '',
     // transcript_path (claude/gemini stdin) locates the session JSONL that F3's
     // rich-content reader tails; captured empty when absent. raw.message is
     // Claude's own Notification text — kept only when it's a string so a
