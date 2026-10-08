@@ -39,3 +39,32 @@ for (const [label, path, status] of CASES) {
     assert.deepEqual(missing, [], `${path} header mismatch`);
   });
 }
+
+// The CSP is report-only on purpose: it must reach Sentry on every response
+// kind, and no enforcing Content-Security-Policy may be sent alongside it.
+const REPORT_URI =
+  "https://sentry.devino.ca/api/67/security/?sentry_key=e21aa0bbfe20dd9af962a439a345522e";
+
+for (const [label, path, status] of CASES) {
+  test(`report-only CSP on the ${label} (${path})`, async () => {
+    const res = await get(path);
+    assert.equal(res.status, status, `${path} returned ${res.status}`);
+    const policy = res.headers.get("content-security-policy-report-only");
+    assert.ok(policy, `${path} has no Content-Security-Policy-Report-Only`);
+    assert.ok(
+      policy.includes(`report-uri ${REPORT_URI}`),
+      `${path} policy lacks the Sentry report-uri`,
+    );
+    assert.ok(policy.includes("report-to csp-endpoint"), "no report-to");
+    assert.ok(policy.includes("frame-ancestors 'self'"), "no frame-ancestors");
+    assert.equal(
+      res.headers.get("reporting-endpoints"),
+      `csp-endpoint="${REPORT_URI}"`,
+    );
+    assert.equal(
+      res.headers.get("content-security-policy"),
+      null,
+      `${path} must not send an enforcing Content-Security-Policy`,
+    );
+  });
+}
