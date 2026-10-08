@@ -9,7 +9,7 @@ import { execSync } from 'node:child_process';
 import { getConfigDir, getConfigPath, loadConfigResult, saveConfig } from '../src/config-loader.mjs';
 import { toastPlatform } from '../src/platforms/index.mjs';
 import { findWslPowerShell } from '../src/platforms/wsl.mjs';
-import { patchClaude, patchCodex, patchCursor, patchGemini } from '../setup/patch-config.mjs';
+import { patchClaude, patchCodex, patchCursor, patchGemini, patchAntigravity } from '../setup/patch-config.mjs';
 import { ask, askYN, log } from './ui.mjs';
 import { DOCS_URL, STAR_LINE, SUPPORT_LINE } from '../src/support.mjs';
 import { track } from '../src/telemetry.mjs';
@@ -40,6 +40,11 @@ function detectTools() {
   const geminiDir = path.join(HOME, '.gemini');
   if (fs.existsSync(geminiDir)) {
     tools.push({ name: 'gemini', label: 'Gemini CLI', dir: geminiDir });
+  }
+  // Antigravity CLI keeps its app data in ~/.gemini/antigravity-cli; its hooks
+  // file sits beside Gemini CLI's, under ~/.gemini/config (see patchAntigravity).
+  if (fs.existsSync(path.join(geminiDir, 'antigravity-cli'))) {
+    tools.push({ name: 'antigravity', label: 'Antigravity CLI', dir: geminiDir });
   }
   return tools;
 }
@@ -158,7 +163,7 @@ export async function run() {
   // 2. Detect tools
   log('  Detecting tools...', 'cyan');
   const tools = detectTools();
-  const allTools = ['Claude Code', 'Codex CLI', 'Cursor IDE', 'Gemini CLI'];
+  const allTools = ['Claude Code', 'Codex CLI', 'Cursor IDE', 'Gemini CLI', 'Antigravity CLI'];
   const foundNames = tools.map(t => t.label);
   for (const t of allTools) {
     if (foundNames.includes(t)) log(`    ✓ ${t}`, 'green');
@@ -167,7 +172,7 @@ export async function run() {
 
   if (tools.length === 0) {
     // Nothing was set up — fail loud so scripts and users don't read this as success.
-    log('\n  No supported AI tools found. Install Claude Code, Codex, Gemini CLI, or Cursor first.', 'red');
+    log('\n  No supported AI tools found. Install Claude Code, Codex, Gemini CLI, Antigravity CLI, or Cursor first.', 'red');
     rl.close();
     // Sent only if this install opted in on an earlier run; nothing was asked yet.
     track('setup_failed', { step: 'no_tools' });
@@ -274,6 +279,7 @@ export async function run() {
     codex: patchCodex,
     cursor: patchCursor,
     gemini: patchGemini,
+    antigravity: patchAntigravity,
   };
 
   const failures = [];

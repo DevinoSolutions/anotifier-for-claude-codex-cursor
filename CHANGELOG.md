@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+### Added
+- **Antigravity CLI support.** Google moved Google AI Pro/Ultra and free
+  Code Assist users from Gemini CLI to Antigravity CLI (`agy`) on June 18,
+  2026, and it ignores the hooks anotifier writes to `~/.gemini/settings.json`.
+  `anotifier setup` now detects it (`~/.gemini/antigravity-cli`) and adds an
+  `anotifier` group with a `Stop` handler to `~/.gemini/config/hooks.json`,
+  merging beside your own groups and backing the file up first. A finished run
+  sends the usual "Task complete" alert, titled `<project> · Antigravity`.
+  `anotifier uninstall` removes only that group, and `status` reports it.
+  The handler always answers `{"decision":"stop"}`, so it can never keep the
+  agent running. Antigravity has no notification or permission event, so there
+  is no "needs input" alert for it. Hook wiring and payload parsing are
+  unit-tested against Google's hooks documentation; there is no live
+  Antigravity CLI lane in CI yet.
+
 ### Fixed
 - **Claude notifications that don't need you are no longer urgent.** The
   Claude Code `Notification` hook is registered for every notification type,

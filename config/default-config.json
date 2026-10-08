@@ -69,6 +69,10 @@
       "label": "Gemini",
       "icon": "https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690b6.svg"
     },
+    "antigravity": {
+      "label": "Antigravity",
+      "icon": "https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690b6.svg"
+    },
     "cursor": {
       "label": "Cursor",
       "icon": "https://cursor.com/apple-touch-icon.png"

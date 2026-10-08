@@ -107,6 +107,13 @@ async function countRun(config, run) {
   await maybeSendHookSummary(config);
 }
 
+// Antigravity CLI's Stop hook must answer with a decision: "continue" re-enters
+// the agent loop, any other value lets it stop. Always answer "stop" so a
+// suppressed, failed or unmapped run can never keep the agent running.
+export function defaultResponseBody(source) {
+  return source === 'antigravity' ? '{"decision":"stop"}\n' : '{}\n';
+}
+
 async function main() {
   // Function-scoped, not built at the write site: the catch branch and the
   // dedup-skip / unmapped-event early exits must fall through to a plain '{}\n'
@@ -115,7 +122,7 @@ async function main() {
   // bell — which is also why claude no longer spawns bell.mjs: emitting both
   // would double-ring tmux via the TMUX_PANE pane-tty on Claude Code >=2.1.141,
   // the exact bug this path fixes.
-  let responseBody = '{}\n';
+  let responseBody = defaultResponseBody(parseArgs(process.argv).source);
   const startedAt = Date.now();
   let config;
   let event;
@@ -150,7 +157,7 @@ async function main() {
         event: event.event,
       });
       await flushErrorReporting();
-      process.stdout.write('{}\n');
+      process.stdout.write(defaultResponseBody(event?.source));
       process.exit(0);
     }
 
@@ -169,7 +176,7 @@ async function main() {
     if (event.source === 'claude' && event.event === 'task_complete' && event.hasLiveBackgroundWork) {
       await countRun(config, { outcome: 'held_back', source: event.source, event: event.event });
       await flushErrorReporting();
-      process.stdout.write('{}\n');
+      process.stdout.write(defaultResponseBody(event?.source));
       process.exit(0);
     }
 
@@ -180,7 +187,7 @@ async function main() {
     if (isSilentNotification(event)) {
       await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
       await flushErrorReporting();
-      process.stdout.write('{}\n');
+      process.stdout.write(defaultResponseBody(event?.source));
       process.exit(0);
     }
 
@@ -188,7 +195,7 @@ async function main() {
     if (!acquireNotifyLock(dedupKey(event))) {
       await countRun(config, { outcome: 'duplicate', source: event.source, event: event.event });
       await flushErrorReporting();
-      process.stdout.write('{}\n');
+      process.stdout.write(defaultResponseBody(event?.source));
       process.exit(0);
     }
 
@@ -203,7 +210,7 @@ async function main() {
       });
       await countRun(config, { outcome: 'unmapped', source: event.source, rawEvent: event.rawEvent });
       await flushErrorReporting();
-      process.stdout.write('{}\n');
+      process.stdout.write(defaultResponseBody(event?.source));
       process.exit(0);
     }
 

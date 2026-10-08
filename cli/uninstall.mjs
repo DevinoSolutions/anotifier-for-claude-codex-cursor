@@ -9,7 +9,7 @@ import { track } from '../src/telemetry.mjs';
 import { c, spinner } from './ui.mjs';
 
 // The only tool labels an uninstall_result may carry; anything else is "other".
-const KNOWN_TOOLS = ['Claude Code', 'Codex CLI', 'Cursor IDE', 'Gemini CLI', 'agentfocus://'];
+const KNOWN_TOOLS = ['Claude Code', 'Codex CLI', 'Cursor IDE', 'Gemini CLI', 'Antigravity CLI', 'agentfocus://'];
 const FOCUS_KEY = 'HKCU\\Software\\Classes\\agentfocus';
 
 // toast.ps1 registers the agentfocus:// click-to-focus protocol in HKCU on the

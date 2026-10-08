@@ -59,7 +59,7 @@ export const MAX_UNMAPPED_KEYS = 10;
 
 export const STATE_PATH = path.join(getConfigDir(), '.telemetry.json');
 
-const KNOWN_SOURCES = ['claude', 'codex', 'cursor', 'gemini'];
+const KNOWN_SOURCES = ['claude', 'codex', 'cursor', 'gemini', 'antigravity'];
 const KNOWN_EVENTS = ['task_complete', 'needs_input', 'session_start'];
 const KNOWN_CHANNELS = ['toast', 'ntfy', 'webhook', 'bell'];
 const WEBHOOK_FORMATS = ['generic', 'slack', 'discord', 'telegram'];

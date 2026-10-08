@@ -13,7 +13,15 @@ export const TOOL_EVENTS = {
   codex: { dir: '.codex', file: 'hooks.json', label: 'Codex CLI', events: ['Stop', 'SessionStart', 'PermissionRequest'] },
   cursor: { dir: '.cursor', file: 'hooks.json', label: 'Cursor IDE', events: ['stop'] },
   gemini: { dir: '.gemini', file: 'settings.json', label: 'Gemini CLI', events: ['AfterAgent', 'Notification'] },
+  // Antigravity CLI keeps hooks in named groups at the TOP LEVEL of the file
+  // ({ "<group>": { "<Event>": [handlers] } }), not under a "hooks" key, so
+  // layout: 'groups' routes it through the group helpers instead.
+  antigravity: { dir: '.gemini', file: path.join('config', 'hooks.json'), label: 'Antigravity CLI', events: ['Stop'], layout: 'groups' },
 };
+
+// The group name our hooks live under in Antigravity's hooks.json. Ours alone:
+// the user's own groups are never touched.
+const ANTIGRAVITY_GROUP = 'anotifier';
 
 // Read JSON, returning null ONLY when the file is absent (or empty — an empty
 // file has no user content to lose). A file that EXISTS with non-empty, invalid
@@ -354,6 +362,64 @@ export function patchGemini(geminiDir, notifyPath, backupDir) {
   }
 }
 
+// Antigravity CLI (https://antigravity.google/docs/hooks): ~/.gemini/config/hooks.json
+// maps group names to event arrays. Stop handlers sit directly under the event
+// key (no matcher wrapper). The payload names no event, so --event Stop is
+// passed; the timeout is in seconds (default 30).
+export function patchAntigravity(geminiDir, notifyPath, backupDir) {
+  const hooksPath = path.join(geminiDir, TOOL_EVENTS.antigravity.file);
+  backup(hooksPath, backupDir);
+  const data = readJSONOrNull(hooksPath) || {};
+  if (typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error(`${hooksPath} is not a JSON object — fix or remove it before patching`);
+  }
+  stripAntigravityHooks(data);
+  const safePath = notifyPath.replace(/\\/g, '/');
+  const group = {};
+  for (const event of TOOL_EVENTS.antigravity.events) {
+    group[event] = [{ type: 'command', command: `node "${safePath}" --source antigravity --event ${event}`, timeout: 30 }];
+  }
+  data[ANTIGRAVITY_GROUP] = group;
+  writeJSON(hooksPath, data);
+}
+
+// Remove our hooks from a parsed Antigravity hooks.json, in place: the whole
+// "anotifier" group, plus any of our handlers a user moved into another group.
+// Returns true when something was removed. Never touches other handlers.
+function stripAntigravityHooks(data) {
+  let removed = false;
+  if (Object.hasOwn(data, ANTIGRAVITY_GROUP)) { delete data[ANTIGRAVITY_GROUP]; removed = true; }
+  for (const [name, group] of Object.entries(data)) {
+    if (!group || typeof group !== 'object' || Array.isArray(group)) continue;
+    let changed = false;
+    for (const event of TOOL_EVENTS.antigravity.events) {
+      if (!Array.isArray(group[event])) continue;
+      const kept = removeManagedHooks(group[event]);
+      if (kept.length === group[event].length) continue;
+      changed = true;
+      if (kept.length) group[event] = kept; else delete group[event];
+    }
+    if (changed) {
+      removed = true;
+      if (Object.keys(group).length === 0) delete data[name];
+    }
+  }
+  return removed;
+}
+
+// Events with a managed handler in a parsed Antigravity hooks.json (status).
+export function detectAntigravityEvents(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return [];
+  const found = new Set();
+  for (const group of Object.values(data)) {
+    if (!group || typeof group !== 'object' || Array.isArray(group)) continue;
+    for (const event of TOOL_EVENTS.antigravity.events) {
+      if (Array.isArray(group[event]) && group[event].some(isManagedHookEntry)) found.add(event);
+    }
+  }
+  return [...found];
+}
+
 // Indices of our managed hooks within an event's hook array (same predicate as
 // removeManagedHooks). Used to reconstruct the codex trust-state keys, which
 // encode each hook's position.
@@ -432,6 +498,17 @@ export function unpatchAll(homeDir, backupDir) {
       } catch (err) {
         // Corrupt config: report loudly rather than silently skipping.
         results.push({ tool: tool.label, ok: false, reason: err.message });
+        continue;
+      }
+
+      if (tool.layout === 'groups') {
+        if (!data || !stripAntigravityHooks(data)) {
+          results.push({ tool: tool.label, ok: true, reason: 'nothing to remove' });
+          continue;
+        }
+        backup(filePath, backupDir);
+        writeJSON(filePath, data);
+        results.push({ tool: tool.label, ok: true, reason: 'hooks removed' });
         continue;
       }
 

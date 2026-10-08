@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { loadConfigResult } from '../src/config-loader.mjs';
 import { readRecentHookErrors, getErrorLogPath } from '../src/error-log.mjs';
-import { detectManagedEvents } from '../setup/patch-config.mjs';
+import { detectManagedEvents, detectAntigravityEvents } from '../setup/patch-config.mjs';
 import { checkForUpdate, isNewer } from '../src/update-check.mjs';
 import { readSnoozeUntil, quietHoursWindow, inQuietHours, formatClock } from '../src/suppress.mjs';
 import { SUPPORT_LINE } from '../src/support.mjs';
@@ -34,7 +34,7 @@ function webhookOrigin(url) {
 // Wired-state detection uses the SAME predicate as the patcher (detectManagedEvents),
 // so every shape we write — including Cursor's flat { command } entries — is
 // recognised here. Never throws: an unreadable/corrupt tool config reads as an error.
-function checkTool(dirName, label, configFile) {
+function checkTool(dirName, label, configFile, detect = (data) => detectManagedEvents(data.hooks || {})) {
   const filePath = path.join(os.homedir(), dirName, configFile);
   if (!fs.existsSync(filePath)) return { label, status: 'not installed', events: [] };
   let data;
@@ -43,7 +43,7 @@ function checkTool(dirName, label, configFile) {
   } catch {
     return { label, status: 'config error', events: [] };
   }
-  const events = detectManagedEvents(data.hooks || {});
+  const events = detect(data);
   return { label, status: events.length > 0 ? 'wired' : 'not wired', events };
 }
 
@@ -85,6 +85,7 @@ export async function run() {
     checkTool('.codex', 'Codex CLI', 'hooks.json'),
     checkTool('.cursor', 'Cursor IDE', 'hooks.json'),
     checkTool('.gemini', 'Gemini CLI', 'settings.json'),
+    checkTool('.gemini', 'Antigravity CLI', path.join('config', 'hooks.json'), detectAntigravityEvents),
   ];
 
   const toolLines = tools.map(t => {
