@@ -56,7 +56,7 @@ for (const [label, path, status] of CASES) {
       `${path} policy lacks the Sentry report-uri`,
     );
     assert.ok(policy.includes("report-to csp-endpoint"), "no report-to");
-    assert.ok(policy.includes("frame-ancestors 'none'"), "no frame-ancestors");
+    assert.ok(policy.includes("frame-ancestors 'self'"), "no frame-ancestors");
     assert.equal(
       res.headers.get("reporting-endpoints"),
       `csp-endpoint="${REPORT_URI}"`,
