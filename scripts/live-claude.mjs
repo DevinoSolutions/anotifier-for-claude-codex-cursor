@@ -1,34 +1,40 @@
-// scripts/live-claude.mjs — Tier 2 live E2E for Claude Code (paid key).
+// scripts/live-claude.mjs — Tier 2 live E2E for Claude Code.
 // HARD checks (any failure exits non-zero):
-//   1. ANTHROPIC_API_KEY must be present.
+//   1. a model key must be present: PROXYAI_API_KEY (our own proxy, free open
+//      models, preferred) or ANTHROPIC_API_KEY (real Anthropic, fallback).
 //   2. claude runs our prompt with the patched config and returns output.
 //   3. the Stop hook delivers a real ntfy push.
-// Requires ANTHROPIC_API_KEY in the environment.
+// A provider account error (no credits, quota, bad key) is FAIL [INFRA], not a
+// product failure: the model never answered, whatever anotifier did.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { patchClaude } from '../setup/patch-config.mjs';
-import { requireEnvKey, setupIsolatedHomeWithToast, pollForPush, randomTopic, nonceMarker } from './lib/live-driver.mjs';
+import { claudeProvider, apiAccountError } from './lib/provider.mjs';
+import { setupIsolatedHomeWithToast, pollForPush, randomTopic, nonceMarker } from './lib/live-driver.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const NOTIFY = path.resolve(__dirname, '..', 'src', 'notify.mjs');
 
 async function main() {
-  // HARD: the key must be set. A missing key is a configuration failure, not a
+  // HARD: a key must be set. A missing key is a configuration failure, not a
   // reason to silently skip.
-  requireEnvKey('ANTHROPIC_API_KEY', {
-    message: 'FAIL: ANTHROPIC_API_KEY is not set — live Claude E2E requires a real key.',
-  });
+  const provider = claudeProvider();
+  if (!provider) {
+    console.error('FAIL [INFRA]: neither PROXYAI_API_KEY nor ANTHROPIC_API_KEY is set — live Claude E2E needs a model key.');
+    process.exit(1);
+  }
+  console.log(`live-claude: model provider = ${provider.label}`);
 
   const topic = randomTopic('live-claude');
   const marker = nonceMarker('claude');
   const home = setupIsolatedHomeWithToast({ prefix: 'aan-live-claude-', dir: '.claude', topic, seedSettingsFile: 'settings.json' });
   patchClaude(path.join(home, '.claude'), NOTIFY);
 
-  // This lane bills a real key, so it runs on the cheapest model that proves the
-  // same thing: every assertion below is model-agnostic — any model can echo a
-  // token and fire the Stop hook — so haiku exercises the identical wiring.
+  // Every assertion below is model-agnostic — any model can echo a token and fire
+  // the Stop hook — so the provider picks the model: haiku on a real Anthropic key
+  // (the cheapest that proves the wiring), a sonnet-tier open model on the proxy.
   // CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC additionally mutes the auto-updater,
   // telemetry, error reporting, and the extra billed helper calls (e.g. haiku-powered
   // summarization) that are pure cost here.
@@ -37,20 +43,39 @@ async function main() {
     HOME: home,
     USERPROFILE: home,
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    ...provider.env,
   };
-  const res = spawnSync('claude', ['--model', 'haiku', '-p', `Reply with exactly this token and nothing else: ${marker}`], {
-    encoding: 'utf8', env, timeout: 120000,
-  });
-  console.log('claude exit:', res.status);
-  console.log('claude stdout:', (res.stdout || '').slice(0, 500));
-  console.log('claude stderr:', (res.stderr || '').slice(0, 500));
+  // Open models can be slow to first byte or drop a stream, so the proxy path
+  // gets a longer per-attempt timeout and a second attempt. A provider account
+  // error is final: retrying cannot fix it.
+  const attempts = provider.slow ? 2 : 1;
+  const timeout = provider.slow ? 330000 : 120000;
+  let res;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    res = spawnSync('claude', ['--model', provider.model, '-p', `Reply with exactly this token and nothing else: ${marker}`], {
+      encoding: 'utf8', env, timeout,
+    });
+    console.log(`claude attempt ${attempt}/${attempts} exit:`, res.status);
+    console.log('claude stdout:', (res.stdout || '').slice(0, 500));
+    console.log('claude stderr:', (res.stderr || '').slice(0, 500));
+    if (res.status === 0 && (res.stdout || '').trim()) break;
+    if (apiAccountError(`${res.stdout}\n${res.stderr}`)) break;
+  }
+
+  // The provider refused the request for account reasons: nothing to learn about
+  // anotifier. Still exit 1, because the Stop hook was not proven.
+  const accountErr = apiAccountError(`${res.stdout}\n${res.stderr}`);
+  if (accountErr) {
+    console.error(`FAIL [INFRA]: the ${provider.label} provider refused the request: "${accountErr}"`);
+    process.exit(1);
+  }
 
   // HARD: the agent actually ran with our key + config.
   if (res.status !== 0 || !(res.stdout || '').trim()) {
-    console.error('FAIL: claude did not run successfully');
+    console.error(`FAIL [PRODUCT]: claude did not run successfully on ${provider.label}`);
     process.exit(1);
   }
-  console.log('PASS (hard): claude ran with our config + key');
+  console.log(`PASS (hard): claude ran with our config + key (${provider.label})`);
 
   // HARD: the Stop hook must deliver an ntfy push. If the hook does not fire in
   // this mode, fix how we drive the agent — do not weaken this check.
