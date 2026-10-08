@@ -107,6 +107,44 @@ export function killSession(session) {
 const API_ACCOUNT_ERROR =
   /no credits remaining|insufficient_quota|exceeded your current quota|check your plan and billing|incorrect api key|invalid_api_key|credit balance is too low/i;
 
+// Which model provider F2's codex runs on. The approval modal is codex's, not
+// the model's, so any model that answers with a shell tool call proves the loop.
+// PROXYAI_API_KEY (our own proxy at proxyai.devino.ca, free open models behind
+// the Responses API) is preferred; OPENAI_API_KEY is the fallback. Returns null
+// when neither is set. `env` holds the variables the codex process needs;
+// `auth` is the CODEX_HOME/auth.json body (OpenAI only: without it the TUI
+// parks on the browser sign-in, while a custom provider never asks).
+export const PROXYAI_BASE_URL = 'https://proxyai.devino.ca/v1';
+
+export function codexProvider(env = process.env) {
+  const base = 'approval_policy = "untrusted"\n';
+  const features = '[features]\nhooks = true\n';
+  if (env.PROXYAI_API_KEY) {
+    const model = env.TUI_CODEX_MODEL || 'sonnet';
+    return {
+      label: `proxyai (${model})`,
+      config: base +
+        `model = "${model}"\nmodel_provider = "proxyai"\n` +
+        // Codex has no metadata for proxy model names; set what it would take from it.
+        'model_context_window = 200000\nmodel_max_output_tokens = 32000\n' +
+        features +
+        `[model_providers.proxyai]\nname = "proxyai"\nbase_url = "${PROXYAI_BASE_URL}"\n` +
+        'env_key = "PROXY_API_KEY"\nwire_api = "responses"\n',
+      env: { PROXY_API_KEY: env.PROXYAI_API_KEY },
+      auth: null,
+    };
+  }
+  if (env.OPENAI_API_KEY) {
+    return {
+      label: 'OpenAI API',
+      config: base + features,
+      env: {},
+      auth: { OPENAI_API_KEY: env.OPENAI_API_KEY },
+    };
+  }
+  return null;
+}
+
 export function apiAccountError(pane) {
   const line = String(pane || '').split('\n').find((l) => API_ACCOUNT_ERROR.test(l));
   return line ? line.trim() : null;

@@ -24,6 +24,9 @@ jobs:
     timeout-minutes: 30
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # F2's codex runs on our proxy (free open models, Responses API) when
+      # PROXYAI_API_KEY is set, and falls back to the OpenAI API otherwise.
+      PROXYAI_API_KEY: ${{ secrets.PROXYAI_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       LANG: en_US.UTF-8
     steps:
