@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import PostHog from "@/components/PostHog";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+const inter = localFont({
+  src: "./fonts/Inter-latin-variable.woff2",
+  weight: "100 900",
   variable: "--font-inter",
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+const jetbrainsMono = localFont({
+  src: "./fonts/JetBrainsMono-latin-variable.woff2",
+  weight: "100 800",
   variable: "--font-mono",
   display: "swap",
 });
