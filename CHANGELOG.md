@@ -8,7 +8,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ### Added
 - **Antigravity CLI support.** Google moved Google AI Pro/Ultra and free
-  Code Assist users from Gemini CLI to Antigravity CLI (`agy`) on June 18,
+  Code Assist users from Gemini CLI to Antigravity CLI on June 18,
   2026, and it ignores the hooks anotifier writes to `~/.gemini/settings.json`.
   `anotifier setup` now detects it (`~/.gemini/antigravity-cli`) and adds an
   `anotifier` group with a `Stop` handler to `~/.gemini/config/hooks.json`,

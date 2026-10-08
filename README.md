@@ -113,7 +113,7 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
     <td><code>Notification</code></td>
   </tr>
   <tr>
-    <td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>Antigravity CLI</strong> (<code>agy</code>)</td>
+    <td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong>Antigravity CLI</strong></td>
     <td align="center">--</td>
     <td align="center">Native</td>
     <td><code>Stop</code></td>
@@ -123,7 +123,7 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
 
 All five tools are wired automatically by the setup wizard. No manual config editing needed. Codex's `PermissionRequest` hook fires the same "needs your input" alert when Codex asks for approval to run a command -- verified with Codex CLI >=0.144.0.
 
-**Antigravity CLI** (Google's successor to Gemini CLI for Google AI Pro/Ultra and free Code Assist users) reads hooks from its own file, `~/.gemini/config/hooks.json`. Setup wires it when `~/.gemini/antigravity-cli` exists, adding one group named `anotifier` with a `Stop` handler and leaving your other groups alone; `anotifier uninstall` removes only that group. The `Stop` handler answers `{"decision":"stop"}` so it can never keep the agent running. The notification is the generic "Task complete" line. Antigravity has no notification or permission event (its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`), so there is no "needs input" alert for it. What is verified: hook wiring and payload parsing are unit-tested against the format in [Google's hooks docs](https://antigravity.google/docs/hooks). What is not: there is no live Antigravity CLI lane in CI yet, so it has not been exercised against a real Antigravity CLI run.
+**Antigravity CLI** (Google's successor to Gemini CLI for Google AI Pro/Ultra and free Code Assist users) reads hooks from its own file, `~/.gemini/config/hooks.json`. Setup wires it when `~/.gemini/antigravity-cli` exists, adding one group named `anotifier` with a `Stop` handler and leaving your other groups alone; `anotifier uninstall` removes only that group. Google's Antigravity 2.0 app and Antigravity IDE read the same global file, so the handler fires when they finish too. The `Stop` handler answers `{"decision":"stop"}` so it can never keep the agent running. The notification is the generic "Task complete" line. Antigravity has no notification or permission event (its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`), so there is no "needs input" alert for it. What is verified: hook wiring and payload parsing are unit-tested against the format in [Google's hooks docs](https://antigravity.google/docs/hooks). What is not: there is no live Antigravity CLI lane in CI yet, so it has not been exercised against a real Antigravity CLI run.
 
 ### VS Code Native Support
 
