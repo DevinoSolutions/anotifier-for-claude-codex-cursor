@@ -19,6 +19,11 @@ const EVENT_MAP = {
   // Antigravity CLI's payload names no event, so setup passes --event Stop.
   // It has no notification/permission event (only PreToolUse, PostToolUse,
   // PreInvocation, PostInvocation, Stop), so nothing maps to needs_input.
+  // Stop also carries terminationReason, fullyIdle and error, deliberately NOT
+  // used: terminationReason values are only partly documented, and fullyIdle
+  // false (background work still running) is not known to be followed by a
+  // second Stop, so holding the alert back could lose it for good. A missed
+  // alert costs more than an early one, so every Stop alerts.
   antigravity: {
     Stop: 'task_complete',
   },

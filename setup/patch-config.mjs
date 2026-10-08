@@ -84,7 +84,7 @@ function makeHookEntry(notifyPath, source, { tag = true, timeout = 10, statusMes
 }
 
 function isOurHook(command) {
-  return command?.includes('notify.mjs') &&
+  return typeof command === 'string' && command.includes('notify.mjs') &&
     (command.includes('anotifier') || command.includes('agent-notify'));
 }
 
@@ -97,7 +97,7 @@ export function isManagedHookEntry(entry) {
   if (!entry || typeof entry !== 'object') return false;
   return Boolean(
     entry._managed_by === MANAGED_TAG ||
-    (Array.isArray(entry.hooks) && entry.hooks.some((hh) => isOurHook(hh.command))) ||
+    (Array.isArray(entry.hooks) && entry.hooks.some((hh) => isOurHook(hh?.command))) ||
     isOurHook(entry.command)
   );
 }
@@ -370,27 +370,47 @@ export function patchAntigravity(geminiDir, notifyPath, backupDir) {
   const hooksPath = path.join(geminiDir, TOOL_EVENTS.antigravity.file);
   backup(hooksPath, backupDir);
   const data = readJSONOrNull(hooksPath) || {};
-  if (typeof data !== 'object' || Array.isArray(data)) {
+  if (!isPlainObject(data)) {
     throw new Error(`${hooksPath} is not a JSON object — fix or remove it before patching`);
   }
+  const existing = data[ANTIGRAVITY_GROUP];
+  if (existing !== undefined && !isPlainObject(existing)) {
+    throw new Error(`${hooksPath}: "${ANTIGRAVITY_GROUP}" is not an object — fix or remove it before patching`);
+  }
+  if (existing && existing.Stop !== undefined && !Array.isArray(existing.Stop)) {
+    throw new Error(`${hooksPath}: "${ANTIGRAVITY_GROUP}.Stop" is not an array — fix or remove it before patching`);
+  }
+  // Re-running setup must not undo the user's choices: a group they muted with
+  // enabled:false stays muted, and a timeout they tuned on our handler stays.
+  const enabled = existing && typeof existing.enabled === 'boolean' ? existing.enabled : undefined;
+  const ours = existing?.Stop?.find(isManagedHookEntry);
+  const timeout = Number.isFinite(ours?.timeout) && ours.timeout > 0 ? ours.timeout : 30;
+
   stripAntigravityHooks(data);
+  const group = isPlainObject(data[ANTIGRAVITY_GROUP]) ? data[ANTIGRAVITY_GROUP] : {};
+  if (enabled !== undefined) group.enabled = enabled;
   const safePath = notifyPath.replace(/\\/g, '/');
-  const group = {};
   for (const event of TOOL_EVENTS.antigravity.events) {
-    group[event] = [{ type: 'command', command: `node "${safePath}" --source antigravity --event ${event}`, timeout: 30 }];
+    const handler = { type: 'command', command: `node "${safePath}" --source antigravity --event ${event}`, timeout };
+    group[event] = [...(Array.isArray(group[event]) ? group[event] : []), handler];
   }
   data[ANTIGRAVITY_GROUP] = group;
   writeJSON(hooksPath, data);
 }
 
-// Remove our hooks from a parsed Antigravity hooks.json, in place: the whole
-// "anotifier" group, plus any of our handlers a user moved into another group.
-// Returns true when something was removed. Never touches other handlers.
+function isPlainObject(v) {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+// Remove our managed handlers from a parsed Antigravity hooks.json, in place,
+// wherever they sit. Only OUR handlers go: a group (including one the user
+// named "anotifier") survives with its own handlers, and is deleted only when
+// nothing but an optional enabled flag is left after our removal.
+// Returns true when something was removed.
 function stripAntigravityHooks(data) {
   let removed = false;
-  if (Object.hasOwn(data, ANTIGRAVITY_GROUP)) { delete data[ANTIGRAVITY_GROUP]; removed = true; }
   for (const [name, group] of Object.entries(data)) {
-    if (!group || typeof group !== 'object' || Array.isArray(group)) continue;
+    if (!isPlainObject(group)) continue;
     let changed = false;
     for (const event of TOOL_EVENTS.antigravity.events) {
       if (!Array.isArray(group[event])) continue;
@@ -401,7 +421,7 @@ function stripAntigravityHooks(data) {
     }
     if (changed) {
       removed = true;
-      if (Object.keys(group).length === 0) delete data[name];
+      if (Object.keys(group).every((k) => k === 'enabled')) delete data[name];
     }
   }
   return removed;
@@ -409,10 +429,10 @@ function stripAntigravityHooks(data) {
 
 // Events with a managed handler in a parsed Antigravity hooks.json (status).
 export function detectAntigravityEvents(data) {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return [];
+  if (!isPlainObject(data)) return [];
   const found = new Set();
   for (const group of Object.values(data)) {
-    if (!group || typeof group !== 'object' || Array.isArray(group)) continue;
+    if (!isPlainObject(group)) continue;
     for (const event of TOOL_EVENTS.antigravity.events) {
       if (Array.isArray(group[event]) && group[event].some(isManagedHookEntry)) found.add(event);
     }
