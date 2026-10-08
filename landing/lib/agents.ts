@@ -464,7 +464,7 @@ export const AGENTS: Agent[] = [
         blocks: [
           {
             kind: "p",
-            text: "Antigravity CLI keeps hooks, in a new format. It reads them from its own files, such as `~/.gemini/config/hooks.json` or a workspace's `.agents/hooks.json`, and its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`. There is no `AfterAgent` or `Notification` event, so the hooks anotifier writes for Gemini CLI don't fire there. anotifier 1.4.0 and later wire Antigravity CLI separately: run `npx anotifier setup` and, when `~/.gemini/antigravity-cli` exists, it adds one group named `anotifier` with a `Stop` handler to `~/.gemini/config/hooks.json`, beside any groups of your own, after backing the file up. A finished run sends \"Task complete\", titled `<project> · Antigravity`. Google's [Antigravity hooks docs](https://antigravity.google/docs/hooks/) describe the format.",
+            text: "Antigravity CLI keeps hooks, in a new format. It reads them from its own files, such as `~/.gemini/config/hooks.json` or a workspace's `.agents/hooks.json`, and its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`. There is no `AfterAgent` or `Notification` event, so the hooks anotifier writes for Gemini CLI don't fire there. anotifier 1.4.0 and later wire Antigravity CLI separately: run `npx anotifier setup` and, when `~/.gemini/antigravity-cli` exists, it adds one group named `anotifier` with a `Stop` handler to `~/.gemini/config/hooks.json`, beside any groups of your own, after backing up an existing file. A finished run sends \"Task complete\", titled `<project> · Antigravity`. Google's [Antigravity hooks docs](https://antigravity.google/docs/hooks/) describe the format.",
           },
           {
             kind: "p",
@@ -472,7 +472,7 @@ export const AGENTS: Agent[] = [
           },
           {
             kind: "p",
-            text: "The Gemini CLI entries stay in `~/.gemini/settings.json` until you remove them with `npx anotifier@latest uninstall`, which removes only the `anotifier` group from the Antigravity file.",
+            text: "The Gemini CLI entries stay in `~/.gemini/settings.json` until you remove them with `npx anotifier@latest uninstall`, which removes only the handlers anotifier added to the Antigravity file.",
           },
         ],
       },
