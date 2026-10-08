@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-10-08
+
 ### Added
 - **Antigravity CLI support.** Google moved Google AI Pro/Ultra and free
   Code Assist users from Gemini CLI to Antigravity CLI on June 18,
