@@ -621,13 +621,21 @@ describe('transport against a local capture server', () => {
     } finally { reads.stop(); }
     assert.equal(sent, false);
     assert.equal(dripArrivals.length, arrivals + 1, 'the request reached the drip server');
-    // The budget runs from the send; the state-file re-read that follows it is
-    // local sync I/O and is timed separately (the total-time bound below).
-    const arrived = dripArrivals.at(-1);
-    const raceEnded = reads.firstAfter(arrived);
+    // The budget timer is armed inside maybeSendHookSummary, a few sync ms after
+    // `started`, before the request is even connected. Connecting and parsing
+    // the request run on this same loop, so the drip server's arrival stamp can
+    // land well after the timer was armed; timing from arrival shaved that
+    // latency off the interval and dipped under the lower bound on slow runners.
+    // So time from `started`. Arrival is only used to pick out the state-file
+    // re-read that follows the race (earlier reads are the isDue/lock checks,
+    // which happen before the request reaches the server). The re-read itself is
+    // local sync I/O, covered by the total-time bound below.
+    const raceEnded = reads.firstAfter(dripArrivals.at(-1));
     assert.ok(raceEnded, 'the state file is re-read once the budget fires');
-    const took = raceEnded - arrived;
-    assert.ok(took >= 750 && took < 800 + 700, `the send was cut off ${took}ms after the request arrived`);
+    const took = raceEnded - started;
+    // Lower: the 800ms budget must really be waited out (a shorter budget fails).
+    // Upper: 800ms plus scheduling lag, but under a doubled budget (1600ms).
+    assert.ok(took >= 790 && took < 800 + 700, `the send was cut off ${took}ms after it started`);
     assert.ok(finished - started < 3000, `whole call took ${finished - started}ms`);
   });
 });
