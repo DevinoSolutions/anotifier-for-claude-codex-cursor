@@ -12,11 +12,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   newDetachedWindow, capturePane, sendKeys, resolveBin, killSession, dumpSession, sleep,
-  apiAccountError,
+  apiAccountError, codexProvider,
 } from './lib.mjs';
 
 const SESSION = 'aan-codex';
 let agentWin; // set once the codex window exists, so fail() can read its pane
+let provider; // which model provider codex runs on (see codexProvider in lib.mjs)
 
 function diagnose(label) {
   console.error(`\n===== F2 DIAGNOSTICS (${label}) =====`);
@@ -31,7 +32,7 @@ function diagnose(label) {
 function fail(msg) {
   const accountErr = agentWin === undefined ? null : apiAccountError(safeCapture(agentWin));
   if (accountErr) {
-    console.error(`FAIL [INFRA]: ${msg} The OpenAI API refused the request: "${accountErr}"`);
+    console.error(`FAIL [INFRA]: ${msg} The ${provider?.label ?? 'model provider'} refused the request: "${accountErr}"`);
     diagnose('infra-api-account');
     process.exit(1);
   }
@@ -40,7 +41,9 @@ function fail(msg) {
 function infra(msg) { console.error(`FAIL [INFRA]: ${msg}`); process.exit(1); }
 
 async function main() {
-  if (!process.env.OPENAI_API_KEY) infra('OPENAI_API_KEY required.');
+  provider = codexProvider();
+  if (!provider) infra('PROXYAI_API_KEY or OPENAI_API_KEY required.');
+  console.log(`F2: codex model provider = ${provider.label}`);
 
   // CODEX_HOME must live under the REAL home — codex refuses to create its helper
   // binaries under a temp dir (see scripts/lib/live-driver.mjs and repo memory).
@@ -50,7 +53,7 @@ async function main() {
   fs.writeFileSync(path.join(codexHome, 'hooks.json'),
     JSON.stringify({ hooks: { PermissionRequest: [{ hooks: [{ type: 'command', command: `node "${notify}" --source codex --event needs_input`, timeout: 20 }] }] } }, null, 2));
   // untrusted policy forces the approval modal for a write; enable hooks.
-  fs.writeFileSync(path.join(codexHome, 'config.toml'), 'approval_policy = "untrusted"\n[features]\nhooks = true\n');
+  fs.writeFileSync(path.join(codexHome, 'config.toml'), provider.config);
 
   // codex runs from this dir; the guarded command creates the sentinel here.
   const workDir = fs.mkdtempSync(path.join(codexHome, 'work-'));
@@ -63,13 +66,21 @@ async function main() {
   // approval modal (proven by PR #6 F2 diagnostics). `codex login --api-key` was
   // removed in 0.144.0 ("Pipe the key instead"); writing CODEX_HOME/auth.json
   // directly is what let the TUI authenticate and reach the modal.
-  const key = process.env.OPENAI_API_KEY;
-  fs.writeFileSync(path.join(codexHome, 'auth.json'), JSON.stringify({ OPENAI_API_KEY: key }));
-  console.log('F2: wrote CODEX_HOME/auth.json for API-key auth (skips OAuth browser flow).');
+  // A custom provider (proxyai) never asks for a sign-in, so it needs no auth.json.
+  if (provider.auth) {
+    fs.writeFileSync(path.join(codexHome, 'auth.json'), JSON.stringify(provider.auth));
+    console.log('F2: wrote CODEX_HOME/auth.json for API-key auth (skips OAuth browser flow).');
+  }
+  // The tmux server (started by F1) does not see this process's env, so the
+  // provider's key reaches codex through a file the window sources, never
+  // through the command line.
+  const envFile = path.join(codexHome, 'provider.env');
+  fs.writeFileSync(envFile, Object.entries(provider.env)
+    .map(([k, v]) => `export ${k}=${shQuote(v)}\n`).join(''), { mode: 0o600 });
 
   // Launch the REAL interactive codex TUI in a NON-active window. `bash -c` (not
   // -lc) keeps the inherited PATH; we pass codex's absolute path for good measure.
-  const cmd = `env CODEX_HOME='${codexHome}' bash -c "cd '${workDir}' && exec '${codexBin}' -a untrusted 'Run this shell command: touch ${sentinel}'"`;
+  const cmd = `env CODEX_HOME='${codexHome}' bash -c ". '${envFile}' && cd '${workDir}' && exec '${codexBin}' -a untrusted 'Run this shell command: touch ${sentinel}'"`;
   const win = newDetachedWindow(SESSION, cmd);
   agentWin = win;
   console.log(`F2: agent window = ${SESSION}:${win} (codex bin: ${codexBin})`);
@@ -88,7 +99,9 @@ async function main() {
 
   // Wait for the approval modal (widened phrasing for codex 0.144.0).
   let sawModal = false;
-  for (let i = 0; i < 120; i++) {
+  // Open models behind the proxy can take a minute or more to first byte.
+  const modalWait = provider.auth ? 120 : 300;
+  for (let i = 0; i < modalWait; i++) {
     await sleep(1000);
     const pane = safeCapture(win);
     if (isApprovalModal(pane)) { sawModal = true; break; }
@@ -136,6 +149,7 @@ function isApprovalModal(pane) {
   if (!pane) return false;
   return /allow|approve|permission|do you want|proceed\?|run command|wants to run|y\/n|yes.*no|❯.*yes|\b1\.\s*yes/i.test(pane);
 }
+function shQuote(v) { return `'${String(v).replace(/'/g, `'\\''`)}'`; }
 function tail(s, n) { return String(s || '').split('\n').slice(-n).join('\n'); }
 function safeCapture(win) { try { return capturePane(SESSION, win); } catch { return ''; } }
 
