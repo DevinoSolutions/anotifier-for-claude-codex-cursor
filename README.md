@@ -337,7 +337,20 @@ Controlled per channel:
 | `needs_input` | Reminder | urgent | Agent needs your input or permission |
 | `session_start` | Default | low | New session started (all channels off by default) |
 
-**Claude's idle reminder is quieter than a real prompt.** About a minute after a turn ends, Claude Code sends a second notification along the lines of *"Claude is waiting for your input"*. Nothing is blocked -- the work is done -- so anotifier delivers that one at `default` priority with a calm tag instead of the urgent `needs_input` treatment. A genuine permission prompt is untouched and still arrives urgent. The reminder is never suppressed, only turned down, and if Claude ever changes that wording the reminder simply goes back to being urgent -- it can never go silent. To pick your own level for it, set `idleReminderPriority` on the event:
+**Only Claude notifications that wait on you are urgent.** Claude Code's `Notification` hook fires for many kinds of notification and names each one in its `notification_type` field. anotifier reads that field and alerts as follows:
+
+| Claude `notification_type` | What you get |
+|---|---|
+| `permission_prompt` | "Needs your permission" at the `needs_input` priority (urgent by default) |
+| `elicitation_dialog`, `elicitation_url_dialog`, `agent_needs_input` | "Needs your input" at the `needs_input` priority |
+| `quota_auto_resume_stale` | "Needs you to resume" at the `needs_input` priority (Claude Code is waiting for Enter after a usage-limit reset) |
+| `idle_prompt` | "Needs your input" at the idle-reminder level, `default` unless you set `idleReminderPriority` (see below) |
+| `agent_completed`, `quota_auto_resume_fired`, `quota_auto_resume_disabled` | A short notice at `default` priority with an info tag. It is never urgent. |
+| `auth_success`, `elicitation_response`, `elicitation_complete` | No alert, because each one follows something you just did at the keyboard |
+| Any other value | A "Notification" notice at `default` priority, never urgent, so a new Claude type stays visible without sounding the alarm |
+| No `notification_type` (older Claude Code) | Same as before: urgent "Needs your input", with the idle-reminder wording check below |
+
+**Claude's idle reminder is quieter than a real prompt.** About a minute after a turn ends, Claude Code sends a second notification along the lines of *"Claude is waiting for your input"* (`idle_prompt`). Nothing is blocked -- the work is done -- so anotifier delivers that one at `default` priority with a calm tag instead of the urgent `needs_input` treatment. A genuine permission prompt is untouched and still arrives urgent. The reminder is never suppressed, only turned down. On older Claude Code that sends no `notification_type`, the reminder is recognized by its wording, and if Claude ever changes that wording the reminder simply goes back to being urgent -- it can never go silent. To pick your own level for it, set `idleReminderPriority` on the event:
 
 ```json
 {
@@ -384,7 +397,7 @@ anotifier telemetry on
 | `test_result` | `anotifier test` | `channel` (`toast`, `ntfy`, `webhook`, `bell`, `both`, or `all`), `outcomes` (per channel: `sent`, `failed`, `not_configured` or `skipped`) |
 | `doctor_result` | `anotifier doctor` | `deep`, `strict` (booleans), `checks` (check id -> `ok`, `info`, `warn` or `fail`; ids: `toast-backend`, `toast-auth`, `toast-deep`, `deep-probe`, `bell`, `ntfy-config`, `webhook-config`, `config`, `focus`). Never the check's detail text. |
 | `uninstall_result` | `anotifier uninstall` | `removed`, `failed` (lists of `Claude Code`, `Codex CLI`, `Cursor IDE`, `Gemini CLI`, `agentfocus://`) |
-| `hook_daily_summary` | at most once per 24 hours, from the end of a hook run | `runs`; `outcomes` (counts of `dispatched`, `suppressed_snooze`, `suppressed_quiet`, `held_back`, `duplicate`, `unmapped`, `error`); `sources` (`claude`, `codex`, `cursor`, `gemini`, `other`); `events` (`task_complete`, `needs_input`, `session_start`, `other`); `unmapped_events` (counts per unrecognized hook event name, clamped as above, at most 10 distinct names, the rest under `other`); `channels` (`toast`, `ntfy`, `webhook`, `bell`, each with `ok` and `fail` counts); `latency` (counts per bucket: `lt_250ms`, `lt_500ms`, `lt_1s`, `lt_2500ms`, `ge_2500ms`); `window_start`, `window_hours`; and `config`, which says which features are on: `toast_enabled`, `toast_rich`, `ntfy_enabled`, `ntfy_rich`, `ntfy_custom_server` (whether the server is not ntfy.sh -- never which server), `webhook_enabled`, `webhook_format` (`generic`, `slack`, `discord`, `telegram`, `other`, or `null`), `bell_enabled`, `quiet_hours_enabled`, `update_check_enabled`, `sentry_enabled` |
+| `hook_daily_summary` | at most once per 24 hours, from the end of a hook run | `runs`; `outcomes` (counts of `dispatched`, `suppressed_snooze`, `suppressed_quiet`, `held_back`, `skipped`, `duplicate`, `unmapped`, `error`); `sources` (`claude`, `codex`, `cursor`, `gemini`, `other`); `events` (`task_complete`, `needs_input`, `session_start`, `other`); `unmapped_events` (counts per unrecognized hook event name, clamped as above, at most 10 distinct names, the rest under `other`); `channels` (`toast`, `ntfy`, `webhook`, `bell`, each with `ok` and `fail` counts); `latency` (counts per bucket: `lt_250ms`, `lt_500ms`, `lt_1s`, `lt_2500ms`, `ge_2500ms`); `window_start`, `window_hours`; and `config`, which says which features are on: `toast_enabled`, `toast_rich`, `ntfy_enabled`, `ntfy_rich`, `ntfy_custom_server` (whether the server is not ntfy.sh -- never which server), `webhook_enabled`, `webhook_format` (`generic`, `slack`, `discord`, `telegram`, `other`, or `null`), `bell_enabled`, `quiet_hours_enabled`, `update_check_enabled`, `sentry_enabled` |
 
 Hook runs themselves send nothing: each only bumps counters in `~/.anotifier/.telemetry.json`, and the end of a hook run sends the daily summary (waiting at most 0.8 seconds for the server; the limit covers the network send, and a failure never changes what the hook returns to your agent). CLI commands send their events in one request at the end of the command, waiting at most one second.
 

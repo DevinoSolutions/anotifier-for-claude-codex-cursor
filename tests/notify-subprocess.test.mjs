@@ -159,3 +159,53 @@ describe('notify.mjs claude terminalSequence bell (F1)', () => {
     assert.equal(second.stdout, '{}\n');
   });
 });
+
+describe('notify.mjs claude notification_type', () => {
+  // With the bell on and every other channel off, a dispatched claude run
+  // answers with the terminalSequence BEL and a skipped one with a plain {}.
+  const BELL_ONLY = { toast: { enabled: false }, ntfy: { enabled: false }, terminalBell: { enabled: true } };
+  const notification = (extra) => JSON.stringify({
+    hook_event_name: 'Notification', cwd: '/work/app', session_id: 's', message: 'm', ...extra,
+  });
+
+  for (const type of ['auth_success', 'elicitation_response', 'elicitation_complete']) {
+    it(`${type} sends nothing, rings nothing and logs no error`, () => {
+      const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-skip-'));
+      const cfgDir = path.join(home, '.anotifier');
+      fs.mkdirSync(cfgDir, { recursive: true });
+      fs.writeFileSync(path.join(cfgDir, 'config.json'), JSON.stringify(BELL_ONLY));
+      const env = { ...process.env, HOME: home, USERPROFILE: home };
+      for (const k of SCRUB) delete env[k];
+      const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {
+        cwd: repoRoot, input: notification({ notification_type: type }), env, encoding: 'utf8', timeout: 30000,
+      });
+      const logged = fs.existsSync(path.join(cfgDir, 'errors.log'));
+      fs.rmSync(home, { recursive: true, force: true });
+      assert.equal(res.status, 0, res.stderr);
+      assert.equal(res.stdout, '{}\n');
+      assert.equal(logged, false, 'a skipped type is expected, not an error');
+    });
+  }
+
+  for (const type of ['permission_prompt', 'idle_prompt', 'elicitation_dialog', 'agent_completed', 'some_future_type']) {
+    it(`${type} is still dispatched`, () => {
+      const res = runNotify(notification({ notification_type: type }), 'claude', [], BELL_ONLY);
+      assert.equal(res.status, 0, res.stderr);
+      assert.deepEqual(JSON.parse(res.stdout), { terminalSequence: '\x07' });
+    });
+  }
+
+  it('a payload with no notification_type is dispatched as before', () => {
+    const res = runNotify(notification({}), 'claude', [], BELL_ONLY);
+    assert.equal(res.status, 0, res.stderr);
+    assert.deepEqual(JSON.parse(res.stdout), { terminalSequence: '\x07' });
+  });
+
+  it('never crashes on a hostile notification_type', () => {
+    for (const notification_type of ['__proto__', 'constructor', 'toString', { __proto__: { x: 1 } }, ['a'], 1e309]) {
+      const res = runNotify(notification({ notification_type }), 'claude', [], BELL_ONLY);
+      assert.equal(res.status, 0, res.stderr);
+      assert.deepEqual(JSON.parse(res.stdout), { terminalSequence: '\x07' }, String(notification_type));
+    }
+  });
+});

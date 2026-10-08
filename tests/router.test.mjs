@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { route } from '../src/router.mjs';
+import { route, classifyClaudeNotification, isSilentNotification } from '../src/router.mjs';
 import { deriveRichViews } from '../src/transcript.mjs';
 
 const defaultConfig = {
@@ -188,5 +188,145 @@ describe('route: claude idle "waiting for your input" reminder', () => {
     const views = deriveRichViews(event, config, config.events.needs_input, notif, () => '');
     assert.equal(views.toast.message, IDLE_TEXT);
     assert.equal(views.toast.priority, 'default', 'rich view carries the downgraded priority');
+  });
+});
+
+// Claude Code names each Notification in `notification_type`; only the types
+// that wait on you may borrow the urgent needs_input alarm.
+describe('route: claude notification_type', () => {
+  const typed = (notificationType, extra = {}) => ({
+    source: 'claude', event: 'needs_input', projectName: 'app',
+    message: 'some Claude text', notificationType, ...extra,
+  });
+
+  it('permission_prompt is urgent and says permission', () => {
+    const notif = route(typed('permission_prompt'), defaultConfig);
+    assert.equal(notif.priority, 'urgent');
+    assert.equal(notif.ntfyTags, 'bell,warning');
+    assert.equal(notif.toastSound, 'Reminder');
+    assert.equal(notif.message, 'app: Needs your permission');
+    assert.equal(notif.title, 'app · Claude Code');
+  });
+
+  it('a permission prompt stays urgent even if its text reads like the idle nag', () => {
+    const notif = route(typed('permission_prompt', { message: 'Claude is waiting for your input' }), defaultConfig);
+    assert.equal(notif.priority, 'urgent');
+  });
+
+  for (const type of ['elicitation_dialog', 'elicitation_url_dialog', 'agent_needs_input']) {
+    it(`${type} is urgent needs-input`, () => {
+      const notif = route(typed(type), defaultConfig);
+      assert.equal(notif.priority, 'urgent');
+      assert.equal(notif.ntfyTags, 'bell,warning');
+      assert.equal(notif.toastSound, 'Reminder');
+      assert.equal(notif.message, 'app: Needs your input');
+    });
+  }
+
+  it('quota_auto_resume_stale is urgent: the task waits for Enter', () => {
+    const notif = route(typed('quota_auto_resume_stale'), defaultConfig);
+    assert.equal(notif.priority, 'urgent');
+    assert.equal(notif.message, 'app: Needs you to resume');
+  });
+
+  it('idle_prompt gets the idle-reminder volume by type, whatever its text', () => {
+    const notif = route(typed('idle_prompt', { message: 'Claude has been idle (new wording)' }), defaultConfig);
+    assert.equal(notif.priority, 'default');
+    assert.equal(notif.ntfyTags, 'hourglass_flowing_sand');
+    assert.equal(notif.message, 'app: Needs your input');
+  });
+
+  it('idle_prompt honors idleReminderPriority', () => {
+    const config = {
+      ...defaultConfig,
+      events: { ...defaultConfig.events, needs_input: { ...defaultConfig.events.needs_input, idleReminderPriority: 'min' } },
+    };
+    assert.equal(route(typed('idle_prompt'), config).priority, 'min');
+    assert.equal(route(typed('permission_prompt'), config).priority, 'urgent');
+  });
+
+  for (const [type, text] of [
+    ['agent_completed', 'Background agent finished'],
+    ['quota_auto_resume_fired', 'Resumed after the usage limit'],
+    ['quota_auto_resume_disabled', 'Stopped at the usage limit'],
+  ]) {
+    it(`${type} is a default-priority notice, never urgent`, () => {
+      const notif = route(typed(type), defaultConfig);
+      assert.equal(notif.priority, 'default');
+      assert.equal(notif.ntfyTags, 'information_source');
+      assert.equal(notif.toastSound, 'Default');
+      assert.equal(notif.message, `app: ${text}`);
+    });
+  }
+
+  for (const type of ['auth_success', 'elicitation_response', 'elicitation_complete']) {
+    it(`${type} produces no notification`, () => {
+      assert.equal(route(typed(type), defaultConfig), null);
+      assert.equal(isSilentNotification(typed(type)), true);
+    });
+  }
+
+  it('an unknown type is a default-priority "Notification", never urgent', () => {
+    for (const type of ['brand_new_type', 'PERMISSION_PROMPT', '__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+      const notif = route(typed(type), defaultConfig);
+      assert.ok(notif, type);
+      assert.equal(notif.priority, 'default', type);
+      assert.equal(notif.ntfyTags, 'information_source', type);
+      assert.equal(notif.message, 'app: Notification', type);
+      assert.equal(isSilentNotification(typed(type)), false, type);
+    }
+  });
+
+  it('an unknown type ignores a user-set urgent needs_input priority', () => {
+    const config = {
+      ...defaultConfig,
+      events: { ...defaultConfig.events, needs_input: { priority: 'urgent', ntfyTags: 'rotating_light', toastSound: 'Alarm' } },
+    };
+    const notif = route(typed('agent_completed'), config);
+    assert.equal(notif.priority, 'default');
+    assert.equal(notif.ntfyTags, 'information_source');
+    assert.equal(notif.toastSound, 'Default');
+  });
+
+  it('a missing type routes exactly as before the field existed', () => {
+    for (const notificationType of [undefined, '', null, 42]) {
+      const withField = route(typed(notificationType), defaultConfig);
+      const { notificationType: _drop, ...legacyEvent } = typed('x');
+      const legacy = route(legacyEvent, defaultConfig);
+      assert.deepEqual(withField, legacy, String(notificationType));
+      assert.equal(withField.priority, 'urgent');
+      assert.equal(withField.message, 'app: Needs your input');
+    }
+    // ...including the wording-based idle-nag fallback.
+    const nag = route(typed(undefined, { message: 'Claude is waiting for your input' }), defaultConfig);
+    assert.equal(nag.priority, 'default');
+    assert.equal(nag.ntfyTags, 'hourglass_flowing_sand');
+  });
+
+  it('only applies to claude needs_input', () => {
+    // Another source carrying the same field keeps its own routing.
+    const gemini = route(typed('auth_success', { source: 'gemini' }), defaultConfig);
+    assert.equal(gemini.priority, 'urgent');
+    assert.equal(gemini.message, 'app: Needs your input');
+    // A different claude event ignores it.
+    const stop = route(typed('auth_success', { event: 'task_complete' }), defaultConfig);
+    assert.equal(stop.message, 'app: Task complete');
+    assert.equal(classifyClaudeNotification(typed('auth_success', { event: 'task_complete' })), null);
+    assert.equal(classifyClaudeNotification(null), null);
+    assert.equal(classifyClaudeNotification(undefined), null);
+  });
+
+  it('keeps Claude\'s own text as the rich body for a notice', () => {
+    const config = {
+      ...defaultConfig,
+      toast: { enabled: true, richContent: true },
+      ntfy: { enabled: false },
+      webhook: { enabled: false },
+    };
+    const event = typed('agent_completed', { message: 'Agent "refactor" finished' });
+    const notif = route(event, config);
+    const views = deriveRichViews(event, config, config.events.needs_input, notif, () => '');
+    assert.equal(views.toast.message, 'Agent "refactor" finished');
+    assert.equal(views.toast.priority, 'default');
   });
 });

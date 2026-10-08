@@ -26,6 +26,20 @@ describe('dedupKey', () => {
     const key = dedupKey({ source: 'weird/tool', event: 'task:done', sessionId: '../../etc' });
     assert.match(key, /^[A-Za-z0-9_.-]+$/);
   });
+
+  it('keeps the old key for a claude notification with no type', () => {
+    assert.equal(dedupKey({ source: 'claude', event: 'needs_input', sessionId: 'abcdef1234' }), 'claude-needs_input-abcdef12');
+    assert.equal(dedupKey({ source: 'claude', event: 'needs_input', sessionId: 'abcdef1234', notificationType: '' }), 'claude-needs_input-abcdef12');
+  });
+
+  it('keys on notification_type so an info notice cannot swallow a permission prompt', () => {
+    const info = dedupKey({ source: 'claude', event: 'needs_input', sessionId: 's1', notificationType: 'agent_completed' });
+    const prompt = dedupKey({ source: 'claude', event: 'needs_input', sessionId: 's1', notificationType: 'permission_prompt' });
+    assert.notEqual(info, prompt);
+    assert.equal(prompt, 'claude-needs_input-permission_prompt-s1');
+    const odd = dedupKey({ source: 'claude', event: 'needs_input', sessionId: '', notificationType: '../../x y' });
+    assert.match(odd, /^[A-Za-z0-9_.-]+$/);
+  });
 });
 
 describe('acquireNotifyLock window', () => {

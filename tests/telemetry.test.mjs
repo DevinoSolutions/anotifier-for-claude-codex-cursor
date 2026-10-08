@@ -189,6 +189,14 @@ describe('recordHookRun', () => {
     assert.deepEqual(counters.unmapped_events, { PreToolUse: 1 });
   });
 
+  it('counts a skipped claude notification as its own outcome', () => {
+    const statePath = tmpState();
+    recordHookRun(ON, { outcome: 'skipped', source: 'claude', event: 'needs_input' }, { env: envWith(), statePath });
+    const { counters } = readState(statePath);
+    assert.deepEqual(counters.outcomes, { skipped: 1 });
+    assert.equal(counters.unmapped_events, undefined, 'a skip is not an unmapped event');
+  });
+
   it('clamps anything off-vocabulary to "other" so free text never lands in a key', () => {
     const statePath = tmpState();
     recordHookRun(ON, { outcome: 'unmapped', source: '/home/me/project', rawEvent: 'has spaces / and slashes' }, { env: envWith(), statePath });
