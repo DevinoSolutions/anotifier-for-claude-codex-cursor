@@ -14,6 +14,7 @@ import { ask, askYN, log } from './ui.mjs';
 import { DOCS_URL, STAR_LINE, SUPPORT_LINE } from '../src/support.mjs';
 import { track } from '../src/telemetry.mjs';
 import { resolveSetupConsent } from './telemetry.mjs';
+import { TOAST_INSTALL_HINT, applyToastBackendResult } from './toast-backend.mjs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -221,6 +222,15 @@ export async function run() {
       return;
     }
     // Proceed: `config` holds a clean, usable config to overwrite the bad file with.
+  }
+
+  // 5b. A toast channel with no backend can only fail on every run, so turn it
+  // off (flagged, so a later setup that finds a backend turns it back on).
+  const toastChange = applyToastBackendResult(config, toastReady);
+  if (toastChange === 'disabled') {
+    log(`    ✗ Toasts turned off: no toast backend found. To enable them, ${TOAST_INSTALL_HINT[toastPlatform()]}, then re-run: anotifier setup`, 'yellow');
+  } else if (toastChange === 'enabled') {
+    log('    ✓ Toast backend found — toasts turned back on', 'green');
   }
 
   // 6. ntfy config
