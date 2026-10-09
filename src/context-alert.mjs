@@ -202,7 +202,12 @@ function readWarned(statePath) {
   try {
     raw = fs.readFileSync(statePath, 'utf8');
   } catch (err) {
-    return err?.code === 'ENOENT' ? {} : null;
+    if (err?.code === 'ENOENT') return {};
+    // Logged (only reached above the threshold, once per refresh) so a state
+    // path that stays unreadable shows up in `anotifier status` instead of
+    // silently ending every context warning.
+    logHookError('context-alert:state', err);
+    return null;
   }
   try {
     const parsed = JSON.parse(raw);
