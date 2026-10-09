@@ -5,9 +5,10 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { loadConfigResult } from '../src/config-loader.mjs';
 import { readRecentHookErrors, getErrorLogPath } from '../src/error-log.mjs';
-import { detectManagedEvents, detectAntigravityEvents } from '../setup/patch-config.mjs';
+import { detectManagedEvents, detectAntigravityEvents, isOurStatusline } from '../setup/patch-config.mjs';
 import { checkForUpdate, isNewer } from '../src/update-check.mjs';
 import { readSnoozeUntil, quietHoursWindow, inQuietHours, formatClock } from '../src/suppress.mjs';
+import { effectiveThresholds } from '../src/usage-alert.mjs';
 import { SUPPORT_LINE } from '../src/support.mjs';
 import { toastPlatform } from '../src/platforms/index.mjs';
 import { toastOffNoBackendLabel } from './toast-backend.mjs';
@@ -45,6 +46,23 @@ function checkTool(dirName, label, configFile, detect = (data) => detectManagedE
   }
   const events = detect(data);
   return { label, status: events.length > 0 ? 'wired' : 'not wired', events };
+}
+
+// Usage-limit warnings need two things: the config switch AND Claude Code's
+// statusline routed through src/statusline.mjs (the only place it exposes
+// rate_limits). Returns true/false for wired, null when it cannot be read.
+export function claudeStatuslineWired(homeDir = os.homedir()) {
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(homeDir, '.claude', 'settings.json'), 'utf8'));
+    return isOurStatusline(data?.statusLine?.command);
+  } catch { return null; }
+}
+
+export function usageAlertsValue(config, wired) {
+  if (config.usageAlerts?.enabled === false) return c.muted('disabled');
+  const levels = effectiveThresholds(config).join('/');
+  const wiring = wired ? c.success('statusline wired') : c.warn('statusline not wired');
+  return `${c.white(`${levels}%`)} ${c.muted('·')} ${wiring}`;
 }
 
 export async function run() {
@@ -115,6 +133,7 @@ export async function run() {
     kv('Sentry', sentryValue),
     kv('Snooze', snoozeValue),
     kv('Quiet hours', quietValue),
+    kv('Usage alerts', usageAlertsValue(config, claudeStatuslineWired())),
     kv('ntfy', ''),
     `${''.padEnd(15)} ${ntfyValue}`,
     ...(config.webhook?.enabled && config.webhook?.url

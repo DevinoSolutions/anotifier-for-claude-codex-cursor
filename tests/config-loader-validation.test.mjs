@@ -229,6 +229,45 @@ describe('loadConfigResult', () => {
     assert.equal(config.quietHours.enabled, true, 'a typo must not silently change behaviour');
   });
 
+  it('usageAlerts: good thresholds are accepted and kept', () => {
+    fs.writeFileSync(configPath, JSON.stringify({ usageAlerts: { enabled: false, thresholds: [50, 90] } }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem, null);
+    assert.equal(config.usageAlerts.enabled, false);
+    assert.deepEqual(config.usageAlerts.thresholds, [50, 90]);
+  });
+
+  it('usageAlerts: defaults are on at 70/85/95', () => {
+    const { config } = loadConfigResult(configPath);
+    assert.equal(config.usageAlerts.enabled, true);
+    assert.deepEqual(config.usageAlerts.thresholds, [70, 85, 95]);
+  });
+
+  it('usageAlerts: bad thresholds are reported and dropped to the defaults', () => {
+    for (const bad of [[0, 50], [101], [], 'high', [70, '85'], 80]) {
+      fs.writeFileSync(configPath, JSON.stringify({ usageAlerts: { enabled: true, thresholds: bad } }), 'utf8');
+      const { config, problem } = loadConfigResult(configPath);
+      assert.equal(problem.type, 'validate', JSON.stringify(bad));
+      assert.match(problem.message, /usageAlerts\.thresholds/);
+      assert.deepEqual(config.usageAlerts.thresholds, [70, 85, 95], JSON.stringify(bad));
+      assert.equal(config.usageAlerts.enabled, true);
+    }
+  });
+
+  it('usageAlerts: a wrong-typed enabled is reverted to the default', () => {
+    fs.writeFileSync(configPath, JSON.stringify({ usageAlerts: { enabled: 'no' } }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem.type, 'validate');
+    assert.equal(config.usageAlerts.enabled, true);
+  });
+
+  it('usageAlerts: an unknown key is reported but kept', () => {
+    fs.writeFileSync(configPath, JSON.stringify({ usageAlerts: { enabled: true, threshold: [80] } }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.match(problem.message, /unknown key "usageAlerts\.threshold"/);
+    assert.equal(config.usageAlerts.enabled, true);
+  });
+
   it('a fully valid user config produces no problem', () => {
     fs.writeFileSync(configPath, JSON.stringify({
       ntfy: { enabled: true, topic: 'aan-test' },
