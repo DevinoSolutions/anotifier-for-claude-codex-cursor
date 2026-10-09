@@ -218,6 +218,10 @@ Config lives at `~/.anotifier/config.json`. Abbreviated — see [config/default-
     "enabled": false,
     "asked": false
   },
+  "usageAlerts": {
+    "enabled": true,
+    "thresholds": [70, 85, 95]
+  },
   "quietHours": {
     "enabled": false,
     "from": "22:00",
@@ -237,7 +241,7 @@ Config lives at `~/.anotifier/config.json`. Abbreviated — see [config/default-
 }
 ```
 
-`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent -- for Claude Code (>=2.1.141) it rings through Claude Code's own terminal write path (hook JSON `terminalSequence`), which is safe in tmux, GNU screen, and on Windows per Claude Code's docs; other agents get a direct TTY/console bell. `webhook` posts to Slack, Discord, Telegram, or any URL (see below). `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). `updateCheck` announces a newly published anotifier through whichever of your toast / ntfy / webhook channels are already on (never the terminal bell) -- it asks the npm registry at most once per day, tells you at most once per version, and stays silent on any error; set `enabled` to `false` to turn it off entirely, and no check or state write happens at all. `telemetry` (1.3.0 and later) is the opt-in anonymous usage-stats choice: `enabled` is the choice (default `false`), and `asked` records that you made it (`setup` and `anotifier telemetry on|off` set it) so re-running setup does not ask again -- see [Usage stats](#usage-stats). `quietHours` is a recurring nightly version of `snooze` (see [Quiet hours](#quiet-hours)). Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound; on macOS the name is mapped to the closest built-in system sound (Windows names like `IM`/`Reminder` are translated, and `Default` or unrecognized names fall back to the system default), while on Linux it is ignored; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
+`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent -- for Claude Code (>=2.1.141) it rings through Claude Code's own terminal write path (hook JSON `terminalSequence`), which is safe in tmux, GNU screen, and on Windows per Claude Code's docs; other agents get a direct TTY/console bell. `webhook` posts to Slack, Discord, Telegram, or any URL (see below). `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). `updateCheck` announces a newly published anotifier through whichever of your toast / ntfy / webhook channels are already on (never the terminal bell) -- it asks the npm registry at most once per day, tells you at most once per version, and stays silent on any error; set `enabled` to `false` to turn it off entirely, and no check or state write happens at all. `telemetry` (1.3.0 and later) is the opt-in anonymous usage-stats choice: `enabled` is the choice (default `false`), and `asked` records that you made it (`setup` and `anotifier telemetry on|off` set it) so re-running setup does not ask again -- see [Usage stats](#usage-stats). `usageAlerts` warns before a Claude Code usage limit (see [Usage-limit warnings](#usage-limit-warnings-claude-code)): `enabled` turns it off, `thresholds` are the percentages (1-100) that trigger a warning. `quietHours` is a recurring nightly version of `snooze` (see [Quiet hours](#quiet-hours)). Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound; on macOS the name is mapped to the closest built-in system sound (Windows names like `IM`/`Reminder` are translated, and `Default` or unrecognized names fall back to the system default), while on Linux it is ignored; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
 
 ### Quiet hours
 
@@ -339,6 +343,43 @@ Controlled per channel:
 | ntfy | `ntfy.richContent` | `false` |
 
 `ntfy.richContent` defaults to **false** for privacy: the default `ntfy.sh` server is public, ntfy topic names are guessable rather than access-controlled secrets, and a snippet of your conversation would leak to anyone who guesses or stumbles on your topic. Only enable `ntfy.richContent` if you run your own private ntfy server, or you've deliberately accepted that risk on the public one.
+
+### Usage-limit warnings (Claude Code)
+
+Get a heads-up before Claude Code stops you at a usage limit. anotifier watches your subscription's **5-hour** and **weekly** usage and sends one notification as each window crosses **70%, 85% and 95%**. The title names the window and the percentage (for example `Claude Code · 5-hour limit at 72%`), and the body names the chat that saw it, the threshold crossed, and when the window resets. Priority rises with the level: `default` at 70%, `high` at 85%, `urgent` at 95%. A window that jumps from 60% straight to 96% sends the 95% warning only, not three in a row.
+
+- **Account-wide, once.** Usage limits belong to your account, not to a chat. However many Claude Code chats you have open, each threshold warns **once per window** across all of them (the first chat to see it sends it and the others stay quiet), and the warning names the chat that saw it. When a window resets, its warnings start over.
+- **Claude.ai Pro/Max only.** Claude Code reports usage (`rate_limits`) only to Claude.ai Pro and Max subscribers. With API-key or other billing it sends nothing, so there is nothing to warn about and no warning is ever sent.
+- **Channels.** Warnings go to your toast, ntfy and webhook channels, whichever are on. They never ring the terminal bell. Snooze and quiet hours hold them back (see below).
+- **How it gets the numbers.** Claude Code only hands usage to your *statusline* command, never to hooks. `anotifier setup` therefore points the Claude Code `statusLine` at `src/statusline.mjs`. If you already had a statusline, it is **wrapped**: your command still runs with the same input and its output is still what you see, and the original is stored (base64) in the new command. With no statusline of your own, a short `5h 42% · 7d 12%` line is shown. `anotifier uninstall` puts your original `statusLine` back exactly, or removes it if setup created it. A `statusLine` that is not a `command` is left alone. `anotifier status` shows whether the statusline is wired.
+- **Plugin install, or setup not run?** Wire it by hand in `~/.claude/settings.json`, pointing at `src/statusline.mjs` inside the installed package (`npm root -g` shows the global location):
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "node \"/path/to/anotifier/src/statusline.mjs\""
+  }
+}
+```
+
+To keep a statusline you already have, append `--wrap-b64` and the base64 of your existing command (for example `printf '%s' '~/my-line.sh' | base64`):
+`node "/path/to/anotifier/src/statusline.mjs" --wrap-b64 <base64>`. A hand-wired command is only recognized by `status` and `uninstall` when the path contains `anotifier`.
+
+Configure it in `~/.anotifier/config.json`; this is the default:
+
+```json
+{
+  "usageAlerts": {
+    "enabled": true,
+    "thresholds": [70, 85, 95]
+  }
+}
+```
+
+`thresholds` is a list of percentages above 0 and at most 100 (an invalid list is reported and the default applies). Set `"enabled": false` to turn the warnings off. The statusline keeps working, it just stops checking usage.
+
+**Snooze and quiet hours.** While you are snoozed or inside quiet hours, no warning is sent *and* none is recorded, so a threshold you crossed in that time is announced once it ends, provided your usage is still over it and a Claude Code statusline refresh happens after that.
 
 ### Per-Event Settings
 

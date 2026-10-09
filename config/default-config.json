@@ -31,6 +31,10 @@
     "enabled": false,
     "asked": false
   },
+  "usageAlerts": {
+    "enabled": true,
+    "thresholds": [70, 85, 95]
+  },
   "quietHours": {
     "enabled": false,
     "from": "22:00",

@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 ## [Unreleased]
 
 ### Added
+- **Usage-limit warnings for Claude Code.** anotifier now warns you before a
+  Claude Code usage limit stops you: one notification when the 5-hour or the
+  weekly window crosses 70%, 85% and 95% (priority default, high, urgent),
+  naming the chat and when the window resets. Limits are account-wide, so each
+  threshold warns once per window across all your chats. It needs a Claude.ai
+  Pro/Max plan (Claude Code only reports usage to those) and goes to your
+  toast, ntfy and webhook channels, held back by snooze and quiet hours.
+  `anotifier setup` routes Claude Code's statusline through
+  `src/statusline.mjs`, wrapping your own statusline if you have one, and
+  `anotifier uninstall` restores it exactly. Configure or turn it off with the
+  new `usageAlerts` block (`enabled`, `thresholds`); `anotifier status` shows
+  it. Plugin-only installs wire the statusline by hand (see the README).
 - **Where to get help.** `anotifier --help` prints the anotifier Discord
   invite, and `anotifier doctor` points there whenever a check warns or fails
   (`doctor --json` is unchanged). The README has a Community section.
