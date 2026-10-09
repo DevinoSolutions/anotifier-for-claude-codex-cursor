@@ -8,6 +8,8 @@ import {
   evaluateUsage, effectiveThresholds, formatReset, chatLabel,
   buildUsageNotification, checkUsage, sendUsageNotifications, DEFAULT_THRESHOLDS,
 } from '../src/usage-alert.mjs';
+import { useFakeHome } from './fake-home.mjs';
+useFakeHome();
 
 const NOW = Date.UTC(2026, 9, 9, 12, 0, 0); // fixed clock
 const nowSec = NOW / 1000;

@@ -9,6 +9,8 @@ import assert from 'node:assert/strict';
 import os from 'node:os';
 import { esc } from '../src/platforms/macos.mjs';
 import { URGENCY_MAP, buildNotifySendArgs } from '../src/platforms/linux.mjs';
+import { useFakeHome } from './fake-home.mjs';
+useFakeHome();
 
 const platform = os.platform();
 

@@ -7,6 +7,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { encodeWrapped, decodeWrapped, defaultLine, tapUsage, wrapShell, WRAP_FLAG } from '../src/statusline.mjs';
+import { useFakeHome } from './fake-home.mjs';
+useFakeHome();
 
 const SCRIPT = fileURLToPath(new URL('../src/statusline.mjs', import.meta.url));
 const RL = { five_hour: { used_percentage: 42.4, resets_at: 1 }, seven_day: { used_percentage: 12.6 } };
