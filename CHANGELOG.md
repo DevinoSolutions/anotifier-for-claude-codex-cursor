@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-10-09
+
 ### Added
 - **Context warning for Claude Code.** anotifier now sends one notification
   per chat when its context passes 85% of the auto-compact window, so you can
