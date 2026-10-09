@@ -98,6 +98,16 @@ describe('evaluateUsage', () => {
     assert.equal(state.five_hour.level, 0);
   });
 
+  it('a far-future resets_at (milliseconds, garbage) never poisons the stored window', () => {
+    const bad = evaluateUsage(payload(win(10, (nowSec + 3600) * 1000)), {}, { now: NOW });
+    assert.equal(bad.state.five_hour.resetsAt, null);
+    const good = evaluateUsage(payload(win(72, nowSec + 3600)), bad.state, { now: NOW + 1000 });
+    assert.deepEqual(good.alerts.map((a) => a.threshold), [70]);
+    // A poisoned value already on disk is dropped too.
+    const healed = evaluateUsage(payload(win(72, nowSec + 3600)), { five_hour: { resetsAt: (nowSec + 3600) * 1000, level: 0 } }, { now: NOW });
+    assert.deepEqual(healed.alerts.map((a) => a.threshold), [70]);
+  });
+
   it('a resets_at that moves later by more than 10 minutes is a new window', () => {
     const first = evaluateUsage(payload(win(80, nowSec + 3600)), {}, { now: NOW });
     const next = evaluateUsage(payload(win(75, nowSec + 3600 + 11 * 60)), first.state, { now: NOW });

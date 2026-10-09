@@ -28,8 +28,8 @@ export const DEFAULT_THRESHOLDS = [70, 85, 95];
 
 // The windows Claude Code reports, in the order they are checked.
 export const WINDOWS = {
-  five_hour: { label: '5-hour', short: '5h' },
-  seven_day: { label: 'weekly', short: '7d' },
+  five_hour: { label: '5-hour', short: '5h', maxAheadSec: 6 * 3600 },
+  seven_day: { label: 'weekly', short: '7d', maxAheadSec: 8 * 86400 },
 };
 
 export const STATE_PATH = path.join(getConfigDir(), '.usage-alerts.json');
@@ -64,7 +64,12 @@ export function evaluateUsage(payload, state, { thresholds = DEFAULT_THRESHOLDS,
     const entry = limits[window];
     const used = entry?.used_percentage;
     if (typeof used !== 'number' || !Number.isFinite(used)) continue;
-    const resetsAt = typeof entry.resets_at === 'number' && Number.isFinite(entry.resets_at) ? entry.resets_at : null;
+    // A reset time further out than the window can be long (milliseconds, or
+    // garbage) is no reset time at all: stored, it would make every correct
+    // later payload look like an older window and silence the warnings.
+    const horizon = nowSec + WINDOWS[window].maxAheadSec;
+    const rawReset = entry.resets_at;
+    const resetsAt = typeof rawReset === 'number' && Number.isFinite(rawReset) && rawReset <= horizon ? rawReset : null;
 
     // A payload whose own reset time has passed describes a window that is
     // already over: a chat with no API response since the reset still shows
@@ -73,6 +78,7 @@ export function evaluateUsage(payload, state, { thresholds = DEFAULT_THRESHOLDS,
     if (resetsAt !== null && resetsAt <= nowSec) continue;
 
     let stored = next[window];
+    if (stored && typeof stored.resetsAt === 'number' && stored.resetsAt > horizon) stored = undefined;
     const storedAt = stored && typeof stored.resetsAt === 'number' ? stored.resetsAt : null;
     // An older window's payload, from a chat that has not caught up with a
     // reset another chat already saw. Ignore it for the same reason.
