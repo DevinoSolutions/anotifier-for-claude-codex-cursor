@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-10-09
+
 ### Added
 - **Usage-limit warnings for Claude Code.** anotifier now warns you before a
   Claude Code usage limit stops you: one notification when the 5-hour or the
