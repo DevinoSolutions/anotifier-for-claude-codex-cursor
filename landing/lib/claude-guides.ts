@@ -454,4 +454,204 @@ export const CLAUDE_GUIDES: Guide[] = [
       },
     ],
   },
+  {
+    slug: "claude-code-usage-limit-notifications",
+    updated: "2026-10-09",
+    kind: "topic",
+    agentSlug: "claude-code",
+    name: "Claude Code usage limits",
+    icon: "/assets/icons/claude.png",
+    title: "Claude Code Usage Limit Warning: Get Notified at 70%",
+    description:
+      "Claude Code gives its statusline your 5-hour and weekly usage. Read rate_limits there to alert at 70/85/95%, or run npx anotifier setup (1.5.0+). Pro and Max.",
+    h1: "Get a warning before Claude Code hits its usage limit",
+    intro:
+      "Claude Code has no setting that warns you before a usage limit. It does pass your 5-hour and weekly usage to your `statusLine` command as `rate_limits` on stdin, and hooks never receive those numbers. So a warning has to live in a statusline script: read `rate_limits.five_hour.used_percentage` and `resets_at`, and send a notification when the percentage crosses a line. Below is a script you can write yourself, then how anotifier 1.5.0 and later does the same at 70%, 85% and 95% for both windows. It works on Claude.ai Pro and Max plans only.",
+    sections: [
+      {
+        id: "diy",
+        title: "DIY: a statusline script that reads rate_limits",
+        blocks: [
+          {
+            kind: "p",
+            text: "Claude Code runs your `statusLine` command and writes a JSON session object to its stdin. For subscribers it includes a `rate_limits` object with two rolling windows. Each has `used_percentage` (0 to 100) and `resets_at` (Unix epoch seconds):",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              rate_limits: {
+                five_hour: { used_percentage: 72.4, resets_at: 1738425600 },
+                seven_day: { used_percentage: 41.2, resets_at: 1738857600 },
+              },
+            }),
+          },
+          {
+            kind: "ul",
+            items: [
+              "`rate_limits` is present only for Claude.ai Pro and Max subscribers, and only after the first API response of a session. Each window can be missing, so code must cope with absence.",
+              "Claude Code runs the statusline again after each assistant message, after `/compact`, and when a window reaches its `resets_at`. A chat you leave idle does not refresh.",
+              "A new run cancels one that is still going, so keep the script fast.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "This Node script prints a short status line and sends an [ntfy](https://ntfy.sh) push when the 5-hour window first crosses 70%, 85% and 95%. It remembers the highest line it has already announced in `~/.claude/.usage-alert.json`, and starts over when `resets_at` moves to a later window. Save it as `~/.claude/usage-line.mjs`:",
+          },
+          {
+            kind: "code",
+            lang: "js",
+            code: `import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const input = JSON.parse(fs.readFileSync(0, "utf8"));
+const model = input.model?.display_name ?? "Claude";
+const win = input.rate_limits?.five_hour;
+if (typeof win?.used_percentage !== "number") {
+  console.log(\`[\${model}]\`);
+  process.exit(0);
+}
+const pct = Math.round(win.used_percentage);
+console.log(\`[\${model}] 5h: \${pct}%\`);
+
+const resetsAt = win.resets_at ?? 0;
+const level = [70, 85, 95].filter((t) => pct >= t).pop() ?? 0;
+const file = path.join(os.homedir(), ".claude", ".usage-alert.json");
+let seen = { resetsAt: 0, level: 0 };
+try {
+  seen = JSON.parse(fs.readFileSync(file, "utf8"));
+} catch {}
+if (resetsAt > seen.resetsAt + 600) seen.level = 0; // a new window began
+if (level > seen.level) {
+  fs.writeFileSync(file, JSON.stringify({ resetsAt, level }));
+  const at = new Date(resetsAt * 1000).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  await fetch("https://ntfy.sh/your-secret-topic", {
+    method: "POST",
+    headers: {
+      Title: \`Claude Code 5-hour limit at \${pct}%\`,
+      Priority: level >= 95 ? "urgent" : level >= 85 ? "high" : "default",
+    },
+    body: \`Resets at \${at}\`,
+    signal: AbortSignal.timeout(3000),
+  }).catch(() => {});
+}`,
+          },
+          {
+            kind: "p",
+            text: "Then point Claude Code at it in `~/.claude/settings.json`:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              statusLine: {
+                type: "command",
+                command: "node ~/.claude/usage-line.mjs",
+              },
+            }),
+          },
+          {
+            kind: "note",
+            text: "Claude Code runs one statusline command, so this replaces any statusline you already have. Anyone who knows a public ntfy.sh topic can read it, so choose a private name and keep the text generic. The script covers only the 5-hour window; add the same logic for `seven_day` to cover the weekly one. The [ntfy guide](/guides/ntfy-phone-notifications/) covers private topics and self-hosting.",
+          },
+        ],
+      },
+      {
+        id: "anotifier",
+        title: "With anotifier 1.5.0 and later",
+        blocks: [
+          { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
+          {
+            kind: "p",
+            text: "anotifier watches the 5-hour and weekly windows and sends one notification as each crosses 70%, 85% and 95%. The title names the window and the percentage, such as `Claude Code · 5-hour limit at 72%`. The body names the chat, the threshold and the reset time, for example `my-app [1a2b3c4d] crossed 70% of the 5-hour usage limit. Resets 14:30 (in 2h 10m).` The chat is the session name if it has one, otherwise the project folder, plus the first 8 characters of the session id so two chats in one folder stay apart.",
+          },
+          {
+            kind: "table",
+            head: ["Threshold", "Priority", "ntfy tag"],
+            rows: [
+              ["70%", "default", "`hourglass_flowing_sand`"],
+              ["85%", "high", "`warning`"],
+              ["95%", "urgent", "`rotating_light`"],
+            ],
+          },
+          {
+            kind: "ul",
+            items: [
+              "**One warning per threshold, across all your chats.** Usage belongs to your account, not to a chat. The first chat to see a crossing sends it and the others stay quiet. A jump from 60% straight to 96% sends only the 95% warning. When a window resets, its warnings start over.",
+              "**It reaches the channels you have on.** Desktop toast, ntfy push and webhook. It never rings the terminal bell, because a statusline has no terminal of its own.",
+              "**Snooze and quiet hours hold warnings back.** While either is active no warning is sent and none is recorded, so a threshold you crossed in that time is announced after it ends, provided you are still over it and a statusline refresh happens.",
+              "**Claude.ai Pro and Max only.** On API-key billing Claude Code sends no `rate_limits`, so there is nothing to warn about and nothing is sent.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "Because only the statusline sees usage, setup points the Claude Code `statusLine` at anotifier's `statusline.mjs`. If you already have a statusline command, setup wraps it: your command still runs with the same input and its output is still the line you see, and `npx anotifier uninstall` puts your original back exactly. With no statusline of your own, anotifier prints a short line such as `Opus · 5h 42% · 7d 12%`. A `statusLine` that is not a `command` is left alone. `anotifier status` shows whether it is wired.",
+          },
+          {
+            kind: "p",
+            text: "Change the thresholds or turn the feature off in `~/.anotifier/config.json`. This is the default:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              usageAlerts: { enabled: true, thresholds: [70, 85, 95] },
+            }),
+          },
+          {
+            kind: "p",
+            text: "Thresholds are percentages above 0 and at most 100, so `[50, 80, 100]` also works. An invalid list is reported and the default applies. Set `enabled` to `false` to stop the checks; the statusline keeps working.",
+          },
+          {
+            kind: "note",
+            text: 'Installed as a Claude Code plugin, or skipped setup? Nothing wires the statusline for you. Add it by hand to `~/.claude/settings.json`, pointing at `src/statusline.mjs` inside the installed package (`npm root -g` shows where): `"statusLine": { "type": "command", "command": "node \\"/path/to/anotifier/src/statusline.mjs\\"" }`. To keep a statusline you already have, append `--wrap-b64` and the base64 of your command. `status` and `uninstall` only recognize a hand-wired command whose path contains `anotifier`.',
+          },
+        ],
+      },
+      {
+        id: "related",
+        title: "Related: when the limit is already hit",
+        blocks: [
+          {
+            kind: "p",
+            text: "A warning comes before the limit. Claude Code sends its own notification types around it too, such as `quota_auto_resume_stale` when a limit reset while your computer slept and Claude waits for Enter (v2.1.234+). anotifier turns that one into a needs-input alert. The [permission notifications guide](/guides/claude-code-permission-notifications/) lists every type.",
+          },
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Can Claude Code warn me before I hit my usage limit?",
+        a: "Not with a setting, but it passes your 5-hour and weekly usage (rate_limits.five_hour.used_percentage and resets_at) to your statusLine command. A script there can send a notification when you cross a percentage. anotifier 1.5.0 and later does this for you at 70%, 85% and 95%.",
+      },
+      {
+        q: "Why can't a hook warn me about usage?",
+        a: "Claude Code only gives the usage numbers to the statusline command, never to hooks, so the warning has to be triggered from the statusline.",
+      },
+      {
+        q: "Does this work on an API key or the free plan?",
+        a: "No. Claude Code reports rate_limits only for Claude.ai Pro and Max subscribers, so with API-key billing there is nothing to warn about and anotifier sends nothing.",
+      },
+      {
+        q: "Will I get a warning from every chat I have open?",
+        a: "No. Usage is account-wide, so anotifier warns once per threshold per window across all chats on the machine. The first chat to see the crossing sends it, and the notification names that chat.",
+      },
+      {
+        q: "Will it replace my existing statusline?",
+        a: "No. If you already have a statusline command, setup wraps it: your command still runs with the same input and its output is still shown. npx anotifier uninstall restores the original command exactly.",
+      },
+      {
+        q: "Can I change the thresholds or turn the warnings off?",
+        a: 'Yes. Set usageAlerts.thresholds in ~/.anotifier/config.json to your own percentages (above 0, at most 100), or usageAlerts.enabled to false. The default is { "enabled": true, "thresholds": [70, 85, 95] }.',
+      },
+      {
+        q: "Does a warning come through while I am snoozed?",
+        a: "No. While you are snoozed or inside quiet hours no warning is sent and none is recorded, so a threshold you crossed in that time is announced once it ends, if you are still over it and the statusline refreshes.",
+      },
+    ],
+  },
 ];

@@ -11,7 +11,7 @@ export const SUPPORT_URL = "https://github.com/sponsors/DevinoSolutions";
     the CLI's src/support.mjs repeats it (tests/community.test.mjs pins both). */
 export const COMMUNITY_URL = "https://discord.gg/CWDxfEJGcS";
 /** Latest published npm version. Bump with every release. */
-export const VERSION = "1.4.0";
+export const VERSION = "1.5.0";
 /** ISO date of the newest content edit anywhere on the site (llms-full.txt). */
 export const CONTENT_UPDATED = "2026-10-09";
 /** Last significant content edit of each one-off page (YYYY-MM-DD): its
@@ -20,7 +20,7 @@ export const CONTENT_UPDATED = "2026-10-09";
     on every URL tells Google the lastmod values mean nothing. */
 export const PAGE_UPDATED = {
   home: "2026-09-26",
-  docs: "2026-09-27",
+  docs: "2026-10-09",
   compare: "2026-09-25",
 } as const;
 export const INSTALL_CMD = "npx anotifier@latest setup";
