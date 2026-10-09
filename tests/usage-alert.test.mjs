@@ -63,6 +63,41 @@ describe('evaluateUsage', () => {
     assert.deepEqual(next.alerts.map((a) => a.threshold), [70]);
   });
 
+  it('a stale payload for a window that already reset never re-alerts', () => {
+    // A chat with no API response since the reset keeps sending the old numbers.
+    const first = evaluateUsage(payload(win(88, nowSec + 60)), {}, { now: NOW });
+    assert.deepEqual(first.alerts.map((a) => a.threshold), [85]);
+    let state = first.state;
+    for (let i = 1; i <= 5; i++) {
+      const r = evaluateUsage(payload(win(88, nowSec + 60)), state, { now: NOW + (60 + i * 10) * 1000 });
+      assert.deepEqual(r.alerts, [], `refresh ${i} after the reset`);
+      assert.deepEqual(r.state, state, 'a dead window leaves the state alone');
+      state = r.state;
+    }
+  });
+
+  it('our clock running ahead of the reset time sends nothing for the old payload', () => {
+    const first = evaluateUsage(payload(win(90, nowSec + 30)), {}, { now: NOW });
+    const ahead = evaluateUsage(payload(win(90, nowSec + 30)), first.state, { now: NOW + 120 * 1000 });
+    assert.deepEqual(ahead.alerts, []);
+  });
+
+  it('two chats across a reset: the lagging chat cannot re-announce the old window', () => {
+    const r0 = nowSec + 60;
+    const r1 = nowSec + 5 * 3600;
+    let { state } = evaluateUsage(payload(win(90, r0)), {}, { now: NOW });
+    const after = NOW + 120 * 1000;
+    for (let round = 0; round < 3; round++) {
+      const b = evaluateUsage(payload(win(20, r1)), state, { now: after + round * 1000 }); // caught-up chat
+      assert.deepEqual(b.alerts, []);
+      const a = evaluateUsage(payload(win(90, r0)), b.state, { now: after + round * 1000 + 500 }); // idle chat
+      assert.deepEqual(a.alerts, [], `round ${round}`);
+      state = a.state;
+    }
+    assert.equal(state.five_hour.resetsAt, r1);
+    assert.equal(state.five_hour.level, 0);
+  });
+
   it('a resets_at that moves later by more than 10 minutes is a new window', () => {
     const first = evaluateUsage(payload(win(80, nowSec + 3600)), {}, { now: NOW });
     const next = evaluateUsage(payload(win(75, nowSec + 3600 + 11 * 60)), first.state, { now: NOW });

@@ -36,7 +36,9 @@ export async function sendToast(notification) {
       args.push('-Source', notification.source);
     }
 
-    execFile('pwsh', args, { timeout: TOAST_TIMEOUT_MS }, (err, stdout, stderr) => {
+    // windowsHide: a caller with no console of its own (the detached usage-alert
+    // sender) would otherwise get a visible PowerShell window flashing up.
+    execFile('pwsh', args, { timeout: TOAST_TIMEOUT_MS, windowsHide: true }, (err, stdout, stderr) => {
       if (err) logHookError('toast:windows', err, { stderr: (stderr || '').slice(0, 400) });
       resolve(!err);
     });

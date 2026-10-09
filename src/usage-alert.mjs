@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { getConfigDir, loadConfig } from './config-loader.mjs';
+import { getConfigDir, loadConfigResult } from './config-loader.mjs';
 import { sendNtfy } from './ntfy.mjs';
 import { sendWebhook } from './webhook.mjs';
 import { resolveToastBackend } from './platforms/index.mjs';
@@ -66,15 +66,27 @@ export function evaluateUsage(payload, state, { thresholds = DEFAULT_THRESHOLDS,
     if (typeof used !== 'number' || !Number.isFinite(used)) continue;
     const resetsAt = typeof entry.resets_at === 'number' && Number.isFinite(entry.resets_at) ? entry.resets_at : null;
 
+    // A payload whose own reset time has passed describes a window that is
+    // already over: a chat with no API response since the reset still shows
+    // the old numbers. It must neither alert nor touch the state, or every
+    // refresh of that chat would re-announce a dead window.
+    if (resetsAt !== null && resetsAt <= nowSec) continue;
+
     let stored = next[window];
-    const over = stored && typeof stored.resetsAt === 'number' && (
-      nowSec >= stored.resetsAt ||
-      (resetsAt !== null && resetsAt - stored.resetsAt > NEW_WINDOW_SKEW_SEC)
+    const storedAt = stored && typeof stored.resetsAt === 'number' ? stored.resetsAt : null;
+    // An older window's payload, from a chat that has not caught up with a
+    // reset another chat already saw. Ignore it for the same reason.
+    if (resetsAt !== null && storedAt !== null && resetsAt < storedAt - NEW_WINDOW_SKEW_SEC) continue;
+
+    // A new window: the payload's reset time moved clearly later, or (with no
+    // reset time in the payload) the stored one has passed. Without any reset
+    // time at all, usage falling well under the lowest threshold is the only
+    // sign a new window began.
+    const newWindow = storedAt !== null && (
+      resetsAt !== null ? resetsAt - storedAt > NEW_WINDOW_SKEW_SEC : nowSec >= storedAt
     );
-    // Without any reset time to go on, usage falling well under the lowest
-    // threshold is the only sign a new window began.
-    const drained = stored && stored.resetsAt == null && used < thresholds[0] - 10;
-    if (!stored || typeof stored.level !== 'number' || over || drained) stored = { resetsAt, level: 0 };
+    const drained = stored && storedAt === null && used < thresholds[0] - 10;
+    if (!stored || typeof stored.level !== 'number' || newWindow || drained) stored = { resetsAt, level: 0 };
 
     const crossed = thresholds.filter((t) => used >= t).pop() ?? 0;
     if (crossed > stored.level) {
@@ -170,7 +182,12 @@ function withLock(lockPath, fn) {
   try {
     fs.mkdirSync(path.dirname(lockPath), { recursive: true });
     fd = fs.openSync(lockPath, 'wx');
-  } catch { return null; }
+  } catch (err) {
+    // EEXIST: another chat holds it. Anything else (permissions, a file where
+    // the directory should be) would silence every warning, so say so.
+    if (err?.code !== 'EEXIST') logHookError('usage-alert:lock', err);
+    return null;
+  }
   try {
     return fn();
   } finally {
@@ -212,7 +229,9 @@ export async function sendUsageNotifications(config, notifications, {
     if (config?.ntfy?.enabled && config?.ntfy?.topic) tasks.push(ntfy(config.ntfy, n));
     if (config?.webhook?.enabled && config?.webhook?.url) tasks.push(webhook(config.webhook, n));
   }
-  return Promise.allSettled(tasks);
+  const results = await Promise.allSettled(tasks);
+  for (const r of results) if (r.status === 'rejected') logHookError('usage-alert:send', r.reason);
+  return results;
 }
 
 // A statusline must print and exit fast, and Claude Code cancels a run that is
@@ -230,11 +249,19 @@ export function spawnDelivery(notifications, { spawnImpl = spawn, scriptPath = f
   return child;
 }
 
+// True when this module is the script node was started with. realpath on
+// both sides, so a symlinked install (npm link, pnpm) still runs main().
+export function isEntry(argv1, moduleUrl) {
+  if (!argv1) return false;
+  const real = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+  return real(argv1) === real(fileURLToPath(moduleUrl));
+}
+
 async function deliverMain(arg) {
   try {
     const notifications = JSON.parse(Buffer.from(arg, 'base64').toString('utf8'));
     if (Array.isArray(notifications) && notifications.length) {
-      await sendUsageNotifications(loadConfig(), notifications);
+      await sendUsageNotifications(loadConfigResult().config, notifications);
     }
   } catch (err) {
     logHookError('usage-alert:deliver', err);
@@ -243,7 +270,7 @@ async function deliverMain(arg) {
   process.exit(0);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isEntry(process.argv[1], import.meta.url)) {
   const i = process.argv.indexOf('--deliver');
   if (i !== -1 && process.argv[i + 1]) deliverMain(process.argv[i + 1]);
 }

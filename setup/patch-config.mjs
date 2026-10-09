@@ -142,9 +142,13 @@ export function patchClaude(claudeDir, notifyPath, backupDir) {
 // wrapped; any other shape is left alone.
 const STATUSLINE_WRAP_RE = /\s--wrap-b64\s+([A-Za-z0-9+/=]+)/;
 
+// Exactly the shape statuslineCommand writes: node "<...>/src/statusline.mjs",
+// optionally with our --wrap-b64. A user's own statusline.mjs that merely
+// lives under a folder named anotifier is not ours and must never be replaced.
+const OUR_STATUSLINE_RE = /^node "[^"]*(?:anotifier|agent-notify)[^"]*[\\/]src[\\/]statusline\.mjs"(?: --wrap-b64 [A-Za-z0-9+/=]+)?$/;
+
 export function isOurStatusline(command) {
-  return typeof command === 'string' && command.includes('statusline.mjs') &&
-    (command.includes('anotifier') || command.includes('agent-notify'));
+  return typeof command === 'string' && OUR_STATUSLINE_RE.test(command.trim());
 }
 
 // The user's original statusline command inside one of ours, or null.

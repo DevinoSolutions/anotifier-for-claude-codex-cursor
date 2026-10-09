@@ -107,7 +107,7 @@ function validateUserConfig(user) {
   if (usage && typeof usage === 'object' && !Array.isArray(usage) && usage.thresholds !== undefined) {
     const t = usage.thresholds;
     if (!Array.isArray(t) || !t.length || !t.every((n) => typeof n === 'number' && n > 0 && n <= 100)) {
-      issues.push(`"usageAlerts.thresholds" must be a list of percentages between 1 and 100, got ${JSON.stringify(t)}`);
+      issues.push(`"usageAlerts.thresholds" must be a list of percentages above 0 and at most 100, got ${JSON.stringify(t)}`);
       delete usage.thresholds;
     }
   }

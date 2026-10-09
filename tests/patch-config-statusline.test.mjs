@@ -21,6 +21,11 @@ describe('statusline helpers', () => {
     assert.equal(statuslineCommand(SL, null), `node "${SL}"`);
     assert.equal(wrappedStatusline(`node "${SL}"`), null);
   });
+  it('isOurStatusline rejects a user statusline that only lives under an anotifier-named folder', () => {
+    assert.equal(isOurStatusline('node C:/dev/agent-notify/statusline.mjs'), false);
+    assert.equal(isOurStatusline('node "/home/u/anotifier-tools/statusline.mjs"'), false);
+    assert.equal(isOurStatusline(`FOO=1 node "${SL}"`), false);
+  });
   it('isOurStatusline needs statusline.mjs AND an anotifier path', () => {
     assert.equal(isOurStatusline(`node "${SL}"`), true);
     assert.equal(isOurStatusline('node "/x/agent-notify/src/statusline.mjs"'), true);

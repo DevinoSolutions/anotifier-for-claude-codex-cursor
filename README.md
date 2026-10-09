@@ -377,7 +377,7 @@ Configure it in `~/.anotifier/config.json`; this is the default:
 }
 ```
 
-`thresholds` is a list of percentages from 1 to 100 (an invalid list is reported and the default applies). Set `"enabled": false` to turn the warnings off. The statusline keeps working, it just stops checking usage.
+`thresholds` is a list of percentages above 0 and at most 100 (an invalid list is reported and the default applies). Set `"enabled": false` to turn the warnings off. The statusline keeps working, it just stops checking usage.
 
 **Snooze and quiet hours.** While you are snoozed or inside quiet hours, no warning is sent *and* none is recorded, so a threshold you crossed in that time is announced once it ends, provided your usage is still over it and a Claude Code statusline refresh happens after that.
 

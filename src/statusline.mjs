@@ -17,9 +17,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { loadConfig } from './config-loader.mjs';
+import { loadConfigResult } from './config-loader.mjs';
 import { isSuppressed } from './suppress.mjs';
-import { checkUsage, spawnDelivery, WINDOWS } from './usage-alert.mjs';
+import { checkUsage, spawnDelivery, isEntry, WINDOWS } from './usage-alert.mjs';
 import { logHookError } from './error-log.mjs';
 
 export const WRAP_FLAG = '--wrap-b64';
@@ -66,10 +66,16 @@ function readStdin() {
 // shell is the same one Claude Code would use.
 export function wrapShell(platform = process.platform, env = process.env, exists = fs.existsSync) {
   if (platform !== 'win32') return true;
+  // Git for Windows found through PATH (scoop, per-user, another drive) has
+  // git.exe in <root>\cmd or <root>\bin, and bash.exe in <root>\bin.
+  const fromPath = String(env.PATH || env.Path || '').split(';').filter(Boolean)
+    .filter((dir) => exists(path.win32.join(dir, 'git.exe')))
+    .map((dir) => path.win32.join(dir, '..', 'bin', 'bash.exe'));
   const candidates = [
     env.CLAUDE_CODE_GIT_BASH_PATH,
     env.ProgramFiles && path.join(env.ProgramFiles, 'Git', 'bin', 'bash.exe'),
     'C:\\Program Files\\Git\\bin\\bash.exe',
+    ...fromPath,
   ].filter(Boolean);
   return candidates.find((p) => exists(p)) || true;
 }
@@ -93,7 +99,12 @@ function runWrapped(command, input) {
   });
 }
 
-export function tapUsage(raw, { load = loadConfig, suppressed = isSuppressed, check = checkUsage, deliver = spawnDelivery } = {}) {
+// Config problems are NOT logged here: the statusline refreshes constantly,
+// so a typo in config.json would flood errors.log. Hooks and `status` report
+// it already.
+const loadQuietly = () => loadConfigResult().config;
+
+export function tapUsage(raw, { load = loadQuietly, suppressed = isSuppressed, check = checkUsage, deliver = spawnDelivery } = {}) {
   try {
     const payload = JSON.parse(raw);
     if (!payload?.rate_limits) return [];
@@ -126,6 +137,6 @@ async function main() {
   process.stdout.write(defaultLine(payload));
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isEntry(process.argv[1], import.meta.url)) {
   main();
 }
