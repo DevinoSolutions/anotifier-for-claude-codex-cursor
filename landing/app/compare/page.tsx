@@ -184,8 +184,9 @@ export default function ComparePage() {
             </li>
             <li>
               <strong>Voice announcements and quota alerts.</strong> code-notify
-              and agent-notify read completions aloud, and code-notify warns
-              about usage limits. anotifier does neither.
+              and agent-notify read completions aloud; anotifier does not.
+              code-notify warns about usage limits, and so does anotifier, for
+              Claude Code only, from 1.5.0.
             </li>
           </ul>
         </section>

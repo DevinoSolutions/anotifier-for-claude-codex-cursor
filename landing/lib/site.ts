@@ -19,8 +19,8 @@ export const CONTENT_UPDATED = "2026-10-09";
     their own `updated` field. Bump only the page you changed — one shared date
     on every URL tells Google the lastmod values mean nothing. */
 export const PAGE_UPDATED = {
-  home: "2026-09-26",
+  home: "2026-10-09",
   docs: "2026-10-09",
-  compare: "2026-09-25",
+  compare: "2026-10-09",
 } as const;
 export const INSTALL_CMD = "npx anotifier@latest setup";

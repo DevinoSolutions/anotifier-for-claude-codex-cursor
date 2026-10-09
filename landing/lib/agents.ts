@@ -78,7 +78,7 @@ export const AGENTS: Agent[] = [
     h1: { pre: "anotifier for ", em: "Claude Code", post: "." },
     sub: "Claude Code runs for minutes at a time — refactoring, running tests, waiting on a permission prompt you haven't seen. anotifier hooks into Claude Code's native event system and pings you the moment it finishes or needs you.",
     hooksIntro:
-      "Setup adds two entries to Claude Code's own hooks in `~/.claude/settings.json`. There is no extension and no wrapper process: Claude Code runs the hook itself when the event happens.",
+      "Setup adds two hook entries to Claude Code's own `~/.claude/settings.json`, plus a `statusLine` entry that routes the statusline through anotifier (1.5.0 and later). The hooks run inside Claude Code itself, with no wrapper process.",
     hooks: [
       {
         event: "Stop",
@@ -97,7 +97,7 @@ export const AGENTS: Agent[] = [
       {
         id: "setup",
         kicker: "[ WHAT SETUP WRITES ]",
-        title: "Two hooks in ~/.claude/settings.json.",
+        title: "Two hooks and a statusLine in ~/.claude/settings.json.",
         blocks: [
           {
             kind: "p",
@@ -127,6 +127,20 @@ export const AGENTS: Agent[] = [
           {
             kind: "p",
             text: "`Notification` gets an identical entry. The path points at the anotifier package on your machine, which is the npx cache if you ran it with npx. `_managed_by` is how `status` and `uninstall` tell anotifier's entries from your own hooks. Claude Code gives the hook 10 seconds; anotifier sends to every channel in parallel, each with a shorter timeout, and always exits cleanly, so a dead channel never holds Claude up.",
+          },
+          {
+            kind: "p",
+            text: "From 1.5.0, setup also routes the statusline through anotifier, which is how usage-limit warnings work. It adds this `statusLine` entry; the `--wrap-b64` part appears only if you already had a statusline, and carries your old command, base64-encoded, so it keeps printing:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: `{
+  "statusLine": {
+    "type": "command",
+    "command": "node \\"…/anotifier/src/statusline.mjs\\" --wrap-b64 <your old command, base64>"
+  }
+}`,
           },
           {
             kind: "p",
@@ -217,7 +231,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "codex",
-    updated: "2026-09-27",
+    updated: "2026-10-09",
     name: "Codex CLI",
     title: "Codex CLI Notifier — Desktop, Phone & Approval Alerts",
     description:
@@ -339,7 +353,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "cursor",
-    updated: "2026-09-27",
+    updated: "2026-10-09",
     name: "Cursor",
     title: "Cursor Agent Notifier — Desktop, Phone & Slack Alerts",
     description:
@@ -660,7 +674,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "vscode",
-    updated: "2026-09-27",
+    updated: "2026-10-09",
     name: "VS Code",
     title: "VS Code AI Agent Notifier — Claude Code & Cursor Alerts",
     description:

@@ -489,14 +489,14 @@ export const CLAUDE_GUIDES: Guide[] = [
           {
             kind: "ul",
             items: [
-              "`rate_limits` is present only for Claude.ai Pro and Max subscribers, and only after the first API response of a session. Each window can be missing, so code must cope with absence.",
-              "Claude Code runs the statusline again after each assistant message, after `/compact`, and when a window reaches its `resets_at`. A chat you leave idle does not refresh.",
+              "`rate_limits` is present only for Claude.ai Pro and Max subscribers, and only after the first API response of a session. Each window can be missing, so code must cope with absence (behind a Claude apps gateway you get `spend_limit` instead; anotifier doesn't watch it).",
+              "Claude Code runs the statusline again after each assistant message, after `/compact`, at session start, and on a few other events. A chat you leave idle does not refresh unless you set `refreshInterval` (seconds) on `statusLine`, which re-runs it on a timer so idle chats are checked too.",
               "A new run cancels one that is still going, so keep the script fast.",
             ],
           },
           {
             kind: "p",
-            text: "This Node script prints a short status line and sends an [ntfy](https://ntfy.sh) push when the 5-hour window first crosses 70%, 85% and 95%. It remembers the highest line it has already announced in `~/.claude/.usage-alert.json`, and starts over when `resets_at` moves to a later window. Save it as `~/.claude/usage-line.mjs`:",
+            text: "This Node script prints a short status line and sends an [ntfy](https://ntfy.sh) push when the 5-hour window first crosses 70%, 85% and 95%. It remembers the highest line it has already announced in `~/.claude/.usage-alert.json`, and starts over when `resets_at` moves to a later window. It prints the line first, sends next, and records the line only after the send succeeds, because Claude Code cancels a run that is still going when a new update arrives, and a cancel after the state was written would lose that warning for good. Save it as `~/.claude/usage-line.mjs`:",
           },
           {
             kind: "code",
@@ -509,35 +509,36 @@ const input = JSON.parse(fs.readFileSync(0, "utf8"));
 const model = input.model?.display_name ?? "Claude";
 const win = input.rate_limits?.five_hour;
 if (typeof win?.used_percentage !== "number") {
-  console.log(\`[\${model}]\`);
-  process.exit(0);
-}
-const pct = Math.round(win.used_percentage);
-console.log(\`[\${model}] 5h: \${pct}%\`);
+  process.stdout.write(\`[\${model}]\\n\`);
+} else {
+  const pct = Math.round(win.used_percentage);
+  process.stdout.write(\`[\${model}] 5h: \${pct}%\\n\`); // print first
 
-const resetsAt = win.resets_at ?? 0;
-const level = [70, 85, 95].filter((t) => pct >= t).pop() ?? 0;
-const file = path.join(os.homedir(), ".claude", ".usage-alert.json");
-let seen = { resetsAt: 0, level: 0 };
-try {
-  seen = JSON.parse(fs.readFileSync(file, "utf8"));
-} catch {}
-if (resetsAt > seen.resetsAt + 600) seen.level = 0; // a new window began
-if (level > seen.level) {
-  fs.writeFileSync(file, JSON.stringify({ resetsAt, level }));
-  const at = new Date(resetsAt * 1000).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  await fetch("https://ntfy.sh/your-secret-topic", {
-    method: "POST",
-    headers: {
-      Title: \`Claude Code 5-hour limit at \${pct}%\`,
-      Priority: level >= 95 ? "urgent" : level >= 85 ? "high" : "default",
-    },
-    body: \`Resets at \${at}\`,
-    signal: AbortSignal.timeout(3000),
-  }).catch(() => {});
+  const resetsAt = win.resets_at ?? 0;
+  const level = [70, 85, 95].filter((t) => pct >= t).pop() ?? 0;
+  const file = path.join(os.homedir(), ".claude", ".usage-alert.json");
+  let seen = { resetsAt: 0, level: 0 };
+  try {
+    seen = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {}
+  if (resetsAt > seen.resetsAt + 600) seen.level = 0; // a new window began
+  if (level > seen.level) {
+    const at = new Date(resetsAt * 1000).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const res = await fetch("https://ntfy.sh/your-secret-topic", {
+      method: "POST",
+      headers: {
+        Title: \`Claude Code 5-hour limit at \${pct}%\`,
+        Priority: level >= 95 ? "urgent" : level >= 85 ? "high" : "default",
+      },
+      body: \`Resets at \${at}\`,
+      signal: AbortSignal.timeout(3000),
+    }).catch(() => null);
+    // Record it only after a successful send, so a cancelled run retries.
+    if (res?.ok) fs.writeFileSync(file, JSON.stringify({ resetsAt, level }));
+  }
 }`,
           },
           {
@@ -567,7 +568,7 @@ if (level > seen.level) {
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: "anotifier watches the 5-hour and weekly windows and sends one notification as each crosses 70%, 85% and 95%. The title names the window and the percentage, such as `Claude Code · 5-hour limit at 72%`. The body names the chat, the threshold and the reset time, for example `my-app [1a2b3c4d] crossed 70% of the 5-hour usage limit. Resets 14:30 (in 2h 10m).` The chat is the session name if it has one, otherwise the project folder, plus the first 8 characters of the session id so two chats in one folder stay apart.",
+            text: "anotifier watches the 5-hour and weekly windows and sends one notification as each crosses 70%, 85% and 95%. The title names the window and the percentage, such as `Claude Code · 5-hour limit at 72%`. The body names the chat, the threshold and the reset time, for example `my-app [1a2b3c4d] crossed 70% of the 5-hour usage limit. Resets 14:30 (in 2h 10m).` The chat is `name (project) [first 8 of session id]` when the session has a name that differs from the project folder, and otherwise `project [id]`, so two chats in one folder stay apart.",
           },
           {
             kind: "table",
@@ -638,7 +639,7 @@ if (level > seen.level) {
       },
       {
         q: "Will I get a warning from every chat I have open?",
-        a: "No. Usage is account-wide, so anotifier warns once per threshold per window across all chats on the machine. The first chat to see the crossing sends it, and the notification names that chat.",
+        a: "No. Usage is account-wide, so anotifier warns once per threshold per window across all chats on the machine. The first chat to see the crossing sends it, and the notification names that chat, as `name (project) [id]` when the session has a different name from its folder, otherwise `project [id]`.",
       },
       {
         q: "Will it replace my existing statusline?",

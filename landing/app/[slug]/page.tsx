@@ -293,8 +293,9 @@ export default async function AgentPage({
             <p>
               <code>test</code> sends straight to your channels without going
               through {agent.name}, so it proves the channels work.{" "}
-              <code>uninstall</code> removes only the entries anotifier added,
-              and setup keeps a copy of every file it changes in{" "}
+              <code>uninstall</code> removes only the entries anotifier added
+              and restores your statusline (1.5.0 and later), and setup keeps a
+              copy of every file it changes in{" "}
               <code>~/.anotifier/backups/</code>.
             </p>
           </div>

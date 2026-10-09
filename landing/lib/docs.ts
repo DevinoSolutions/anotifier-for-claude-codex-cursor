@@ -742,7 +742,7 @@ export const DOCS: DocSection[] = [
   {
     id: "uninstall",
     title: "How do I uninstall anotifier?",
-    lead: "Run anotifier uninstall. It removes only the hooks anotifier manages and leaves your own hooks and its backups in place.",
+    lead: "Run anotifier uninstall. It removes only the hooks anotifier manages, restores your statusline (1.5.0 and later), and leaves your own hooks and its backups in place.",
     blocks: [
       {
         kind: "code",
