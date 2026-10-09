@@ -38,6 +38,10 @@ const seoLinks = [
     label: "Gemini CLI notifications guide",
   },
   {
+    href: "/guides/antigravity-cli-notifications/",
+    label: "Antigravity CLI notifications guide",
+  },
+  {
     href: "/guides/claude-code-permission-notifications/",
     label: "Claude Code permission alerts",
   },
@@ -50,6 +54,7 @@ const seoLinks = [
     label: "Codex approval ding",
   },
   { href: "/guides/windows-wsl-notifications/", label: "Windows & WSL" },
+  { href: "/guides/wsl-notify-send/", label: "wsl-notify-send (WSL toast)" },
   { href: "/guides/macos-linux-notifications/", label: "macOS & Linux" },
   { href: "/guides/agent-hooks-explained/", label: "agent hooks explained" },
   {
@@ -61,6 +66,7 @@ const seoLinks = [
   { href: "/codex/", label: "Codex CLI notifications" },
   { href: "/cursor/", label: "Cursor notifications" },
   { href: "/gemini-cli/", label: "Gemini CLI notifications" },
+  { href: "/antigravity-cli/", label: "Antigravity CLI notifications" },
   { href: "/vscode/", label: "VS Code agent alerts" },
   { href: "/slack/", label: "Slack notifications" },
   { href: "/discord/", label: "Discord notifications" },

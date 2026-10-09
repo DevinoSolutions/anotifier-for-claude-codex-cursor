@@ -3,6 +3,7 @@ import { CLAUDE_GUIDES } from "./claude-guides";
 import { ANTIGRAVITY_GUIDES } from "./antigravity-guides";
 import { CODEX_GUIDES } from "./codex-guides";
 import { TOPIC_GUIDES } from "./topic-guides";
+import { WSL_GUIDES } from "./wsl-guides";
 
 /**
  * Long-form "how do I get notified when X finishes" guides: one per agent,
@@ -516,6 +517,7 @@ export const GUIDES: Guide[] = [
   ...CODEX_GUIDES,
   ...ANTIGRAVITY_GUIDES,
   ...TOPIC_GUIDES,
+  ...WSL_GUIDES,
 ];
 
 export function getGuide(slug: string): Guide | undefined {

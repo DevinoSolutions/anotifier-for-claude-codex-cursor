@@ -31,6 +31,7 @@
 ## Platform and troubleshooting guides
 
 - [Windows and WSL](https://anotifier.io/guides/windows-wsl-notifications/): PowerShell 7 + BurntToast toasts, click-to-focus, WSL interop toasts
+- [wsl-notify-send](https://anotifier.io/guides/wsl-notify-send/): Windows toasts from WSL with wsl-notify-send.exe or plain powershell.exe, wired to Claude Code and Codex
 - [macOS and Linux](https://anotifier.io/guides/macos-linux-notifications/): osascript and Notification Center permissions, notify-send
 - [Agent hooks explained](https://anotifier.io/guides/agent-hooks-explained/): which hook each agent fires, where it is configured, what setup writes
 - [Notifications not working](https://anotifier.io/guides/notifications-not-working/): status, test and doctor, common causes and fixes
