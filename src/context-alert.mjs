@@ -20,19 +20,22 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { getConfigDir } from './config-loader.mjs';
-import { chatLabel, readState as readJson, writeState, withLock } from './usage-alert.mjs';
+import { chatLabel, writeState, withLock } from './usage-alert.mjs';
 import { logHookError } from './error-log.mjs';
 
 export const DEFAULT_CONTEXT_THRESHOLD = 85;
-// What Claude Code documents for CLAUDE_CODE_AUTO_COMPACT_WINDOW.
-export const MIN_ENV_WINDOW = 100000;
-export const MAX_ENV_WINDOW = 1000000;
-// Warned sessions older than this are forgotten on the next write.
+// What Claude Code documents for CLAUDE_CODE_AUTO_COMPACT_WINDOW; the same
+// bounds are applied to the autoCompactWindow setting.
+export const MIN_WINDOW = 100000;
+export const MAX_WINDOW = 1000000;
+// Warned sessions older than this are forgotten the next time one is recorded.
 export const STATE_TTL_MS = 14 * 24 * 3600 * 1000;
 
 export const contextStatePath = () => path.join(getConfigDir(), '.context-alerts.json');
 
 const positive = (n) => typeof n === 'number' && Number.isFinite(n) && n > 0;
+const clampWindow = (n) => Math.min(MAX_WINDOW, Math.max(MIN_WINDOW, n));
+const isTruthyEnv = (v) => /^(1|true|yes|on)$/i.test(String(v ?? '').trim());
 
 // The configured threshold when it is a number in (0, 100], else the default.
 export function effectiveContextThreshold(config) {
@@ -40,60 +43,115 @@ export function effectiveContextThreshold(config) {
   return typeof t === 'number' && t > 0 && t <= 100 ? t : DEFAULT_CONTEXT_THRESHOLD;
 }
 
-// `autoCompactWindow` from ~/.claude/settings.local.json, then settings.json
-// (where /autocompact <n> stores it). A file that is missing, unreadable or
-// not JSON, or a value that is not a positive number, is skipped silently.
-function settingsWindow(home, fsImpl) {
-  for (const name of ['settings.local.json', 'settings.json']) {
+// The settings files that can define autoCompactWindow / autoCompactEnabled,
+// parsed, in precedence order (first hit wins):
+//   <project_dir>/.claude/settings.local.json
+//   <project_dir>/.claude/settings.json
+//   <CLAUDE_CONFIG_DIR or ~/.claude>/settings.json
+// (~/.claude/settings.local.json is not a Claude Code user scope.) A file that
+// is missing, unreadable or not a JSON object is skipped silently. Managed
+// settings and the --autocompact flag never reach a statusline, so they are
+// invisible here.
+function loadSettings(payload, { env, home, fsImpl }) {
+  const projectDir = payload?.workspace?.project_dir;
+  const userDir = typeof env?.CLAUDE_CONFIG_DIR === 'string' && env.CLAUDE_CONFIG_DIR.trim()
+    ? env.CLAUDE_CONFIG_DIR
+    : path.join(home, '.claude');
+  const files = [
+    ...(typeof projectDir === 'string' && projectDir
+      ? [path.join(projectDir, '.claude', 'settings.local.json'), path.join(projectDir, '.claude', 'settings.json')]
+      : []),
+    path.join(userDir, 'settings.json'),
+  ];
+  const out = [];
+  for (const file of files) {
     try {
-      const value = JSON.parse(fsImpl.readFileSync(path.join(home, '.claude', name), 'utf8'))?.autoCompactWindow;
-      if (positive(value)) return value;
+      const parsed = JSON.parse(fsImpl.readFileSync(file, 'utf8'));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) out.push(parsed);
     } catch { /* try the next file */ }
+  }
+  return out;
+}
+
+// Claude Code >= 2.1.288 saves /autocompact per model under
+// modelSettings.<model id>.autoCompactWindow; older versions write the
+// top-level key. In each file the per-model value wins.
+function settingsWindow(settings, modelId) {
+  for (const s of settings) {
+    const perModel = typeof modelId === 'string' && s.modelSettings && Object.hasOwn(s.modelSettings, modelId)
+      ? s.modelSettings[modelId]?.autoCompactWindow
+      : undefined;
+    if (positive(perModel)) return clampWindow(perModel);
+    if (positive(s.autoCompactWindow)) return clampWindow(s.autoCompactWindow);
   }
   return null;
 }
 
-// The auto-compact window, in tokens, or null when nothing is known. Order:
-//   1. payload.auto_compact_window (undocumented, forward-compatible)
-//   2. env CLAUDE_CODE_AUTO_COMPACT_WINDOW, a plain positive integer clamped to
-//      [100000, 1000000]; the docs say it overrides the setting and /autocompact
-//   3. the autoCompactWindow setting (settings.local.json, then settings.json)
-//   4. the model's own window, context_window.context_window_size
-// The result never exceeds the model window when that is known. And when the
-// chat is already past the resolved window (it captured another value at
-// startup), the model window is used instead: a percentage over 100 means nothing.
-export function resolveAutoCompactWindow(payload, { env = process.env, home = os.homedir(), fsImpl = fs } = {}) {
+// Nothing will compact, so there is nothing to warn about: DISABLE_AUTO_COMPACT
+// or DISABLE_COMPACT set truthy, or autoCompactEnabled false in the first
+// settings file that defines it.
+function compactDisabled(env, settings) {
+  if (isTruthyEnv(env?.DISABLE_AUTO_COMPACT) || isTruthyEnv(env?.DISABLE_COMPACT)) return true;
+  const defining = settings.find((s) => typeof s.autoCompactEnabled === 'boolean');
+  return defining ? defining.autoCompactEnabled === false : false;
+}
+
+function windowFrom(payload, env, settings) {
   const ctx = payload?.context_window;
   const model = positive(ctx?.context_window_size) ? ctx.context_window_size : null;
 
   let window = null;
+  // auto_compact_window is NOT in Claude Code's documented statusline payload.
+  // Speculative and forward-compatible only: honoured if a future version adds
+  // it, never relied on.
   if (positive(payload?.auto_compact_window)) {
     window = payload.auto_compact_window;
   } else {
-    const fromEnv = /^\d+$/.test(String(env?.CLAUDE_CODE_AUTO_COMPACT_WINDOW ?? '').trim())
-      ? Number(String(env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).trim())
-      : 0;
-    if (fromEnv > 0) window = Math.min(MAX_ENV_WINDOW, Math.max(MIN_ENV_WINDOW, fromEnv));
-    else window = settingsWindow(home, fsImpl);
+    // parseInt semantics, as the docs describe: "500k" reads as 500 and clamps
+    // up to the minimum; anything that does not start with a positive integer
+    // is invalid and ignored.
+    const fromEnv = Number.parseInt(String(env?.CLAUDE_CODE_AUTO_COMPACT_WINDOW ?? '').trim(), 10);
+    window = fromEnv > 0 ? clampWindow(fromEnv) : settingsWindow(settings, payload?.model?.id);
   }
   if (window === null) window = model;
   if (window === null) return null;
+  return model !== null && window > model ? model : window;
+}
 
-  if (model !== null && window > model) window = model;
-  const used = ctx?.total_input_tokens;
-  if (model !== null && positive(used) && used > window) window = model;
-  return window;
+const defaultDeps = (deps = {}) => ({ env: process.env, home: os.homedir(), fsImpl: fs, ...deps });
+
+// The auto-compact window, in tokens, or null when nothing is known. Order:
+//   1. payload.auto_compact_window (undocumented, speculative)
+//   2. env CLAUDE_CODE_AUTO_COMPACT_WINDOW, clamped to [100000, 1000000]; the
+//      docs say it overrides the setting and /autocompact
+//   3. the autoCompactWindow setting, clamped the same way (see loadSettings
+//      for the files, settingsWindow for the per-model key)
+//   4. the model's own window, context_window.context_window_size
+// The result never exceeds the model window when that is known. A chat that is
+// already past the resolved window keeps it: its percentage just caps at 100.
+export function resolveAutoCompactWindow(payload, deps) {
+  const d = defaultDeps(deps);
+  return windowFrom(payload, d.env, loadSettings(payload, d));
+}
+
+// True when auto-compact is switched off, so no warning makes sense.
+export function autoCompactDisabled(payload, deps) {
+  const d = defaultDeps(deps);
+  return compactDisabled(d.env, loadSettings(payload, d));
 }
 
 // What a payload says about its chat's context: { sessionId, tokens, window,
 // percent } or null when it cannot be judged (no session id to dedupe on, no
-// tokens yet, or no window known). percent is capped at 100.
+// tokens yet, auto-compact off, or no window known). percent is capped at 100.
 export function contextUsage(payload, deps) {
   const sessionId = typeof payload?.session_id === 'string' ? payload.session_id.trim() : '';
   if (!sessionId) return null;
   const tokens = payload?.context_window?.total_input_tokens;
   if (!positive(tokens)) return null;
-  const window = resolveAutoCompactWindow(payload, deps);
+  const d = defaultDeps(deps);
+  const settings = loadSettings(payload, d);
+  if (compactDisabled(d.env, settings)) return null;
+  const window = windowFrom(payload, d.env, settings);
   if (window === null) return null;
   return { sessionId, tokens, window, percent: Math.min(100, (tokens / window) * 100) };
 }
@@ -135,20 +193,41 @@ export function buildContextNotification(alert, payload) {
   };
 }
 
+// The warned-sessions map, or null when the file could not be read. A missing
+// file and unparseable content both mean "nobody warned yet" ({}); any other
+// read error (EBUSY, EACCES, ...) is null so the caller skips the run: writing
+// back from an empty read would wipe every other session's entry.
+function readWarned(statePath) {
+  let raw;
+  try {
+    raw = fs.readFileSync(statePath, 'utf8');
+  } catch (err) {
+    return err?.code === 'ENOENT' ? {} : null;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch { return {}; }
+}
+
 // Decide and record in one locked step; returns the notifications to send
 // (zero or one). The statusline refreshes constantly, so everything that needs
 // no lock (an already-warned session, a chat under the threshold) is settled
 // first and the lock is only taken for a real warning. A run that cannot get
-// the lock skips; the next refresh tries again. Never throws.
+// the lock, or cannot read the state, skips; the next refresh tries again.
+// Never throws.
 export function checkContext(payload, config, { statePath = contextStatePath(), now = Date.now(), ...deps } = {}) {
   if (config?.contextAlerts?.enabled === false) return [];
   try {
     const threshold = effectiveContextThreshold(config);
     const usage = contextUsage(payload, deps);
     if (!usage || usage.percent < threshold) return [];
-    if (Object.hasOwn(readJson(statePath), usage.sessionId)) return [];
+    const seen = readWarned(statePath);
+    if (!seen || Object.hasOwn(seen, usage.sessionId)) return [];
     const alert = withLock(`${statePath}.lock`, () => {
-      const result = evaluateContext(payload, readJson(statePath), { threshold, now, ...deps });
+      const state = readWarned(statePath);
+      if (!state) return null;
+      const result = evaluateContext(payload, state, { threshold, now, ...deps });
       if (result.alert) writeState(statePath, result.state);
       return result.alert;
     }, 'context-alert:lock');

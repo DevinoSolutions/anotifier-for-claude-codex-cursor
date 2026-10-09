@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  resolveAutoCompactWindow, contextUsage, evaluateContext, buildContextNotification,
+  resolveAutoCompactWindow, autoCompactDisabled, contextUsage, evaluateContext, buildContextNotification,
   checkContext, effectiveContextThreshold, STATE_TTL_MS, DEFAULT_CONTEXT_THRESHOLD,
 } from '../src/context-alert.mjs';
 import { useFakeHome } from './fake-home.mjs';
@@ -20,17 +20,24 @@ const payload = (tokens, { size = 1000000, id = 'sess-1', ...rest } = {}) => ({
 });
 
 describe('resolveAutoCompactWindow', () => {
-  let home;
-  beforeEach(() => { home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-ctx-home-')); });
+  let home, proj;
+  beforeEach(() => {
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-ctx-home-'));
+    proj = path.join(home, 'project');
+  });
   afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
-  const settings = (name, obj) => {
-    fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
-    fs.writeFileSync(path.join(home, '.claude', name), typeof obj === 'string' ? obj : JSON.stringify(obj));
+  const put = (file, obj) => {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, typeof obj === 'string' ? obj : JSON.stringify(obj));
   };
+  const user = (obj) => put(path.join(home, '.claude', 'settings.json'), obj);
+  const projShared = (obj) => put(path.join(proj, '.claude', 'settings.json'), obj);
+  const projLocal = (obj) => put(path.join(proj, '.claude', 'settings.local.json'), obj);
+  const withProj = (p) => ({ ...p, workspace: { project_dir: proj } });
   const resolve = (p, env = {}) => resolveAutoCompactWindow(p, { env, home });
 
-  it('prefers payload.auto_compact_window over everything', () => {
-    settings('settings.json', { autoCompactWindow: 300000 });
+  it('prefers the (undocumented) payload.auto_compact_window over everything', () => {
+    user({ autoCompactWindow: 300000 });
     assert.equal(resolve(payload(1, { auto_compact_window: 400000 }), { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '200000' }), 400000);
   });
 
@@ -40,68 +47,176 @@ describe('resolveAutoCompactWindow', () => {
     }
   });
 
-  it('uses the env var next, as a plain integer clamped to [100000, 1000000]', () => {
-    settings('settings.json', { autoCompactWindow: 300000 });
+  it('uses the env var next, clamped to [100000, 1000000]', () => {
+    user({ autoCompactWindow: 300000 });
     const env = (v) => ({ CLAUDE_CODE_AUTO_COMPACT_WINDOW: v });
     assert.equal(resolve(payload(1), env('250000')), 250000, 'env beats the setting');
     assert.equal(resolve(payload(1), env('50000')), 100000, 'clamped up');
     assert.equal(resolve(payload(1, { size: 2000000 }), env('5000000')), 1000000, 'clamped down');
   });
 
-  it('skips an env var that is not a plain positive integer', () => {
-    settings('settings.json', { autoCompactWindow: 300000 });
-    for (const bad of ['0', '-1', '1e5', '250.5', 'abc', '', '  ']) {
+  it('parses the env var with parseInt semantics: 500k reads as 500 and clamps to the minimum', () => {
+    user({ autoCompactWindow: 300000 });
+    const env = (v) => ({ CLAUDE_CODE_AUTO_COMPACT_WINDOW: v });
+    assert.equal(resolve(payload(1), env('500k')), 100000);
+    assert.equal(resolve(payload(1), env(' 250000 ')), 250000);
+    assert.equal(resolve(payload(1), env('250000tokens')), 250000);
+    assert.equal(resolve(payload(1), env('250.5')), 100000, 'reads as 250, clamps up');
+  });
+
+  it('skips an env var with no leading positive integer', () => {
+    user({ autoCompactWindow: 300000 });
+    for (const bad of ['0', '-1', 'abc', '', '  ', 'k500']) {
       assert.equal(resolve(payload(1), { CLAUDE_CODE_AUTO_COMPACT_WINDOW: bad }), 300000, JSON.stringify(bad));
     }
   });
 
-  it('reads the setting from settings.local.json before settings.json', () => {
-    settings('settings.json', { autoCompactWindow: 300000 });
+  it('reads the top-level autoCompactWindow from the user settings (pre-2.1.288 shape)', () => {
+    user({ autoCompactWindow: 450000 });
+    assert.equal(resolve(payload(1)), 450000);
+  });
+
+  it('a per-model setting beats the top-level one in the same file', () => {
+    user({ autoCompactWindow: 450000, modelSettings: { 'claude-opus-4': { autoCompactWindow: 300000 } } });
+    assert.equal(resolve(payload(1, { model: { id: 'claude-opus-4' } })), 300000);
+    assert.equal(resolve(payload(1, { model: { id: 'claude-other' } })), 450000, 'another model falls back to top-level');
+    assert.equal(resolve(payload(1)), 450000, 'no model id falls back to top-level');
+  });
+
+  it('a model id like __proto__ is not looked up on the prototype', () => {
+    user({ autoCompactWindow: 450000, modelSettings: {} });
+    assert.equal(resolve(payload(1, { model: { id: '__proto__' } })), 450000);
+  });
+
+  it('project local beats project shared beats user settings', () => {
+    user({ autoCompactWindow: 400000 });
+    assert.equal(resolve(withProj(payload(1))), 400000);
+    projShared({ autoCompactWindow: 300000 });
+    assert.equal(resolve(withProj(payload(1))), 300000);
+    projLocal({ autoCompactWindow: 200000 });
+    assert.equal(resolve(withProj(payload(1))), 200000);
+    assert.equal(resolve(payload(1)), 400000, 'without a project_dir only the user file counts');
+  });
+
+  it('a file without a usable value falls through to the next one', () => {
+    user({ autoCompactWindow: 400000 });
+    projShared({ autoCompactWindow: 300000 });
+    projLocal({ autoCompactWindow: 'big' });
+    assert.equal(resolve(withProj(payload(1))), 300000);
+    projLocal('{not json');
+    assert.equal(resolve(withProj(payload(1))), 300000);
+    projLocal({ modelSettings: { other: { autoCompactWindow: 150000 } } });
+    assert.equal(resolve(withProj(payload(1, { model: { id: 'mine' } }))), 300000);
+  });
+
+  it('ignores ~/.claude/settings.local.json (not a Claude Code user scope)', () => {
+    put(path.join(home, '.claude', 'settings.local.json'), { autoCompactWindow: 250000 });
+    assert.equal(resolve(payload(1)), 1000000);
+    user({ autoCompactWindow: 300000 });
     assert.equal(resolve(payload(1)), 300000);
-    settings('settings.local.json', { autoCompactWindow: 250000 });
-    assert.equal(resolve(payload(1)), 250000);
+  });
+
+  it('honours CLAUDE_CONFIG_DIR for the user settings', () => {
+    const cfg = path.join(home, 'elsewhere');
+    put(path.join(cfg, 'settings.json'), { autoCompactWindow: 350000 });
+    user({ autoCompactWindow: 300000 });
+    assert.equal(resolve(payload(1), { CLAUDE_CONFIG_DIR: cfg }), 350000);
+    assert.equal(resolve(payload(1), { CLAUDE_CONFIG_DIR: '  ' }), 300000, 'blank means the default dir');
+    assert.equal(resolve(payload(1)), 300000);
+  });
+
+  it('clamps the setting to [100000, 1000000] like the env var', () => {
+    user({ autoCompactWindow: 20000 });
+    assert.equal(resolve(payload(1)), 100000);
+    user({ autoCompactWindow: 5000000 });
+    assert.equal(resolve(payload(1, { size: 2000000 })), 1000000);
+    user({ modelSettings: { m: { autoCompactWindow: 1000 } } });
+    assert.equal(resolve(payload(1, { model: { id: 'm' } })), 100000);
   });
 
   it('skips unreadable, invalid or wrong-typed settings files silently', () => {
-    settings('settings.local.json', '{not json');
-    settings('settings.json', { autoCompactWindow: 300000 });
-    assert.equal(resolve(payload(1)), 300000, 'bad local file falls through to settings.json');
-    settings('settings.local.json', { autoCompactWindow: 'big' });
-    assert.equal(resolve(payload(1)), 300000, 'wrong type falls through');
-    settings('settings.local.json', { autoCompactWindow: -4 });
-    assert.equal(resolve(payload(1)), 300000, 'non-positive falls through');
-    settings('settings.json', '[]');
-    settings('settings.local.json', {});
-    assert.equal(resolve(payload(1)), 1000000, 'nothing usable -> the model window');
+    user({ autoCompactWindow: -4 });
+    assert.equal(resolve(payload(1)), 1000000);
+    user({ autoCompactWindow: 'big' });
+    assert.equal(resolve(payload(1)), 1000000);
+    user('[]');
+    assert.equal(resolve(payload(1)), 1000000);
+    user('{bad');
+    assert.equal(resolve(payload(1)), 1000000);
   });
 
-  it('with no settings dir at all falls back to the model window', () => {
+  it('with no settings at all falls back to the model window', () => {
     assert.equal(resolve(payload(1, { size: 200000 })), 200000);
   });
 
   it('never exceeds the model window', () => {
-    settings('settings.json', { autoCompactWindow: 900000 });
+    user({ autoCompactWindow: 900000 });
     assert.equal(resolve(payload(1, { size: 200000 })), 200000);
     assert.equal(resolve(payload(1, { size: 200000, auto_compact_window: 500000 })), 200000);
     assert.equal(resolve(payload(1, { size: 200000 }), { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '1000000' }), 200000);
   });
 
-  it('measures against the model window once usage is past the resolved window', () => {
-    settings('settings.json', { autoCompactWindow: 300000 });
-    assert.equal(resolve(payload(300000)), 300000, 'exactly at the window is not past it');
-    assert.equal(resolve(payload(300001)), 1000000);
+  it('has no over-cap fallback: usage past the resolved window keeps that window', () => {
+    user({ autoCompactWindow: 450000 });
+    assert.equal(resolve(payload(300000)), 450000);
+    assert.equal(resolve(payload(460000)), 450000);
+    assert.equal(resolve(payload(900000)), 450000);
   });
 
-  it('without a model window, uses the configured value uncapped, else null', () => {
+  it('without a model window, uses the configured value, else null', () => {
     const noModel = { session_id: 's', context_window: { total_input_tokens: 5 } };
     assert.equal(resolve(noModel), null);
-    settings('settings.json', { autoCompactWindow: 300000 });
+    user({ autoCompactWindow: 300000 });
     assert.equal(resolve(noModel), 300000);
     assert.equal(resolve({ session_id: 's' }), 300000);
   });
 
   it('uses the real filesystem and home by default without throwing', () => {
     assert.doesNotThrow(() => resolveAutoCompactWindow(payload(1), { env: {} }));
+  });
+});
+
+describe('autoCompactDisabled', () => {
+  let home, proj;
+  beforeEach(() => {
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-ctx-home-'));
+    proj = path.join(home, 'project');
+  });
+  afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
+  const put = (file, obj) => {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(obj));
+  };
+  const p = () => payload(1, { workspace: { project_dir: proj } });
+  const off = (env = {}) => autoCompactDisabled(p(), { env, home });
+
+  it('is false by default', () => {
+    assert.equal(off(), false);
+  });
+  it('is true for DISABLE_AUTO_COMPACT or DISABLE_COMPACT set truthy, false for falsy values', () => {
+    for (const name of ['DISABLE_AUTO_COMPACT', 'DISABLE_COMPACT']) {
+      for (const v of ['1', 'true', 'TRUE', 'yes', 'on']) assert.equal(off({ [name]: v }), true, name + '=' + v);
+      for (const v of ['', '0', 'false', 'no', 'off']) assert.equal(off({ [name]: v }), false, name + '=' + v);
+    }
+  });
+  it('is true when autoCompactEnabled is false in the user settings', () => {
+    put(path.join(home, '.claude', 'settings.json'), { autoCompactEnabled: false });
+    assert.equal(off(), true);
+    put(path.join(home, '.claude', 'settings.json'), { autoCompactEnabled: true });
+    assert.equal(off(), false);
+  });
+  it('the first settings file that defines autoCompactEnabled decides', () => {
+    put(path.join(home, '.claude', 'settings.json'), { autoCompactEnabled: false });
+    put(path.join(proj, '.claude', 'settings.json'), { autoCompactEnabled: true });
+    assert.equal(off(), false, 'project shared re-enables over the user setting');
+    put(path.join(proj, '.claude', 'settings.local.json'), { autoCompactEnabled: false });
+    assert.equal(off(), true, 'project local wins');
+    put(path.join(proj, '.claude', 'settings.local.json'), { other: 1 });
+    assert.equal(off(), false, 'a file that does not define it is skipped');
+  });
+  it('ignores a non-boolean autoCompactEnabled', () => {
+    put(path.join(home, '.claude', 'settings.json'), { autoCompactEnabled: 'false' });
+    assert.equal(off(), false);
   });
 });
 
@@ -118,6 +233,17 @@ describe('contextUsage', () => {
     assert.equal(contextUsage({ session_id: 's', context_window: {} }, dep), null);
     assert.equal(contextUsage({ session_id: 's', context_window: { total_input_tokens: 5 } }, dep), null);
     assert.equal(contextUsage(null, dep), null);
+  });
+  it('is null when auto-compact is disabled', () => {
+    assert.equal(contextUsage(payload(170000, { size: 200000 }), { ...dep, env: { DISABLE_AUTO_COMPACT: '1' } }), null);
+    assert.equal(contextUsage(payload(170000, { size: 200000 }), { ...dep, env: { DISABLE_COMPACT: 'true' } }), null);
+  });
+  it('a jump from 300K to 460K against a 450K window still alerts (no over-cap fallback)', () => {
+    const d = { ...dep, env: { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '450000' } };
+    assert.equal(contextUsage(payload(300000), d).percent < 85, true);
+    const u = contextUsage(payload(460000), d);
+    assert.deepEqual([u.window, u.percent], [450000, 100]);
+    assert.ok(evaluateContext(payload(460000), {}, { ...d, now: NOW }).alert);
   });
   it('caps the percentage at 100', () => {
     assert.equal(contextUsage(payload(250000, { size: 200000 }), dep).percent, 100);
@@ -308,6 +434,42 @@ describe('checkContext', () => {
     assert.deepEqual(checkContext(payload(150000), cfg, opts()), []);
     const [n] = checkContext(payload(150000), cfg, opts({ env }));
     assert.match(n.message, /88% of its auto-compact window \(150K of 170K tokens\)/);
+  });
+
+  it('sends and records nothing when auto-compact is disabled', () => {
+    assert.deepEqual(checkContext(at(190000), cfg, opts({ env: { DISABLE_AUTO_COMPACT: '1' } })), []);
+    assert.ok(!fs.existsSync(statePath));
+  });
+
+  it('a state file that cannot be read (not ENOENT) skips the run and is left alone', () => {
+    // A directory where the file should be: readFileSync throws EISDIR, the
+    // same class of failure as EBUSY or EACCES.
+    fs.mkdirSync(statePath);
+    assert.deepEqual(checkContext(at(190000), cfg, opts()), []);
+    assert.ok(fs.statSync(statePath).isDirectory(), 'nothing was written over it');
+    assert.ok(!fs.existsSync(`${statePath}.lock`));
+  });
+
+  it('a read error is not treated as an empty state, so other sessions are not wiped', () => {
+    const seen = { 'other-session': NOW - DAY };
+    fs.writeFileSync(statePath, JSON.stringify(seen));
+    const realRead = fs.readFileSync;
+    fs.readFileSync = (p, ...rest) => {
+      if (p === statePath) throw Object.assign(new Error('busy'), { code: 'EBUSY' });
+      return realRead.call(fs, p, ...rest);
+    };
+    try {
+      assert.deepEqual(checkContext(at(190000), cfg, opts()), []);
+    } finally {
+      fs.readFileSync = realRead;
+    }
+    assert.deepEqual(stored(), seen);
+  });
+
+  it('a missing state file and unparseable content both count as empty', () => {
+    assert.equal(checkContext(at(190000), cfg, opts()).length, 1);
+    fs.writeFileSync(statePath, '[1,2');
+    assert.equal(checkContext(at(190000, { id: 'again' }), cfg, opts()).length, 1);
   });
 
   it('never throws, even when the state path is unusable', () => {
