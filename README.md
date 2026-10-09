@@ -222,6 +222,10 @@ Config lives at `~/.anotifier/config.json`. Abbreviated — see [config/default-
     "enabled": true,
     "thresholds": [70, 85, 95]
   },
+  "contextAlerts": {
+    "enabled": true,
+    "threshold": 85
+  },
   "quietHours": {
     "enabled": false,
     "from": "22:00",
@@ -241,7 +245,7 @@ Config lives at `~/.anotifier/config.json`. Abbreviated — see [config/default-
 }
 ```
 
-`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent -- for Claude Code (>=2.1.141) it rings through Claude Code's own terminal write path (hook JSON `terminalSequence`), which is safe in tmux, GNU screen, and on Windows per Claude Code's docs; other agents get a direct TTY/console bell. `webhook` posts to Slack, Discord, Telegram, or any URL (see below). `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). `updateCheck` announces a newly published anotifier through whichever of your toast / ntfy / webhook channels are already on (never the terminal bell) -- it asks the npm registry at most once per day, tells you at most once per version, and stays silent on any error; set `enabled` to `false` to turn it off entirely, and no check or state write happens at all. `telemetry` (1.3.0 and later) is the opt-in anonymous usage-stats choice: `enabled` is the choice (default `false`), and `asked` records that you made it (`setup` and `anotifier telemetry on|off` set it) so re-running setup does not ask again -- see [Usage stats](#usage-stats). `usageAlerts` warns before a Claude Code usage limit (see [Usage-limit warnings](#usage-limit-warnings-claude-code)): `enabled` turns it off, `thresholds` are the percentages (1-100) that trigger a warning. `quietHours` is a recurring nightly version of `snooze` (see [Quiet hours](#quiet-hours)). Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound; on macOS the name is mapped to the closest built-in system sound (Windows names like `IM`/`Reminder` are translated, and `Default` or unrecognized names fall back to the system default), while on Linux it is ignored; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
+`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent -- for Claude Code (>=2.1.141) it rings through Claude Code's own terminal write path (hook JSON `terminalSequence`), which is safe in tmux, GNU screen, and on Windows per Claude Code's docs; other agents get a direct TTY/console bell. `webhook` posts to Slack, Discord, Telegram, or any URL (see below). `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). `updateCheck` announces a newly published anotifier through whichever of your toast / ntfy / webhook channels are already on (never the terminal bell) -- it asks the npm registry at most once per day, tells you at most once per version, and stays silent on any error; set `enabled` to `false` to turn it off entirely, and no check or state write happens at all. `telemetry` (1.3.0 and later) is the opt-in anonymous usage-stats choice: `enabled` is the choice (default `false`), and `asked` records that you made it (`setup` and `anotifier telemetry on|off` set it) so re-running setup does not ask again -- see [Usage stats](#usage-stats). `usageAlerts` warns before a Claude Code usage limit (see [Usage-limit warnings](#usage-limit-warnings-claude-code)): `enabled` turns it off, `thresholds` are the percentages (1-100) that trigger a warning. `contextAlerts` warns once per chat before Claude Code auto-compacts it (see [Context warnings](#context-warnings-claude-code)): `enabled` turns it off, `threshold` is the percentage (1-100) of the auto-compact window that triggers it. `quietHours` is a recurring nightly version of `snooze` (see [Quiet hours](#quiet-hours)). Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound; on macOS the name is mapped to the closest built-in system sound (Windows names like `IM`/`Reminder` are translated, and `Default` or unrecognized names fall back to the system default), while on Linux it is ignored; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
 
 ### Quiet hours
 
@@ -380,6 +384,28 @@ Configure it in `~/.anotifier/config.json`; this is the default:
 `thresholds` is a list of percentages above 0 and at most 100 (an invalid list is reported and the default applies). Set `"enabled": false` to turn the warnings off. The statusline keeps working, it just stops checking usage.
 
 **Snooze and quiet hours.** While you are snoozed or inside quiet hours, no warning is sent *and* none is recorded, so a threshold you crossed in that time is announced once it ends, provided your usage is still over it and a Claude Code statusline refresh happens after that.
+
+### Context warnings (Claude Code)
+
+Get a heads-up before Claude Code auto-compacts a long chat. anotifier sends **one** notification per chat when its context passes **85%** of the auto-compact window, so you can wrap up or run `/compact` on your own terms instead of having it happen mid-task. The title carries the percentage (`Claude Code · context at 87%`) and the body names the chat and the size: `my-app [3f9a1c2e] is at 87% of its auto-compact window (174K of 200K tokens). It will compact soon — wrap up or /compact now.` Priority is `high`.
+
+- **Once per session.** Each chat (Claude Code `session_id`) warns once and never again, even after `/compact` brings its context back down. `/clear` starts a new session, so a later chat in the same terminal can warn again. The warned sessions are remembered in `~/.anotifier/.context-alerts.json`, written before the notification is sent; entries older than 14 days are trimmed when the next warning is recorded.
+- **Which window.** Claude Code compacts before the model's full window is used, so anotifier measures against the *auto-compact* window, resolved in this order: the payload's `auto_compact_window` (undocumented and speculative: used only if a future Claude Code reports it), then the `CLAUDE_CODE_AUTO_COMPACT_WINDOW` environment variable (read like `parseInt`, so `500k` reads as 500; clamped to 100,000-1,000,000, and it overrides the settings), then the `autoCompactWindow` setting that `/autocompact <n>` writes (clamped the same way), then the model's own window. The setting is read from the first of these files that has one: `<project>/.claude/settings.local.json`, `<project>/.claude/settings.json`, then `settings.json` in `$CLAUDE_CONFIG_DIR` (default `~/.claude`). In each file the per-model value (`modelSettings.<model id>.autoCompactWindow`, written by Claude Code 2.1.288 and later) wins over the top-level `autoCompactWindow` (older versions). The result never exceeds the model's window; a chat already past it just shows 100%. Claude Code's `used_percentage` is not used: it is measured against the full model window.
+- **Blind spots.** The `--autocompact` command-line flag and managed (enterprise) settings are invisible to a statusline, so with either in play the warning can come late or not at all.
+- **Skipped when auto-compact is off.** If `DISABLE_AUTO_COMPACT` or `DISABLE_COMPACT` is set, or `autoCompactEnabled` is `false` in the first settings file above that defines it, nothing will compact and no warning is sent.
+- **No subscription needed.** Unlike usage-limit warnings, this works with API-key and proxy sessions too, since the context numbers come with every statusline refresh. It uses the same statusline wiring as the usage warnings (see above), so `anotifier setup` covers both.
+- **Channels, snooze and quiet hours** work exactly as for usage warnings: toast, ntfy and webhook, never the terminal bell, and while snoozed or in quiet hours nothing is sent and nothing is recorded.
+
+```json
+{
+  "contextAlerts": {
+    "enabled": true,
+    "threshold": 85
+  }
+}
+```
+
+`threshold` is a percentage above 0 and at most 100 (an invalid value is reported and 85 applies). Set `"enabled": false` to turn the context warning off; usage-limit warnings are unaffected, and so is the statusline. `anotifier status` shows whether it is on and the threshold.
 
 ### Per-Event Settings
 

@@ -113,6 +113,18 @@ function validateUserConfig(user) {
   }
   checkBlock('usageAlerts', { enabled: 'boolean', thresholds: 'object' });
 
+  // Context warning threshold: one percentage in (0, 100] of the auto-compact
+  // window. A bad value is dropped so the 85 default applies.
+  const context = user.contextAlerts;
+  if (context && typeof context === 'object' && !Array.isArray(context) && context.threshold !== undefined) {
+    const t = context.threshold;
+    if (typeof t !== 'number' || !(t > 0 && t <= 100)) {
+      issues.push(`"contextAlerts.threshold" must be a percentage above 0 and at most 100, got ${JSON.stringify(t)}`);
+      delete context.threshold;
+    }
+  }
+  checkBlock('contextAlerts', { enabled: 'boolean', threshold: 'number' });
+
   // Quiet hours is the one block where a bad value must NOT fall through to the
   // defaults: silently silencing every channel from 22:00 to 08:00 because a
   // time string had a typo is the worst failure mode this config has. So an
@@ -209,7 +221,7 @@ function validateUserConfig(user) {
     }
   }
 
-  const knownTop = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'quietHours', 'events', 'sources'];
+  const knownTop = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'contextAlerts', 'quietHours', 'events', 'sources'];
   for (const key of Object.keys(user)) {
     if (!knownTop.includes(key)) issues.push(`unknown key "${key}"`);
   }

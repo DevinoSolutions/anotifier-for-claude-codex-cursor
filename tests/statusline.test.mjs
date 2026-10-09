@@ -80,6 +80,91 @@ describe('tapUsage', () => {
     tapUsage(live, d);
     assert.deepEqual(seen.deliver, []);
   });
+  describe('context warning', () => {
+    const ctxOnly = JSON.stringify({ session_id: 's1', context_window: { total_input_tokens: 190000, context_window_size: 200000 } });
+    const both = JSON.stringify({ rate_limits: RL, session_id: 's1', context_window: { total_input_tokens: 190000, context_window_size: 200000 } });
+    const withCtx = (over = {}) => deps({
+      load: () => ({ usageAlerts: { enabled: true }, contextAlerts: { enabled: true } }),
+      ...over,
+    });
+
+    it('runs without rate_limits (API-key and proxy sessions)', () => {
+      const ctxNote = [{ title: 'ctx', event: 'context_limit' }];
+      const { seen, deps: d } = withCtx({ checkContext: () => ctxNote });
+      assert.deepEqual(tapUsage(ctxOnly, d), ctxNote);
+      assert.equal(seen.check, 0, 'usage check needs rate_limits');
+      assert.deepEqual(seen.deliver, [ctxNote]);
+    });
+    it('merges both checks into one delivery', () => {
+      const u = [{ title: 'usage' }];
+      const c = [{ title: 'ctx' }];
+      const { seen, deps: d } = withCtx({ check: () => u, checkContext: () => c });
+      assert.deepEqual(tapUsage(both, d), [...u, ...c]);
+      assert.deepEqual(seen.deliver, [[...u, ...c]], 'one detached delivery');
+    });
+    it('contextAlerts.enabled:false turns off only the context check', () => {
+      let ctxRuns = 0;
+      const u = [{ title: 'usage' }];
+      const { seen, deps: d } = withCtx({
+        load: () => ({ usageAlerts: { enabled: true }, contextAlerts: { enabled: false } }),
+        check: () => u,
+        checkContext: () => { ctxRuns++; return []; },
+      });
+      assert.deepEqual(tapUsage(both, d), u);
+      assert.equal(ctxRuns, 0);
+      assert.deepEqual(seen.deliver, [u]);
+    });
+    it('usageAlerts.enabled:false turns off only the usage check', () => {
+      const c = [{ title: 'ctx' }];
+      const { seen, deps: d } = withCtx({
+        load: () => ({ usageAlerts: { enabled: false }, contextAlerts: { enabled: true } }),
+        checkContext: () => c,
+      });
+      assert.deepEqual(tapUsage(both, d), c);
+      assert.equal(seen.check, 0);
+    });
+    it('does nothing when both are disabled', () => {
+      let runs = 0;
+      const { seen, deps: d } = withCtx({
+        load: () => ({ usageAlerts: { enabled: false }, contextAlerts: { enabled: false } }),
+        checkContext: () => { runs++; return [{ title: 'x' }]; },
+      });
+      assert.deepEqual(tapUsage(both, d), []);
+      assert.equal(runs + seen.check, 0);
+    });
+    it('records nothing while suppressed (snooze / quiet hours)', () => {
+      let runs = 0;
+      const { seen, deps: d } = withCtx({
+        suppressed: () => ({ reason: 'quiet' }),
+        checkContext: () => { runs++; return [{ title: 'x' }]; },
+      });
+      assert.deepEqual(tapUsage(both, d), []);
+      assert.equal(runs + seen.check, 0);
+      assert.deepEqual(seen.deliver, []);
+    });
+    it('loads the config once for both checks', () => {
+      let loads = 0;
+      const { deps: d } = withCtx({ load: () => { loads++; return {}; } });
+      tapUsage(both, d);
+      assert.equal(loads, 1);
+    });
+    it('a throwing context check does not stop the usage check, and vice versa', () => {
+      const u = [{ title: 'usage' }];
+      const c = [{ title: 'ctx' }];
+      let r = withCtx({ check: () => u, checkContext: () => { throw new Error('ctx'); } });
+      assert.deepEqual(tapUsage(both, r.deps), u);
+      assert.deepEqual(r.seen.deliver, [u]);
+      r = withCtx({ check: () => { throw new Error('usage'); }, checkContext: () => c });
+      assert.deepEqual(tapUsage(both, r.deps), c);
+      assert.deepEqual(r.seen.deliver, [c]);
+    });
+    it('ignores a payload with neither block', () => {
+      const { seen, deps: d } = withCtx({ checkContext: () => { throw new Error('should not run'); } });
+      assert.deepEqual(tapUsage(JSON.stringify({ model: {} }), d), []);
+      assert.equal(seen.check, 0);
+    });
+  });
+
   it('never throws on malformed JSON, empty input, or a throwing dependency', () => {
     const { deps: d } = deps();
     assert.deepEqual(tapUsage('{nope', d), []);
@@ -141,6 +226,36 @@ describe('statusline.mjs as a subprocess', () => {
     const r = run([], 'not json');
     assert.equal(r.status, 0);
     assert.equal(r.stdout, '');
+  });
+
+  it('without rate_limits a context-window payload still produces a context alert, once', () => {
+    const dir = path.join(home, '.anotifier');
+    fs.mkdirSync(dir, { recursive: true });
+    // Every channel off so the detached delivery has nowhere to go.
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+      toast: { enabled: false }, ntfy: { enabled: false }, webhook: { enabled: false },
+    }));
+    const payload = JSON.stringify({
+      session_id: 'sub-1',
+      model: { display_name: 'Opus' },
+      context_window: { total_input_tokens: 190000, context_window_size: 200000 },
+    });
+    const r1 = run([], payload);
+    assert.equal(r1.stdout, 'Opus');
+    const statePath = path.join(dir, '.context-alerts.json');
+    assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(statePath, 'utf8'))), ['sub-1']);
+    const before = fs.readFileSync(statePath, 'utf8');
+    run([], payload);
+    assert.equal(fs.readFileSync(statePath, 'utf8'), before, 'the second refresh records nothing new');
+    assert.ok(!fs.existsSync(path.join(dir, '.usage-alerts.json')));
+  });
+
+  it('with contextAlerts disabled in config it records nothing', () => {
+    const dir = path.join(home, '.anotifier');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ contextAlerts: { enabled: false } }));
+    run([], JSON.stringify({ session_id: 'sub-2', context_window: { total_input_tokens: 190000, context_window_size: 200000 } }));
+    assert.ok(!fs.existsSync(path.join(dir, '.context-alerts.json')));
   });
 
   it('with usage alerts disabled in config it records nothing', () => {

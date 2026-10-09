@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { claudeStatuslineWired, usageAlertsValue } from '../cli/status.mjs';
+import { claudeStatuslineWired, usageAlertsValue, contextAlertsValue } from '../cli/status.mjs';
 
 const strip = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
 
@@ -36,5 +36,12 @@ describe('status usage alerts line', () => {
     assert.equal(strip(usageAlertsValue(on, null)), '70/85/95% · statusline not wired');
     assert.equal(strip(usageAlertsValue({ usageAlerts: { enabled: false } }, true)), 'disabled');
     assert.equal(strip(usageAlertsValue({ usageAlerts: { thresholds: [50] } }, true)), '50% · statusline wired');
+  });
+
+  it('contextAlertsValue shows the threshold, or disabled', () => {
+    assert.equal(strip(contextAlertsValue({ contextAlerts: { enabled: true, threshold: 85 } })), '85% of auto-compact window');
+    assert.equal(strip(contextAlertsValue({ contextAlerts: { threshold: 60 } })), '60% of auto-compact window');
+    assert.equal(strip(contextAlertsValue({})), '85% of auto-compact window');
+    assert.equal(strip(contextAlertsValue({ contextAlerts: { enabled: false } })), 'disabled');
   });
 });

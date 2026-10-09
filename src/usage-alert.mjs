@@ -162,14 +162,14 @@ export function buildUsageNotification(alert, payload, now = Date.now()) {
   };
 }
 
-function readState(statePath) {
+export function readState(statePath) {
   try {
     const parsed = JSON.parse(fs.readFileSync(statePath, 'utf8'));
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch { return {}; }
 }
 
-function writeState(statePath, state) {
+export function writeState(statePath, state) {
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
   const tmp = `${statePath}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(state), 'utf8');
@@ -179,7 +179,7 @@ function writeState(statePath, state) {
 // Several chats refresh their statuslines at once, so the read-decide-write
 // runs under an exclusive lock file. A run that cannot get the lock simply
 // skips: the holder is evaluating the same account-wide numbers.
-function withLock(lockPath, fn) {
+export function withLock(lockPath, fn, label = 'usage-alert:lock') {
   try {
     const st = fs.statSync(lockPath);
     if (Date.now() - st.mtimeMs > LOCK_STALE_MS) fs.unlinkSync(lockPath);
@@ -191,7 +191,7 @@ function withLock(lockPath, fn) {
   } catch (err) {
     // EEXIST: another chat holds it. Anything else (permissions, a file where
     // the directory should be) would silence every warning, so say so.
-    if (err?.code !== 'EEXIST') logHookError('usage-alert:lock', err);
+    if (err?.code !== 'EEXIST') logHookError(label, err);
     return null;
   }
   try {
