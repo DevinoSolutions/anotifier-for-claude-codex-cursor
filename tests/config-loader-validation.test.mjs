@@ -268,6 +268,52 @@ describe('loadConfigResult', () => {
     assert.equal(config.usageAlerts.enabled, true);
   });
 
+  it('contextAlerts: defaults are on at 85', () => {
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem, null);
+    assert.equal(config.contextAlerts.enabled, true);
+    assert.equal(config.contextAlerts.threshold, 85);
+  });
+
+  it('contextAlerts: a good threshold and enabled:false are accepted and kept', () => {
+    fs.writeFileSync(configPath, JSON.stringify({ contextAlerts: { enabled: false, threshold: 70.5 } }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem, null);
+    assert.equal(config.contextAlerts.enabled, false);
+    assert.equal(config.contextAlerts.threshold, 70.5);
+    fs.writeFileSync(configPath, JSON.stringify({ contextAlerts: { threshold: 100 } }), 'utf8');
+    assert.equal(loadConfigResult(configPath).problem, null);
+  });
+
+  it('contextAlerts: a bad threshold is reported and dropped to 85', () => {
+    for (const bad of [0, -5, 101, '90', [85], null, true]) {
+      fs.writeFileSync(configPath, JSON.stringify({ contextAlerts: { enabled: true, threshold: bad } }), 'utf8');
+      const { config, problem } = loadConfigResult(configPath);
+      assert.equal(problem.type, 'validate', JSON.stringify(bad));
+      assert.match(problem.message, /contextAlerts\.threshold/);
+      assert.equal(config.contextAlerts.threshold, 85, JSON.stringify(bad));
+      assert.equal(config.contextAlerts.enabled, true);
+    }
+  });
+
+  it('contextAlerts: a wrong-typed enabled is reverted, a non-object block dropped, an unknown key reported', () => {
+    fs.writeFileSync(configPath, JSON.stringify({ contextAlerts: { enabled: 'no' } }), 'utf8');
+    let r = loadConfigResult(configPath);
+    assert.equal(r.problem.type, 'validate');
+    assert.equal(r.config.contextAlerts.enabled, true);
+    fs.writeFileSync(configPath, JSON.stringify({ contextAlerts: 'off' }), 'utf8');
+    r = loadConfigResult(configPath);
+    assert.match(r.problem.message, /"contextAlerts" must be an object/);
+    assert.equal(r.config.contextAlerts.threshold, 85);
+    fs.writeFileSync(configPath, JSON.stringify({ contextAlerts: { thresholds: [80] } }), 'utf8');
+    assert.match(loadConfigResult(configPath).problem.message, /unknown key "contextAlerts\.thresholds"/);
+  });
+
+  it('contextAlerts is a known top-level key', () => {
+    fs.writeFileSync(configPath, JSON.stringify({ contextAlerts: {} }), 'utf8');
+    assert.equal(loadConfigResult(configPath).problem, null);
+  });
+
   it('a fully valid user config produces no problem', () => {
     fs.writeFileSync(configPath, JSON.stringify({
       ntfy: { enabled: true, topic: 'aan-test' },

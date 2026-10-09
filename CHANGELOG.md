@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+### Added
+- **Context warning for Claude Code.** anotifier now sends one notification
+  per chat when its context passes 85% of the auto-compact window, so you can
+  wrap up or `/compact` before Claude Code compacts on its own. The window is
+  resolved from `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, then the `autoCompactWindow`
+  setting (`/autocompact`), then the model's own window, and never exceeds the
+  model's window. Each chat warns once and never again, even after `/compact`.
+  It works with API-key and proxy sessions too (no subscription limits needed),
+  goes to your toast, ntfy and webhook channels, and is held back by snooze and
+  quiet hours like the usage warnings. Configure or turn it off with the new
+  `contextAlerts` block (`enabled`, `threshold`); `anotifier status` shows it.
+
 ## [1.5.0] — 2026-10-09
 
 ### Added

@@ -9,6 +9,7 @@ import { detectManagedEvents, detectAntigravityEvents, isOurStatusline } from '.
 import { checkForUpdate, isNewer } from '../src/update-check.mjs';
 import { readSnoozeUntil, quietHoursWindow, inQuietHours, formatClock } from '../src/suppress.mjs';
 import { effectiveThresholds } from '../src/usage-alert.mjs';
+import { effectiveContextThreshold } from '../src/context-alert.mjs';
 import { SUPPORT_LINE } from '../src/support.mjs';
 import { toastPlatform } from '../src/platforms/index.mjs';
 import { toastOffNoBackendLabel } from './toast-backend.mjs';
@@ -63,6 +64,11 @@ export function usageAlertsValue(config, wired) {
   const levels = effectiveThresholds(config).join('/');
   const wiring = wired ? c.success('statusline wired') : c.warn('statusline not wired');
   return `${c.white(`${levels}%`)} ${c.muted('·')} ${wiring}`;
+}
+
+export function contextAlertsValue(config) {
+  if (config.contextAlerts?.enabled === false) return c.muted('disabled');
+  return c.white(`${effectiveContextThreshold(config)}% of auto-compact window`);
 }
 
 export async function run() {
@@ -134,6 +140,7 @@ export async function run() {
     kv('Snooze', snoozeValue),
     kv('Quiet hours', quietValue),
     kv('Usage alerts', usageAlertsValue(config, claudeStatuslineWired())),
+    kv('Context alerts', contextAlertsValue(config)),
     kv('ntfy', ''),
     `${''.padEnd(15)} ${ntfyValue}`,
     ...(config.webhook?.enabled && config.webhook?.url

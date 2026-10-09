@@ -35,6 +35,10 @@
     "enabled": true,
     "thresholds": [70, 85, 95]
   },
+  "contextAlerts": {
+    "enabled": true,
+    "threshold": 85
+  },
   "quietHours": {
     "enabled": false,
     "from": "22:00",

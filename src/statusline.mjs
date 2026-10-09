@@ -11,8 +11,9 @@
 // With a wrapped command, the payload goes to that command unchanged and its
 // output is what Claude Code shows; this script only taps the payload. The
 // original command rides base64-encoded so no shell quoting can mangle it and
-// `anotifier uninstall` can restore it exactly. The usage check itself lives
-// in usage-alert.mjs; any failure in it is logged and never touches the line.
+// `anotifier uninstall` can restore it exactly. The usage check lives in
+// usage-alert.mjs and the context-window check in context-alert.mjs; any
+// failure in either is logged and never touches the line.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -20,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { loadConfigResult } from './config-loader.mjs';
 import { isSuppressed } from './suppress.mjs';
 import { checkUsage, spawnDelivery, isEntry, WINDOWS } from './usage-alert.mjs';
+import { checkContext as checkContextUsage } from './context-alert.mjs';
 import { logHookError } from './error-log.mjs';
 
 export const WRAP_FLAG = '--wrap-b64';
@@ -104,16 +106,34 @@ function runWrapped(command, input) {
 // it already.
 const loadQuietly = () => loadConfigResult().config;
 
-export function tapUsage(raw, { load = loadQuietly, suppressed = isSuppressed, check = checkUsage, deliver = spawnDelivery } = {}) {
+export function tapUsage(raw, {
+  load = loadQuietly,
+  suppressed = isSuppressed,
+  check = checkUsage,
+  checkContext = checkContextUsage,
+  deliver = spawnDelivery,
+} = {}) {
   try {
     const payload = JSON.parse(raw);
-    if (!payload?.rate_limits) return [];
+    // Each check has its own precondition: usage needs rate_limits (Claude.ai
+    // Pro/Max only), context needs the context_window block. API-key and proxy
+    // sessions have the second without the first.
+    const wantUsage = Boolean(payload?.rate_limits);
+    const wantContext = Boolean(payload?.context_window);
+    if (!wantUsage && !wantContext) return [];
     const config = load();
-    if (config?.usageAlerts?.enabled === false) return [];
+    const doUsage = wantUsage && config?.usageAlerts?.enabled !== false;
+    const doContext = wantContext && config?.contextAlerts?.enabled !== false;
+    if (!doUsage && !doContext) return [];
     // While snoozed or in quiet hours nothing is recorded either, so a
     // threshold crossed in that time is still announced once it ends.
     if (suppressed(config)) return [];
-    const notifications = check(payload, config);
+    // One failing check must neither break the other nor the statusline.
+    const notifications = [];
+    for (const [wanted, label, run] of [[doUsage, 'statusline', check], [doContext, 'statusline:context', checkContext]]) {
+      if (!wanted) continue;
+      try { notifications.push(...run(payload, config)); } catch (err) { logHookError(label, err); }
+    }
     if (notifications.length) deliver(notifications);
     return notifications;
   } catch (err) {
