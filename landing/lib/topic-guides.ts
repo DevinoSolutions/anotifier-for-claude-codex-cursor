@@ -10,7 +10,7 @@ import { COMMUNITY_URL } from "./site";
 export const TOPIC_GUIDES: Guide[] = [
   {
     slug: "windows-wsl-notifications",
-    updated: "2026-10-06",
+    updated: "2026-10-09",
     kind: "topic",
     name: "Windows & WSL",
     title: "Claude Code & Codex Windows Notifications, Including WSL",
@@ -82,7 +82,7 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "The WSL toast is deliberately simple. It calls the Windows toast API directly, so it needs no BurntToast, and it shows the title and message under Windows PowerShell's name. It has no custom sound, no per-agent icon, and no click-to-focus. Phone push, webhooks, and the terminal bell work exactly as on Linux.",
+            text: "The WSL toast is deliberately simple. It calls the Windows toast API directly, so it needs no BurntToast, and it shows the title and message under Windows PowerShell's name. It has no custom sound, no per-agent icon, and no click-to-focus. Phone push, webhooks, and the terminal bell work exactly as on Linux. To build the same toast by hand, or to compare it with `wsl-notify-send`, see [Windows toast from WSL](/guides/wsl-notify-send/).",
           },
           {
             kind: "ul",

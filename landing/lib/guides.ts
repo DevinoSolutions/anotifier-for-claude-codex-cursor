@@ -1,7 +1,9 @@
 import type { Block, DocFaq } from "./docs";
 import { CLAUDE_GUIDES } from "./claude-guides";
+import { ANTIGRAVITY_GUIDES } from "./antigravity-guides";
 import { CODEX_GUIDES } from "./codex-guides";
 import { TOPIC_GUIDES } from "./topic-guides";
+import { WSL_GUIDES } from "./wsl-guides";
 
 /**
  * Long-form "how do I get notified when X finishes" guides: one per agent,
@@ -430,7 +432,7 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "gemini-cli-notifications",
-    updated: "2026-10-08",
+    updated: "2026-10-09",
     kind: "agent",
     agentSlug: "gemini-cli",
     name: "Gemini CLI",
@@ -483,7 +485,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: 'Antigravity CLI has hooks too, in a new format: it reads them from files such as `~/.gemini/config/hooks.json` or a workspace\'s `.agents/hooks.json`, and its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`. There is no `AfterAgent` or `Notification` event, so the Gemini CLI hooks above don\'t fire there. anotifier 1.4.0 and later support it separately: `npx anotifier setup` adds one group named `anotifier` with a `Stop` handler to `~/.gemini/config/hooks.json` when `~/.gemini/antigravity-cli` exists, and a finished run sends "Task complete". Limits: there is no needs-input alert (Antigravity has no such event), a `Stop` caused by an error or cancel also says "Task complete", and it has not yet been tested against a live Antigravity CLI. Google\'s [Antigravity hooks docs](https://antigravity.google/docs/hooks/) describe the format.',
+            text: 'Antigravity CLI has hooks too, in a new format: it reads them from files such as `~/.gemini/config/hooks.json` or a workspace\'s `.agents/hooks.json`, and its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`. There is no `AfterAgent` or `Notification` event, so the Gemini CLI hooks above don\'t fire there. anotifier 1.4.0 and later support it separately: `npx anotifier setup` adds one group named `anotifier` with a `Stop` handler to `~/.gemini/config/hooks.json` when `~/.gemini/antigravity-cli` exists, and a finished run sends "Task complete". Limits: there is no needs-input alert (Antigravity has no such event), a `Stop` caused by an error or cancel also says "Task complete", and it has not yet been tested against a live Antigravity CLI. Google\'s [Antigravity hooks docs](https://antigravity.google/docs/hooks/) describe the format. For a hook you write yourself, see the [Antigravity CLI notifications guide](/guides/antigravity-cli-notifications/); for what setup writes, the [Antigravity CLI page](/antigravity-cli/).',
           },
         ],
       },
@@ -513,7 +515,9 @@ export const GUIDES: Guide[] = [
   ...AGENT_GUIDES,
   ...CLAUDE_GUIDES,
   ...CODEX_GUIDES,
+  ...ANTIGRAVITY_GUIDES,
   ...TOPIC_GUIDES,
+  ...WSL_GUIDES,
 ];
 
 export function getGuide(slug: string): Guide | undefined {
