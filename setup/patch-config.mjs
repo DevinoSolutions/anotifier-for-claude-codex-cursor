@@ -129,7 +129,56 @@ export function patchClaude(claudeDir, notifyPath, backupDir) {
     settings.hooks[event] = [...removeManagedHooks(settings.hooks[event]), hook];
   }
 
+  wireClaudeStatusline(settings, path.join(path.dirname(notifyPath), 'statusline.mjs'));
+
   writeJSON(settingsPath, settings);
+}
+
+// Usage-limit warnings read rate_limits from the statusline payload, the only
+// place Claude Code exposes them, so setup routes the statusline through
+// src/statusline.mjs. A user's own statusline keeps working: it is wrapped,
+// carried base64-encoded in our command (shell-safe, and exactly restorable on
+// uninstall), and still prints the line. Only a 'command' statusline can be
+// wrapped; any other shape is left alone.
+const STATUSLINE_WRAP_RE = /\s--wrap-b64\s+([A-Za-z0-9+/=]+)/;
+
+export function isOurStatusline(command) {
+  return typeof command === 'string' && command.includes('statusline.mjs') &&
+    (command.includes('anotifier') || command.includes('agent-notify'));
+}
+
+// The user's original statusline command inside one of ours, or null.
+export function wrappedStatusline(command) {
+  const m = typeof command === 'string' && command.match(STATUSLINE_WRAP_RE);
+  if (!m) return null;
+  const decoded = Buffer.from(m[1], 'base64').toString('utf8');
+  return decoded.trim() ? decoded : null;
+}
+
+export function statuslineCommand(statuslinePath, original) {
+  const base = `node "${statuslinePath}"`;
+  return original ? `${base} --wrap-b64 ${Buffer.from(original, 'utf8').toString('base64')}` : base;
+}
+
+export function wireClaudeStatusline(settings, statuslinePath) {
+  const current = settings.statusLine;
+  if (current && (typeof current !== 'object' || current.type !== 'command' || typeof current.command !== 'string')) return false;
+  const original = current
+    ? (isOurStatusline(current.command) ? wrappedStatusline(current.command) : current.command)
+    : null;
+  settings.statusLine = { ...(current || { type: 'command' }), command: statuslineCommand(statuslinePath, original) };
+  return true;
+}
+
+// Undo wireClaudeStatusline: put the user's own command back, or drop the
+// statusline entirely when setup created it. True when anything changed.
+export function unwireClaudeStatusline(settings) {
+  const current = settings?.statusLine;
+  if (!current || typeof current !== 'object' || !isOurStatusline(current.command)) return false;
+  const original = wrappedStatusline(current.command);
+  if (original) settings.statusLine = { ...current, command: original };
+  else delete settings.statusLine;
+  return true;
 }
 
 // Compute Codex hook trust hash. Codex uses SHA-256 of canonicalized JSON
@@ -533,6 +582,12 @@ export function unpatchAll(homeDir, backupDir) {
       }
 
       if (!data?.hooks) {
+        if (tool.dir === '.claude' && data && unwireClaudeStatusline(data)) {
+          backup(filePath, backupDir);
+          writeJSON(filePath, data);
+          results.push({ tool: tool.label, ok: true, reason: 'statusline restored' });
+          continue;
+        }
         results.push({ tool: tool.label, ok: true, reason: 'nothing to remove' });
         continue;
       }
@@ -558,6 +613,7 @@ export function unpatchAll(homeDir, backupDir) {
           if (data.hooks[event].length === 0) delete data.hooks[event];
         }
       }
+      if (tool.dir === '.claude' && unwireClaudeStatusline(data)) removedAny = true;
       writeJSON(filePath, data);
 
       // Codex keeps hook trust hashes in config.toml [hooks.state]. Remove ours so

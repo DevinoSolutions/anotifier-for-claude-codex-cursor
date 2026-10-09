@@ -100,6 +100,19 @@ function validateUserConfig(user) {
   checkBlock('updateCheck', { enabled: 'boolean' });
   checkBlock('telemetry', { enabled: 'boolean', asked: 'boolean' });
 
+  // Usage-limit warning thresholds: percentages in (0, 100]. A bad list is
+  // dropped so the 70/85/95 default applies rather than no warnings at all.
+  // Checked before checkBlock, which only knows typeof (an array is 'object').
+  const usage = user.usageAlerts;
+  if (usage && typeof usage === 'object' && !Array.isArray(usage) && usage.thresholds !== undefined) {
+    const t = usage.thresholds;
+    if (!Array.isArray(t) || !t.length || !t.every((n) => typeof n === 'number' && n > 0 && n <= 100)) {
+      issues.push(`"usageAlerts.thresholds" must be a list of percentages between 1 and 100, got ${JSON.stringify(t)}`);
+      delete usage.thresholds;
+    }
+  }
+  checkBlock('usageAlerts', { enabled: 'boolean', thresholds: 'object' });
+
   // Quiet hours is the one block where a bad value must NOT fall through to the
   // defaults: silently silencing every channel from 22:00 to 08:00 because a
   // time string had a typo is the worst failure mode this config has. So an
@@ -196,7 +209,7 @@ function validateUserConfig(user) {
     }
   }
 
-  const knownTop = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'telemetry', 'quietHours', 'events', 'sources'];
+  const knownTop = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'quietHours', 'events', 'sources'];
   for (const key of Object.keys(user)) {
     if (!knownTop.includes(key)) issues.push(`unknown key "${key}"`);
   }
