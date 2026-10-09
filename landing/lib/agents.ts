@@ -468,7 +468,7 @@ export const AGENTS: Agent[] = [
           },
           {
             kind: "p",
-            text: "Limits: Antigravity has no notification or permission event, so there is no needs-input alert for it, and a `Stop` caused by an error or a cancel also says \"Task complete\". Google's Antigravity 2.0 app and the Antigravity IDE read the same global file, so the alert fires there too. Hook wiring and payload parsing are unit-tested against Google's hooks docs; anotifier has not yet been tested against a live Antigravity CLI.",
+            text: "Limits: Antigravity has no notification or permission event, so there is no needs-input alert for it, and a `Stop` caused by an error or a cancel also says \"Task complete\". Google's docs say the Antigravity 2.0 app and the Antigravity IDE read the same global `~/.gemini/config/hooks.json`, so a handler setup wrote should fire there too, but setup only wires Antigravity when `~/.gemini/antigravity-cli` exists and neither app has been tested. Hook wiring and payload parsing are unit-tested against Google's hooks docs; anotifier has not yet been tested against a live Antigravity CLI.",
           },
           {
             kind: "p",
@@ -538,7 +538,7 @@ export const AGENTS: Agent[] = [
       {
         event: "Stop",
         what: "A run ended",
-        how: 'Titled `my-app · Antigravity`, with the body `my-app: Task complete`. The project is the first folder in the payload\'s `workspacePaths`. The hook always answers `{"decision":"stop"}`, so it can never keep the agent running.',
+        how: 'Titled `my-app · Antigravity`, with the body `my-app: Task complete`. The project name is the name of the first folder listed in `workspacePaths`. The hook always answers `{"decision":"stop"}`, so it can never keep the agent running.',
       },
     ],
     sections: [
@@ -568,7 +568,7 @@ export const AGENTS: Agent[] = [
           },
           {
             kind: "p",
-            text: 'Run setup again after an update and it keeps a group you muted with `"enabled": false` and a timeout you changed on the handler. The Antigravity 2.0 app and the Antigravity IDE read the same global file, so the alert fires when they finish too.',
+            text: 'Run setup again after an update and it keeps a group you muted with `"enabled": false` and a timeout you changed on the handler. Google\'s docs say the Antigravity 2.0 app and the Antigravity IDE read the same global `~/.gemini/config/hooks.json`, so a handler setup wrote should fire there too. But setup only wires Antigravity when `~/.gemini/antigravity-cli` exists, and neither app has been tested.',
           },
         ],
       },

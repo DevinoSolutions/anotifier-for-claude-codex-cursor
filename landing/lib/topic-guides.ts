@@ -10,7 +10,7 @@ import { COMMUNITY_URL } from "./site";
 export const TOPIC_GUIDES: Guide[] = [
   {
     slug: "windows-wsl-notifications",
-    updated: "2026-10-06",
+    updated: "2026-10-09",
     kind: "topic",
     name: "Windows & WSL",
     title: "Claude Code & Codex Windows Notifications, Including WSL",

@@ -21,7 +21,7 @@ const diyHook = (command: string) =>
 
 const MAC_COMMAND = `osascript -e 'display notification "Antigravity run finished" with title "Antigravity CLI"'`;
 const NTFY_COMMAND =
-  "curl -s -d 'Antigravity run finished' -H 'Title: Antigravity CLI' https://ntfy.sh/your-secret-topic";
+  "curl -s -o /dev/null -d 'Antigravity run finished' -H 'Title: Antigravity CLI' https://ntfy.sh/your-secret-topic";
 
 export const ANTIGRAVITY_GUIDES: Guide[] = [
   {
@@ -44,7 +44,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: 'Google\'s hooks docs put Antigravity hooks in a `hooks.json` file in one of three places: `~/.gemini/config/hooks.json` for every project, `.agents/hooks.json` in a workspace, or inside an installed plugin. The file maps a hook name you choose to its events: `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`. Each event holds a list of handlers. A handler is a `command` to run, with an optional `type` (only `command` exists) and an optional `timeout` in seconds, 30 by default. Setting `"enabled": false` on a hook name turns it off.',
+            text: 'Google\'s hooks docs put Antigravity hooks in a `hooks.json` file in one of four places: `.agents/hooks.json` in a workspace, `~/.gemini/config/hooks.json` for every project, the hooks section of `~/.gemini/antigravity-cli/settings.json`, or the `hooks.json` inside an installed plugin. This guide uses `~/.gemini/config/hooks.json`. The file maps a hook name you choose to its events: `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`. Each event holds a list of handlers. A handler is a `command` to run, with an optional `type` (only `command` exists) and an optional `timeout` in seconds, 30 by default. Setting `"enabled": false` on a hook name turns it off.',
           },
           {
             kind: "p",
@@ -60,7 +60,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
             items: [
               "Put it in `~/.gemini/config/hooks.json`, creating the file if it doesn't exist. If the file already has hooks, add `notify` beside them instead of replacing the file.",
               "The `;` before `echo` keeps the answer going out even if the notification command fails, so a broken banner can't leave the hook silent.",
-              '**Linux**: swap the banner for `notify-send "Antigravity CLI" "Run finished"`. It needs a desktop notification daemon, which headless servers and most containers lack.',
+              "**Linux**: swap the banner for `notify-send 'Antigravity CLI' 'Run finished'`. It needs a desktop notification daemon, which headless servers and most containers lack.",
               '**Windows**: Google\'s docs say only "shell command", so use a one-liner for the shell Antigravity runs it in, and make it print the same `stop` answer.',
               "The payload also carries `workspacePaths`, `terminationReason`, `fullyIdle` and, when something went wrong, `error`. A longer script can read them to name the project or skip alerts while background work is still running.",
             ],
@@ -117,7 +117,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: 'A finished run sends "Task complete", titled `my-app · Antigravity`; the project name is the first folder in the payload\'s `workspacePaths`. The hook always answers `{"decision":"stop"}`, even when a channel fails or you have snoozed notifications, so it can never keep a run going. The alert goes to every channel you enabled: a desktop toast on Windows, macOS, Linux or WSL, an ntfy push to your phone, a Slack, Discord, Telegram or other webhook, and a terminal bell. The Antigravity 2.0 app and the Antigravity IDE read the same global file, so the alert fires when they finish too.',
+            text: 'A finished run sends "Task complete", titled `my-app · Antigravity`; the project name is the name of the first folder listed in `workspacePaths`. The hook always answers `{"decision":"stop"}`, even when a channel fails or you have snoozed notifications, so it can never keep a run going. The alert goes to every channel you enabled: a desktop toast on Windows, macOS, Linux or WSL, an ntfy push to your phone, a Slack, Discord, Telegram or other webhook, and a terminal bell. Google\'s docs say the Antigravity 2.0 app and the Antigravity IDE read the same global `~/.gemini/config/hooks.json`, so a handler setup wrote should fire there too. But setup only wires Antigravity when `~/.gemini/antigravity-cli` exists, and neither app has been tested.',
           },
           {
             kind: "table",
@@ -198,7 +198,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
       },
       {
         q: "Does it work in the Antigravity 2.0 app and the IDE?",
-        a: "Yes. Both read the same global ~/.gemini/config/hooks.json, so the handler fires when they finish too.",
+        a: "They read the same global ~/.gemini/config/hooks.json, so a handler setup wrote should fire there too. But npx anotifier setup only wires Antigravity when ~/.gemini/antigravity-cli exists, and neither the 2.0 app nor the IDE has been tested.",
       },
       {
         q: "Can the notification hook stop Antigravity from finishing?",

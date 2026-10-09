@@ -52,7 +52,7 @@ export const WSL_GUIDES: Guide[] = [
       'Run wsl-notify-send.exe --category WSL "Done" for a Windows toast from WSL, or call powershell.exe with no install. Wire it to Claude Code and Codex.',
     h1: "How to show a Windows toast from WSL (wsl-notify-send and alternatives)",
     intro:
-      "A Linux command inside WSL cannot draw a Windows notification itself, so it launches a Windows program that can. Two ways work: `wsl-notify-send.exe`, a small prebuilt Windows executable you download and put on your PATH, or `powershell.exe`, which is already there and can call the Windows toast API directly. Either one turns a long build, or a Claude Code or Codex session running in WSL, into a toast the moment it finishes. Or run `npx anotifier@latest setup` inside WSL and skip the wiring.",
+      "A Linux command inside WSL cannot draw a Windows notification itself, so it launches a Windows program that can. Two do-it-yourself ways work: `wsl-notify-send.exe`, a small prebuilt Windows executable you download and put on your PATH, or `powershell.exe`, which is already there and can call the Windows toast API directly. Either one turns a long build, or a Claude Code or Codex session running in WSL, into a toast the moment it finishes. Or run `npx anotifier@latest setup` inside WSL and skip the wiring.",
     sections: [
       {
         id: "options",
@@ -60,7 +60,7 @@ export const WSL_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "All three rely on WSL interop, which lets a Linux shell run Windows `.exe` files. It is on by default. The toast is raised by the Windows side, so no notification daemon or D-Bus is needed in the distribution.",
+            text: "All four rely on WSL interop, which lets a Linux shell run Windows `.exe` files. It is on by default. The toast is raised by the Windows side, so no notification daemon or D-Bus is needed in the distribution.",
           },
           {
             kind: "table",
@@ -79,7 +79,7 @@ export const WSL_GUIDES: Guide[] = [
               [
                 "BurntToast",
                 "`Install-Module BurntToast` on the Windows side",
-                "Buttons, headers, and other rich toast options",
+                "Buttons, headers, and other rich toast options. The repository is archived and unmaintained",
               ],
               [
                 "`npx anotifier@latest setup`",
@@ -96,11 +96,11 @@ export const WSL_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "[wsl-notify-send](https://github.com/stuartleeks/wsl-notify-send) is a Windows executable, written in Go on top of go-toast, that accepts a few `notify-send` options and raises a Windows toast. It is MIT licensed. Its README installs it in three steps: grab the latest release zip, extract `wsl-notify-send.exe`, and make sure it is on your `PATH`. The release has `windows_amd64` and `windows_386` zips.",
+            text: "[wsl-notify-send](https://github.com/stuartleeks/wsl-notify-send) is a Windows executable, written in Go on top of go-toast, that accepts a few `notify-send` options and raises a Windows toast. It is MIT licensed. Its README installs it in three steps: download the latest release, create the `notify-send` helper function, and test it. The release has `windows_amd64` and `windows_386` zips.",
           },
           {
             kind: "p",
-            text: "Its README then defines a `notify-send` function, so scripts that call `notify-send` keep working. This is that function with the variable quoted, for `~/.bashrc`:",
+            text: "That helper is a `notify-send` function, so scripts that call `notify-send` keep working. This is that function with the variable quoted, for `~/.bashrc`:",
           },
           {
             kind: "code",
@@ -140,7 +140,7 @@ export const WSL_GUIDES: Guide[] = [
           },
           {
             kind: "note",
-            text: "Check its state before you depend on it. As of 2026-10-09 the latest release is `v0.1.871612270`, published on 2021-05-24, and the last commit on `main` is from 2021-05-26. The repository is not archived. It has 8 open items, two of them pull requests (the newer is from July 2026), including a request for notifications that persist (#8) and a report that it is missing from Windows notification settings (#7). The tool is small, so it may still work for you; run the `Hello from WSL` line above to find out.",
+            text: "Check its state before you depend on it. As of 2026-10-09 the latest release is `v0.1.871612270`, published on 2021-05-24, and the last commit on `main` is from 2021-05-26. The repository is not archived. It has 6 open issues and 2 open pull requests (the newer from July 2026), including a request for notifications that persist (#8) and a report that it is missing from Windows notification settings (#7). The tool is small, so it may still work for you; run the `Hello from WSL` line above to find out.",
           },
         ],
       },
@@ -172,7 +172,7 @@ export const WSL_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "If you would rather have a module do it, [BurntToast](https://github.com/Windos/BurntToast) is a PowerShell module for toasts on Windows 10 and newer, installed with `Install-Module -Name BurntToast`. anotifier's native Windows toasts run it from PowerShell 7, so this sample does too. Install PowerShell 7 and the module once on the Windows side, then call them from WSL:",
+            text: "If you would rather have a module do it, [BurntToast](https://github.com/Windos/BurntToast) is a PowerShell module for toasts on Windows 10 and newer, installed with `Install-Module -Name BurntToast`. Note that the Windos/BurntToast repository is archived and no longer maintained, though its last release still works. anotifier's native Windows toasts run it from PowerShell 7, so this sample does too. Install PowerShell 7 and the module once on the Windows side, then call them from WSL:",
           },
           {
             kind: "code",
@@ -191,7 +191,7 @@ export const WSL_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "Agents that run in WSL read their settings from the Linux home directory: `~/.claude/settings.json` and `~/.codex/`, not the Windows ones. Point their hooks at `win-toast`. For Claude Code, `Stop` fires when it finishes a turn and `Notification` fires when it needs your permission or input:",
+            text: "Agents that run in WSL read their settings from the Linux home directory: `~/.claude/settings.json` and `~/.codex/`, not the Windows ones. Point their hooks at `win-toast`. For Claude Code, `Stop` fires when it finishes a turn and `Notification` fires for several notification types, so the matcher limits it to permission and idle prompts:",
           },
           {
             kind: "code",
@@ -200,7 +200,10 @@ export const WSL_GUIDES: Guide[] = [
               hooks: {
                 Stop: [hook('"$HOME/bin/win-toast" "Claude Code" "Finished"')],
                 Notification: [
-                  hook('"$HOME/bin/win-toast" "Claude Code" "Needs you"'),
+                  {
+                    matcher: "permission_prompt|idle_prompt",
+                    ...hook('"$HOME/bin/win-toast" "Claude Code" "Needs you"'),
+                  },
                 ],
               },
             }),
@@ -262,7 +265,7 @@ export const WSL_GUIDES: Guide[] = [
           {
             kind: "code",
             lang: "bash",
-            code: "anotifier setup        # prints: Windows toast via <powershell path> (WSL interop)\nanotifier status       # Platform WSL, toast Windows toast (WSL interop)\nanotifier doctor       # toast-backend: WSL: Windows toast via <powershell path>\nanotifier test toast   # sends a real toast",
+            code: "anotifier setup        # prints: Windows toast via <powershell path> (WSL interop)\nanotifier status       # Platform WSL, toast Windows toast (WSL interop)\nanotifier doctor       # toast: WSL: Windows toast via <powershell path>\nanotifier test toast   # sends a real toast",
           },
           {
             kind: "ul",
@@ -270,7 +273,7 @@ export const WSL_GUIDES: Guide[] = [
               "**`setup`** looks for a reachable Windows PowerShell. If it finds none, it turns the toast channel off and tells you to enable interop (`[interop] enabled=true` in `/etc/wsl.conf`). Run `setup` again once it works and toasts come back on. Toasts you turned off yourself stay off.",
               "**`doctor`** checks that `wslpath` exists and that one of the PowerShell executables above is reachable. It fails with a hint if either is missing. It does not fire a toast, and `doctor --deep` has no WSL read-back, so `anotifier test toast` is the real delivery check.",
               "**A toast that fails** is logged to `~/.anotifier/errors.log` as `toast:wsl`, and `status` shows the recent errors. Each attempt has a 7 second limit.",
-              "**Limits:** the toast has a title and a message and nothing else: no custom sound, no per-agent icon, no click-to-focus. It shows under Windows PowerShell's name, like the script above. The terminal bell and phone push behave as on native Linux. There is no end-to-end CI test of a WSL toast landing on a Windows desktop, because hosted runners cannot run both. Detection and the interop call are unit-tested.",
+              "**Limits:** the toast has a title and a message and nothing else: no custom sound, no per-agent icon, no click-to-focus. It shows under Windows PowerShell's name, like the script above. The terminal bell and phone push behave as on native Linux. There is no end-to-end CI test of a WSL toast landing on a Windows desktop. Detection and the interop call are unit-tested.",
               "`status` and `doctor` have named WSL as its own platform since 1.3.0. Older versions describe it as Linux and may warn that `notify-send` is missing, which does not apply here.",
             ],
           },
@@ -288,7 +291,7 @@ export const WSL_GUIDES: Guide[] = [
       },
       {
         q: "Is wsl-notify-send still maintained?",
-        a: "As of 2026-10-09, its latest release is v0.1.871612270 from 2021-05-24 and the last commit on main is from 2021-05-26. The repository is not archived and has 8 open issues and an open pull request from July 2026. It is small and may still work, but it is not actively developed.",
+        a: "As of 2026-10-09, its latest release is v0.1.871612270 from 2021-05-24 and the last commit on main is from 2021-05-26. The repository is not archived and has 6 open issues and 2 open pull requests, the newer from July 2026. It is small and may still work, but it is not actively developed.",
       },
       {
         q: "What does wsl-notify-send --category do?",
@@ -300,7 +303,7 @@ export const WSL_GUIDES: Guide[] = [
       },
       {
         q: "Do I need BurntToast to send a toast from WSL?",
-        a: "No. The Windows toast API is available to Windows PowerShell 5.1 directly, as the script in this guide shows. BurntToast is optional and adds buttons, headers and other rich options.",
+        a: "No. The Windows toast API is available to Windows PowerShell 5.1 directly, as the script in this guide shows. BurntToast is optional and adds buttons, headers and other rich options. Its repository is archived and no longer maintained, though the last release still works.",
       },
       {
         q: "Why does my WSL toast say Windows PowerShell?",
