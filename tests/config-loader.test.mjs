@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { useFakeHome } from './fake-home.mjs';
+useFakeHome();
 
 // We'll test with a temp dir as home
 const tmpDir = path.join(os.tmpdir(), 'anotifier-test-' + Date.now());

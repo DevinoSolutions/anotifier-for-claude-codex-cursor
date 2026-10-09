@@ -6,6 +6,8 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { sendWebhook } from '../src/webhook.mjs';
+import { useFakeHome } from './fake-home.mjs';
+useFakeHome();
 
 const NOTIF = {
   title: 'Claude Code',

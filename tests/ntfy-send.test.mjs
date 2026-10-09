@@ -5,6 +5,8 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { sendNtfy } from '../src/ntfy.mjs';
+import { useFakeHome } from './fake-home.mjs';
+useFakeHome();
 
 describe('sendNtfy (real local HTTP server, no mocking)', () => {
   let server;
