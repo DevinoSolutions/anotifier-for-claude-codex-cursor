@@ -191,7 +191,7 @@ export const DOCS: DocSection[] = [
           ],
           [
             "`status`",
-            "Shows version, platform, toast backend, Sentry, snooze, quiet hours, ntfy URL, webhook origin, wired tools with their events, per-event toggles, and the last 8 hook errors from `~/.anotifier/errors.log`.",
+            "Shows version, platform, toast backend, Sentry, snooze, quiet hours, usage alerts and whether the Claude Code statusline is wired (1.5.0 and later), ntfy URL, webhook origin, wired tools with their events, per-event toggles, and the last 8 hook errors from `~/.anotifier/errors.log`.",
             "1 if the config file is invalid.",
           ],
           [
@@ -216,7 +216,7 @@ export const DOCS: DocSection[] = [
           ],
           [
             "`uninstall`",
-            "Removes only the hooks anotifier manages. Your own hooks and the backups stay.",
+            "Removes only the hooks anotifier manages, and puts your original Claude Code statusline back (1.5.0 and later). Your own hooks and the backups stay.",
             "0",
           ],
         ],
@@ -461,7 +461,7 @@ export const DOCS: DocSection[] = [
       {
         kind: "code",
         lang: "json",
-        code: '{\n  "ntfy": { "enabled": true, "server": "https://ntfy.sh", "topic": "", "click": "", "richContent": false },\n  "toast": { "enabled": true, "clickToFocus": true, "richContent": true },\n  "terminalBell": { "enabled": true },\n  "webhook": { "enabled": false, "url": "", "format": "generic", "richContent": true },\n  "sentry": { "enabled": false, "dsn": "" },\n  "updateCheck": { "enabled": true },\n  "quietHours": { "enabled": false, "from": "22:00", "to": "08:00" },\n  "events": {\n    "task_complete": { "toastSound": "IM", "priority": "default", "ntfyTags": "white_check_mark" },\n    "needs_input": { "toastSound": "Reminder", "priority": "urgent", "ntfyTags": "bell,warning" },\n    "session_start": {\n      "toastSound": "Default", "priority": "low", "ntfyTags": "rocket",\n      "toastEnabled": false, "ntfyEnabled": false, "terminalBellEnabled": false\n    }\n  },\n  "sources": {\n    "claude": { "label": "Claude Code", "icon": "https://…/claude-app-icon.png" },\n    "codex": { "label": "Codex", "icon": "https://openai.com/favicon.ico" },\n    "gemini": { "label": "Gemini", "icon": "https://…/gemini_sparkle.svg" },\n    "cursor": { "label": "Cursor", "icon": "https://cursor.com/apple-touch-icon.png" }\n  }\n}',
+        code: '{\n  "ntfy": { "enabled": true, "server": "https://ntfy.sh", "topic": "", "click": "", "richContent": false },\n  "toast": { "enabled": true, "clickToFocus": true, "richContent": true },\n  "terminalBell": { "enabled": true },\n  "webhook": { "enabled": false, "url": "", "format": "generic", "richContent": true },\n  "sentry": { "enabled": false, "dsn": "" },\n  "updateCheck": { "enabled": true },\n  "usageAlerts": { "enabled": true, "thresholds": [70, 85, 95] },\n  "quietHours": { "enabled": false, "from": "22:00", "to": "08:00" },\n  "events": {\n    "task_complete": { "toastSound": "IM", "priority": "default", "ntfyTags": "white_check_mark" },\n    "needs_input": { "toastSound": "Reminder", "priority": "urgent", "ntfyTags": "bell,warning" },\n    "session_start": {\n      "toastSound": "Default", "priority": "low", "ntfyTags": "rocket",\n      "toastEnabled": false, "ntfyEnabled": false, "terminalBellEnabled": false\n    }\n  },\n  "sources": {\n    "claude": { "label": "Claude Code", "icon": "https://…/claude-app-icon.png" },\n    "codex": { "label": "Codex", "icon": "https://openai.com/favicon.ico" },\n    "gemini": { "label": "Gemini", "icon": "https://…/gemini_sparkle.svg" },\n    "cursor": { "label": "Cursor", "icon": "https://cursor.com/apple-touch-icon.png" }\n  }\n}',
       },
       {
         kind: "table",
@@ -554,6 +554,18 @@ export const DOCS: DocSection[] = [
             "boolean",
             "`true`",
             "Ask the npm registry at most once a day and announce a new version at most once per version through your existing channels (never the bell). `false` disables the check and its state file entirely.",
+          ],
+          [
+            "`usageAlerts.enabled`",
+            "boolean",
+            "`true`",
+            "Claude Code only, 1.5.0 and later. Warn before a usage limit; `false` turns the warnings off (the statusline keeps working).",
+          ],
+          [
+            "`usageAlerts.thresholds`",
+            "number[]",
+            "`[70, 85, 95]`",
+            "Percentages above 0 and at most 100 at which the 5-hour and weekly windows each warn once. An invalid list is reported and the default applies.",
           ],
           [
             "`quietHours.enabled`",
@@ -662,6 +674,32 @@ export const DOCS: DocSection[] = [
     ],
   },
   {
+    id: "usage-limit-warnings",
+    title: "How do I get warned before a Claude Code usage limit?",
+    lead: "Version 1.5.0 and later sends one notification when your Claude Code 5-hour or weekly usage crosses 70%, 85% and 95%, on Claude.ai Pro and Max plans.",
+    blocks: [
+      {
+        kind: "ul",
+        items: [
+          "The title names the window and the percentage (`Claude Code · 5-hour limit at 72%`); the body names the chat, the threshold and the reset time. Priority is default at 70%, high at 85% and urgent at 95%.",
+          "Usage belongs to your account, so each threshold warns once per window across all your chats. A jump past several thresholds sends only the highest.",
+          "Claude Code reports usage (`rate_limits`) only to Claude.ai Pro and Max subscribers, and only to its statusline command. `anotifier setup` therefore routes the Claude Code statusline through `src/statusline.mjs`. A statusline you already have is wrapped and still prints your line; with none, anotifier prints `model · 5h N% · 7d N%`. `anotifier uninstall` restores the original.",
+          "Warnings go to the toast, ntfy and webhook channels you have on, never the terminal bell. Snooze and quiet hours hold them back without recording them, so a threshold crossed in that time is announced after it ends.",
+          "Configure it with `usageAlerts.enabled` and `usageAlerts.thresholds` (see the config table). A plugin-only install does not run setup, so wire `statusLine` by hand to `src/statusline.mjs`.",
+        ],
+      },
+      {
+        kind: "code",
+        lang: "json",
+        code: '{ "usageAlerts": { "enabled": true, "thresholds": [70, 85, 95] } }',
+      },
+      {
+        kind: "note",
+        text: "The [usage limit notifications guide](/guides/claude-code-usage-limit-notifications/) also shows a statusline script you can write yourself.",
+      },
+    ],
+  },
+  {
     id: "errors",
     title: "What happens when a notification fails?",
     lead: "The agent is never interrupted. The error is appended to ~/.anotifier/errors.log and shown by anotifier status.",
@@ -704,7 +742,7 @@ export const DOCS: DocSection[] = [
   {
     id: "uninstall",
     title: "How do I uninstall anotifier?",
-    lead: "Run anotifier uninstall. It removes only the hooks anotifier manages and leaves your own hooks and its backups in place.",
+    lead: "Run anotifier uninstall. It removes only the hooks anotifier manages, restores your statusline (1.5.0 and later), and leaves your own hooks and its backups in place.",
     blocks: [
       {
         kind: "code",

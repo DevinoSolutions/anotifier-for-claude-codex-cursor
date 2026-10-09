@@ -70,7 +70,7 @@ const CLICK_TO_FOCUS =
 export const AGENTS: Agent[] = [
   {
     slug: "claude-code",
-    updated: "2026-09-27",
+    updated: "2026-10-09",
     name: "Claude Code",
     title: "Claude Code Notifier — Desktop, Phone & Slack Alerts",
     description:
@@ -78,7 +78,7 @@ export const AGENTS: Agent[] = [
     h1: { pre: "anotifier for ", em: "Claude Code", post: "." },
     sub: "Claude Code runs for minutes at a time — refactoring, running tests, waiting on a permission prompt you haven't seen. anotifier hooks into Claude Code's native event system and pings you the moment it finishes or needs you.",
     hooksIntro:
-      "Setup adds two entries to Claude Code's own hooks in `~/.claude/settings.json`. There is no extension and no wrapper process: Claude Code runs the hook itself when the event happens.",
+      "Setup adds two hook entries to Claude Code's own `~/.claude/settings.json`, plus a `statusLine` entry that routes the statusline through anotifier (1.5.0 and later). The hooks run inside Claude Code itself, with no wrapper process.",
     hooks: [
       {
         event: "Stop",
@@ -97,7 +97,7 @@ export const AGENTS: Agent[] = [
       {
         id: "setup",
         kicker: "[ WHAT SETUP WRITES ]",
-        title: "Two hooks in ~/.claude/settings.json.",
+        title: "Two hooks and a statusLine in ~/.claude/settings.json.",
         blocks: [
           {
             kind: "p",
@@ -130,6 +130,20 @@ export const AGENTS: Agent[] = [
           },
           {
             kind: "p",
+            text: "From 1.5.0, setup also routes the statusline through anotifier, which is how usage-limit warnings work. It adds this `statusLine` entry; the `--wrap-b64` part appears only if you already had a statusline, and carries your old command, base64-encoded, so it keeps printing:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: `{
+  "statusLine": {
+    "type": "command",
+    "command": "node \\"…/anotifier/src/statusline.mjs\\" --wrap-b64 <your old command, base64>"
+  }
+}`,
+          },
+          {
+            kind: "p",
             text: "Installed as a plugin instead? The plugin registers the same two hooks from its own `hooks.json`, and `/anotifier:setup` wires your other agents. Plugin hooks don't show in `anotifier status` and `anotifier uninstall` doesn't remove them; remove the plugin from Claude Code's `/plugin` menu instead.",
           },
         ],
@@ -151,8 +165,37 @@ export const AGENTS: Agent[] = [
           },
         ],
       },
+      {
+        id: "usage-limits",
+        kicker: "[ USAGE LIMITS ]",
+        title: "A warning before you hit a usage limit.",
+        blocks: [
+          {
+            kind: "p",
+            text: "Version 1.5.0 and later warns you before Claude Code stops at a usage limit. One notification goes out as your **5-hour** or **weekly** usage crosses **70%, 85% and 95%**, at default, high and urgent priority. It names the chat, the window and when it resets. Usage belongs to your account, so each threshold warns once per window across all your chats.",
+          },
+          {
+            kind: "ul",
+            items: [
+              "**Claude.ai Pro and Max only.** Claude Code reports usage only to those plans, and only to the statusline command, never to hooks.",
+              "**Setup routes your statusline through anotifier.** `anotifier setup` points `statusLine` at `src/statusline.mjs`. A statusline you already have is wrapped and still prints your line; `anotifier uninstall` restores it exactly.",
+              "**Toast, ntfy and webhook, never the bell.** Snooze and quiet hours hold warnings back.",
+              '**Configurable.** `usageAlerts: { "enabled": true, "thresholds": [70, 85, 95] }` in `~/.anotifier/config.json`.',
+            ],
+          },
+          {
+            kind: "p",
+            text: "The [usage limit notifications guide](/guides/claude-code-usage-limit-notifications/) has the statusline script to write yourself and the full details.",
+          },
+        ],
+      },
     ],
     faqs: [
+      {
+        q: "Can anotifier warn me before Claude Code hits a usage limit?",
+        aHtml:
+          '<p>Yes, from anotifier 1.5.0 on a Claude.ai Pro or Max plan. It sends one notification when your 5-hour or weekly usage crosses 70%, 85% and 95%, naming the chat and when the window resets. It reads the numbers from Claude Code\'s statusline, which <code>anotifier setup</code> routes through anotifier and wraps around any statusline you already have. See the <a href="/guides/claude-code-usage-limit-notifications/">usage limit notifications guide</a>.</p>',
+      },
       {
         q: "How does anotifier integrate with Claude Code?",
         aHtml:
@@ -181,14 +224,14 @@ export const AGENTS: Agent[] = [
       {
         q: "How do I remove it?",
         aHtml:
-          "<p>Run <code>npx anotifier@latest uninstall</code>. It removes anotifier's two entries and leaves your own hooks in place. If you installed the plugin, remove it from Claude Code's <code>/plugin</code> menu as well.</p>",
+          "<p>Run <code>npx anotifier@latest uninstall</code>. It removes anotifier's two entries, puts your original statusline back (or removes the one setup added), and leaves your own hooks in place. If you installed the plugin, remove it from Claude Code's <code>/plugin</code> menu as well.</p>",
       },
     ],
     icon: "/assets/icons/claude.png",
   },
   {
     slug: "codex",
-    updated: "2026-09-27",
+    updated: "2026-10-09",
     name: "Codex CLI",
     title: "Codex CLI Notifier — Desktop, Phone & Approval Alerts",
     description:
@@ -310,7 +353,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "cursor",
-    updated: "2026-09-27",
+    updated: "2026-10-09",
     name: "Cursor",
     title: "Cursor Agent Notifier — Desktop, Phone & Slack Alerts",
     description:
@@ -631,7 +674,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "vscode",
-    updated: "2026-09-27",
+    updated: "2026-10-09",
     name: "VS Code",
     title: "VS Code AI Agent Notifier — Claude Code & Cursor Alerts",
     description:

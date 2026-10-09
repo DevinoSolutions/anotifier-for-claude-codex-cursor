@@ -94,7 +94,7 @@ const jsonLd = {
           name: "How do I get rid of it?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "anotifier uninstall removes only the hooks anotifier manages and leaves your own hooks untouched. It copies each config to ~/.anotifier/backups before editing it; those backups stay there for you to keep or delete.",
+            text: "anotifier uninstall removes only the hooks anotifier manages, restores your statusline (1.5.0 and later), and leaves your own hooks untouched. It copies each config to ~/.anotifier/backups before editing it; those backups stay there for you to keep or delete.",
           },
         },
         {

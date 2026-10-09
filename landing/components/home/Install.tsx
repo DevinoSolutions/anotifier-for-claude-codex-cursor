@@ -72,7 +72,8 @@ export default function Install() {
         }}
       >
         Run it, restart your AI tools, done. Uninstall removes only the hooks
-        anotifier manages and leaves your own hooks untouched.
+        anotifier manages, restores your statusline (1.5.0 and later), and
+        leaves your own hooks untouched.
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <div style={rowStyle}>

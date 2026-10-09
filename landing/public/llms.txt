@@ -25,6 +25,7 @@
 - [Antigravity CLI](https://anotifier.io/guides/antigravity-cli-notifications/): Stop hook in ~/.gemini/config/hooks.json (it must print a {"decision":"stop"} answer), ntfy push, and anotifier 1.4.0+ (Task complete only, no needs-input alert, not yet tested against a live Antigravity CLI)
 - [Claude Code permission and waiting-for-input notifications](https://anotifier.io/guides/claude-code-permission-notifications/): permission_prompt and idle_prompt matchers, every notification type, timing, PermissionRequest, phone push
 - [Claude Code notification sound](https://anotifier.io/guides/claude-code-notification-sound/): terminal_bell setting, Stop hook with afplay / paplay / PowerShell, per-event sounds
+- [Claude Code usage limit warning](https://anotifier.io/guides/claude-code-usage-limit-notifications/): get notified before the 5-hour or weekly usage limit; a statusline script reading rate_limits.five_hour.used_percentage and resets_at, or anotifier 1.5.0+ (alerts at 70/85/95%, Claude.ai Pro and Max only)
 - [Codex CLI notification sound](https://anotifier.io/guides/codex-notification-sound/): make Codex ding when it needs approval or a response (Plan mode prompt, question): [tui] notifications, notification_method = "bel", notification_condition = "always", PermissionRequest sound hook
 - [All guides](https://anotifier.io/guides/)
 
