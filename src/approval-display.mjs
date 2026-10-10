@@ -36,7 +36,30 @@ export function renderVisible(input) {
   return String(input ?? '')
     .replace(/\r\n|\r|\n/g, NEWLINE_MARKER)
     .replace(/\t/g, ' ')
-    .replace(INVISIBLE_RE, codePointMarker);
+    .replace(URL_AUTHORITY_RE, markNonAscii)
+    .replace(INVISIBLE_RE, codePointMarker)
+    .replace(RTL_RE, codePointMarker);
+}
+
+// Right-to-left letters (Bidi_Class R / AL, and Arabic numbers) reorder the
+// text around them on screen, so a command can read differently from how it
+// runs. JavaScript regexes have no Bidi_Class property, so this is the set of
+// blocks that hold them: Hebrew, Arabic, Syriac, Thaana, NKo, Samaritan,
+// Mandaic and the Arabic extensions (U+0590-U+08FF), the Hebrew and Arabic
+// presentation forms (U+FB1D-U+FDFF, U+FE70-U+FEFE), and the right-to-left
+// scripts of the SMP (U+10800-U+10FFF, U+1E800-U+1EFFF). Slightly wider than
+// the exact class on purpose: a marker is the safe direction. Ordinary
+// accented Latin, Greek, Cyrillic and CJK are not in it and stay readable.
+const RTL_RE = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFE\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}]/gu;
+
+// A non-ASCII character inside the host part of a URL (`scheme://host`): a
+// lookalike letter turns github.com into a different server. Everything
+// non-ASCII there becomes a marker, whatever script it is in. The authority
+// ends at a path, query, fragment, backslash, quote or shell separator.
+const URL_AUTHORITY_RE = /\b[a-z][a-z0-9+.-]{0,31}:\/\/[^\s/?#\\"'<>|;&()`]*/giu;
+
+function markNonAscii(authority) {
+  return authority.replace(/[^\x00-\x7f]/gu, codePointMarker);
 }
 
 // ── Home directory → ~ ──────────────────────────────────────────────
@@ -51,40 +74,101 @@ export function tildeHome(input, home) {
 
 // ── Secret scrubbing (design 2.8) ───────────────────────────────────
 // Covered:
-//   NAME=value where NAME contains secret|token|key|pass|pwd|auth|cred
+//   NAME=value where NAME has a whole segment that names a secret (API_KEY,
+//     GH_TOKEN, PGPASSWORD, AUTH_HEADER, apiKey; not MONKEY or KEYBOARD)
 //   Authorization: header values, and Bearer/Basic/Token credentials
 //   credentials in URLs (scheme://user:pass@)
 //   runs of 32+ base64/hex characters (with at least one digit and one
-//   letter, so long plain words and paths without digits survive)
+//   letter, so long plain words survive), unless the run is part of a path
+// NEVER redacted, whatever the name: a value that holds shell syntax that
+// would run or chain something ($(, ${, a backtick, a newline, ; | & < >).
+// A redaction must not be able to swallow what executes (review of PR #96,
+// H1); such a value is shown as it is. As defence in depth, if a redaction
+// ever did cover such syntax the command no longer fits, so Approve is
+// withheld (see scrubDetailed).
 // KNOWN MISSES (asserted as misses in tests so the docs stay honest):
 //   secrets as separate arguments (--token abc123, --password hunter2),
 //   glued short flags (mysql -pSECRET), short passwords anywhere, secrets in
 //   positional arguments, and any format these patterns do not know.
-const SECRET_NAME_RE = /secret|token|key|pass|pwd|auth|cred/i;
+const SECRET_WORD_RE = /^(?:key|keys|pass|pwd|auth|authorization|cred|creds|credential|credentials|apikey|accesskey|secretkey|privatekey|\w*?(?:secret|token|password|passwd)s?)$/i;
+
+// True when NAME names a secret by a whole segment. Segments split on _ - .
+// and on lower-to-upper camelCase boundaries.
+export function isSecretName(name) {
+  return String(name)
+    .split(/[_.\-]+|(?<=[a-z0-9])(?=[A-Z])/)
+    .filter(Boolean)
+    .some((seg) => SECRET_WORD_RE.test(seg));
+}
+
+// Shell syntax that runs or chains something. A value holding any of it is
+// never redacted.
+const SHELL_META_RE = /\$[({]|[`\n\r;|&<>]/;
+export function hasShellMeta(value) {
+  return SHELL_META_RE.test(String(value));
+}
 
 export function redacted(n) {
   return `[redacted ${n} chars]`;
 }
 
-export function scrubSecrets(input) {
+// bashDisplay scrubs only this much of a command: the rest is far over
+// the display budget, Approve is withheld anyway, and the scrubbing patterns
+// must not be handed 100 KB of adversarial input (review of PR #96, L1).
+const SCRUB_INPUT_CAP = 6000;
+
+// { text, unsafe }. unsafe: a redaction covered shell syntax. The guard makes
+// that unreachable; if it ever happens the caller withholds Approve.
+// { guard: false } switches the guard off so tests can exercise that path.
+export function scrubDetailed(input, { guard = true } = {}) {
   let s = String(input ?? '');
+  let unsafe = false;
+  // The one place a redaction marker is made. null: the value stays visible.
+  const redact = (value) => {
+    const meta = hasShellMeta(value);
+    if (meta && guard) return null;
+    if (meta) unsafe = true;
+    return redacted(value.length);
+  };
   // URL credentials first: user:pass@ inside a URL.
-  s = s.replace(/\b([a-z][a-z0-9+.-]*:\/\/)([^\s/@:]+:[^\s/@]+)@/gi, (_, scheme, cred) => `${scheme}${redacted(cred.length)}@`);
-  // Authorization header values, with or without a scheme word.
-  s = s.replace(/(authorization\s*[:=]\s*)((?:bearer|basic|token|digest)\s+)?([^\s"']+)/gi,
-    (_, head, scheme = '', value) => `${head}${scheme}${redacted(value.length)}`);
-  // A bare Bearer/Basic credential elsewhere (curl -H "...: Bearer x", tools that take one).
-  s = s.replace(/\b(bearer|basic)(\s+)(?!\[redacted)([A-Za-z0-9._~+/=-]{8,})/gi,
-    (_, scheme, sp, value) => `${scheme}${sp}${redacted(value.length)}`);
-  // NAME=value with a secret-looking name. The value is one shell word:
-  // a quoted string or a run of non-separator characters.
-  s = s.replace(/\b([A-Za-z_][A-Za-z0-9_.-]*)=("[^"]*"|'[^']*'|[^\s"';&|<>()`]+)/g, (whole, name, value) => {
-    if (!SECRET_NAME_RE.test(name) || value.startsWith('[redacted')) return whole;
-    return `${name}=${redacted(value.length)}`;
+  s = s.replace(/\b([a-z][a-z0-9+.-]{0,31}:\/\/)([^\s/@:]{1,256}:[^\s/@]{1,256})@/gi, (whole, scheme, cred) => {
+    const r = redact(cred);
+    return r === null ? whole : `${scheme}${r}@`;
   });
-  // Long opaque runs: keys, hashes, base64 payloads.
-  s = s.replace(/[A-Za-z0-9+/_=-]{32,}/g, (run) => (/\d/.test(run) && /[A-Za-z]/.test(run) ? redacted(run.length) : run));
-  return s;
+  // Authorization header values, with or without a scheme word.
+  s = s.replace(/(authorization\s*[:=]\s*)((?:bearer|basic|token|digest)\s+)?([^\s"']+)/gi, (whole, head, scheme = '', value) => {
+    const r = redact(value);
+    return r === null ? whole : `${head}${scheme}${r}`;
+  });
+  // A bare Bearer/Basic credential elsewhere (curl -H "...: Bearer x", tools that take one).
+  s = s.replace(/\b(bearer|basic)(\s+)(?!\[redacted)([A-Za-z0-9._~+/=-]{8,})/gi, (whole, scheme, sp, value) => {
+    const r = redact(value);
+    return r === null ? whole : `${scheme}${sp}${r}`;
+  });
+  // NAME=value with a secret-looking name. The value is one shell word: a
+  // quoted string or a run of non-separator characters. "$(" and "${" are
+  // part of an unquoted word so that they are seen (the value is then left
+  // alone). A double-quoted value may hold \" escapes.
+  s = s.replace(/\b([A-Za-z_][A-Za-z0-9_.-]{0,63})=("(?:[^"\\]|\\[^])*"|'[^']*'|(?:\$[({]|[^\s"';&|<>()`])+)/g, (whole, name, value) => {
+    if (!isSecretName(name) || value.startsWith('[redacted')) return whole;
+    const r = redact(value);
+    return r === null ? whole : `${name}=${r}`;
+  });
+  // Long opaque runs: keys, hashes, base64 payloads. Never a path: a run with
+  // a / or \ in it, or right after a ~ or a \, is a location the user needs
+  // to read (rm -rf /home/me/client-work-2024-backups).
+  s = s.replace(/[A-Za-z0-9+/_=-]{32,}/g, (run, offset, whole) => {
+    if (!(/\d/.test(run) && /[A-Za-z]/.test(run))) return run;
+    if (/[/\\]/.test(run)) return run;
+    if (offset > 0 && /[~\\]/.test(whole[offset - 1])) return run;
+    const r = redact(run);
+    return r === null ? run : r;
+  });
+  return { text: s, unsafe };
+}
+
+export function scrubSecrets(input) {
+  return scrubDetailed(input).text;
 }
 
 // ── Display budget (design 2.8 table) ───────────────────────────────
@@ -96,17 +180,31 @@ export function scrubSecrets(input) {
 export const DISPLAY_BUDGET = { summary: 300, full: 1500 };
 const DISPLAY_BYTE_CAP = 3000;
 
-// { text, fits }. `fits` false means: do not offer Approve.
+// { text, fits, reason? }. `fits` false means: do not offer Approve; `reason`
+// then says why: 'minimal' (the mode shows no command at all, so there is
+// nothing to approve), 'long' (over the budget) or 'redaction' (a redaction
+// covered shell syntax, which the scrubber is built never to do).
 export function bashDisplay(command, { mode = 'summary', home = '' } = {}) {
-  if (mode === 'minimal') return { text: 'Bash command', fits: true };
+  // minimal shows no command, so the user cannot see what would run: Approve
+  // is withheld and only Deny / "At terminal" are offered (review of PR #96, L7).
+  if (mode === 'minimal') return { text: 'Bash command', fits: false, reason: 'minimal' };
   const budget = DISPLAY_BUDGET[mode] || DISPLAY_BUDGET.summary;
-  const text = renderVisible(scrubSecrets(tildeHome(command, home)));
+  const source = tildeHome(command, home);
+  // Far over the budget: only the head can ever be shown, so only the head is
+  // scrubbed (bounded work, review of PR #96, L1). Approve is withheld below.
+  const head = source.length > SCRUB_INPUT_CAP ? source.slice(0, SCRUB_INPUT_CAP) : source;
+  const unscanned = source.length - head.length;
+  const scrubbed = scrubDetailed(head);
+  const text = renderVisible(scrubbed.text);
   const chars = [...text];
-  if (chars.length <= budget && Buffer.byteLength(text, 'utf8') <= DISPLAY_BYTE_CAP) return { text, fits: true };
+  if (!unscanned && !scrubbed.unsafe && chars.length <= budget && Buffer.byteLength(text, 'utf8') <= DISPLAY_BYTE_CAP) {
+    return { text, fits: true };
+  }
   let cut = chars.slice(0, budget).join('');
   while (Buffer.byteLength(cut, 'utf8') > DISPLAY_BYTE_CAP) cut = [...cut].slice(0, -50).join('');
-  const hidden = chars.length - [...cut].length;
-  return { text: `${cut} … [${hidden} more chars not shown]`, fits: false };
+  const hidden = chars.length - [...cut].length + unscanned;
+  if (hidden <= 0) return { text: cut, fits: false, reason: 'redaction' };
+  return { text: `${cut} … [${hidden} more chars not shown]`, fits: false, reason: 'long' };
 }
 
 // A short label for titles: rendered, single line, bounded.

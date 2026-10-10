@@ -95,7 +95,11 @@ function projectName(cwd) {
 // description is never shown: the command is the headline (T11).
 export function requestText({ agentLabel, toolName, project, display, sessionId, expiresAt }) {
   const lines = [display.text];
-  if (!display.fits) lines.push('', 'Too long to approve from the phone: Deny, or answer at the terminal.');
+  if (!display.fits) {
+    lines.push('', display.reason === 'minimal'
+      ? 'The command is hidden by your display setting, so it cannot be approved from the phone: Deny, or answer at the terminal.'
+      : 'Too long to approve from the phone: Deny, or answer at the terminal.');
+  }
   lines.push('', `Session ${sessionTag(sessionId)} · expires ${formatClock(expiresAt)}`);
   return { title: `${project} · ${agentLabel} wants to run ${toolName}`, message: lines.join('\n') };
 }

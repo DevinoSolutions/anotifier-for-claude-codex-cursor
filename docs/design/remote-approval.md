@@ -201,7 +201,7 @@ The prior art returns `{"behavior": "ask"}` on failure. `ask` is not a documente
 
 Title: `<project> · <Agent> wants to <verb> <Tool>` (project is the cwd basename, already sent by today's notifications). Body: one content line, then `Session <4-char tag> · expires HH:MM`.
 
-Display mode `summary` is the default. `minimal` and `full` are opt-in.
+Display mode `summary` is the default. `minimal` and `full` are opt-in. `minimal` shows no command, so a Bash request in `minimal` mode carries no Approve button: only Deny and "At terminal" are offered, because the user cannot judge what would run.
 
 | Tool | `minimal` | `summary` (default) | `full` |
 |---|---|---|---|
@@ -218,12 +218,13 @@ Rendering rules, applied before display and before length checks. **Nothing is s
 
 - A newline becomes ` ⏎ `, so `cmd1` followed by a newline and `rm -rf x` shows as `cmd1 ⏎ rm -rf x`, not as one fused line. Tabs become a single space.
 - Every other control character (C0, DEL, C1), every bidi control (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C) and every zero-width or invisible character (U+200B to U+200D, U+2060, U+FEFF, U+00AD) becomes a marker naming its code point, for example `[U+202E]`.
+- Right-to-left letters (Hebrew, Arabic and the other bidi class R/AL scripts) become `[U+XXXX]` markers, and so does any non-ASCII character in the host of a `scheme://host` URL. Ordinary non-ASCII in paths and arguments (accented Latin, CJK) stays readable.
 - Replace the home directory prefix with `~`.
 
 Secret scrubbing, also applied before display. **It is a heuristic, not a guarantee:**
 
-- Replace `NAME=value` where `NAME` matches `(?i)(secret|token|key|pass|pwd|auth|cred)` with `NAME=[redacted N chars]`.
-- Replace `Authorization:` / `Bearer` header values, credentials in URLs (`https://user:pass@`), and runs of 32 or more base64/hex characters with `[redacted N chars]`.
+- Replace `NAME=value` where a whole segment of `NAME` (split on `_`, `-`, `.` and camelCase) names a secret (`key`, `token`, `secret`, `pass`, `password`, `pwd`, `auth`, `cred`, and compounds such as `PGPASSWORD`) with `NAME=[redacted N chars]`. `API_KEY` and `GH_TOKEN` match; `MONKEY` and `KEYBOARD` do not. **A value that holds shell syntax is never redacted**: `$(`, `${`, a backtick, a newline, `;`, `|`, `&`, `<` or `>` mean the value can run or chain something, so it is shown as it is. If a redaction ever did cover such syntax, Approve is withheld.
+- Replace `Authorization:` / `Bearer` header values, credentials in URLs (`https://user:pass@`), and runs of 32 or more base64/hex characters with `[redacted N chars]`. A run that contains `/` or a backslash, or follows `~` or a backslash, is a path and is shown. A command far over the display budget has only its first 6,000 characters scrubbed (the rest is never shown), which bounds the work.
 - Known misses: secrets passed as separate arguments (`--token abc123`, `--password hunter2`), glued short flags (`mysql -pSECRET`), short passwords anywhere, secrets in positional arguments, and any secret format the patterns do not know. Users who send real secrets through commands should use `minimal` display or keep the request topic on a server they run.
 
 Redaction markers stay visible on purpose. A payload hidden in a long base64 blob shows up as `echo [redacted 812 chars] | base64 -d | sh`, which a user can recognise as suspicious (T11).
