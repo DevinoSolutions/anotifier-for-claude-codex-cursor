@@ -19,7 +19,15 @@ const COMMANDS = {
   snooze: () => import('./snooze.mjs'),
   telemetry: () => import('./telemetry.mjs'),
   uninstall: () => import('./uninstall.mjs'),
+  // Experimental remote approval: deliberately absent from --help until it
+  // ships (docs/design/remote-approval.md, D4).
+  approval: () => import('./approval.mjs'),
+  away: () => import('./away.mjs'),
 };
+
+// Commands that queue no usage event at all. Remote approval sends no
+// telemetry of any kind in its first version (design Q6).
+const UNTRACKED = new Set(['telemetry', 'approval', 'away']);
 
 // Arguments the CLI itself defines. Anything else (a snooze duration, a typo)
 // is reported as 'other' so a usage event can never carry what the user typed.
@@ -74,7 +82,7 @@ async function main() {
   // command queued goes out in ONE request, under a 1s deadline. `telemetry`
   // reports its own opt-in and must send nothing on opt-out, so it queues no
   // cli_command event.
-  if (command !== 'telemetry') {
+  if (!UNTRACKED.has(command)) {
     track('cli_command', {
       command,
       args: argShape(process.argv.slice(3)),
@@ -124,6 +132,7 @@ function printHelp(c, banner) {
 
 main().catch(async (err) => {
   console.error('Error:', err.message);
+  if (command === 'approval' || command === 'away') process.exit(1);
   // The error's class and code only — a message can carry paths or topics.
   // Clamped to short identifiers: a custom error class or code could carry text.
   track('cli_error', {
