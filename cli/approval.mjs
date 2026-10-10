@@ -18,7 +18,7 @@ import {
   APPROVAL_VERSION, DEFAULT_WAIT_SECONDS, MIN_WAIT_SECONDS, MAX_WAIT_SECONDS, DISPLAY_MODES,
   HOOK_TIMEOUT_MARGIN_SECONDS,
 } from '../src/approval.mjs';
-import { exchange, publishJson, buildFollowUpPayload, probeLockdown } from '../src/approval-ntfy.mjs';
+import { exchange, publishJson, buildFollowUpPayload, probeLockdown, checkAccountTier } from '../src/approval-ntfy.mjs';
 import { formatClock } from '../src/suppress.mjs';
 import { patchClaudeApproval, unpatchClaudeApproval, claudeApprovalWired } from '../setup/patch-config.mjs';
 import { ask, askYN, c } from './ui.mjs';
@@ -307,6 +307,20 @@ async function setupWith(flags, rl, prompt = null) {
   }
   console.log(`  ${c.success('✓')} ${c.white('The server refuses anonymous reads and publishes on the approval topics.')}`);
   console.log();
+
+  // A tierless ntfy account shares one rate-limit visitor per client IP, which
+  // can cause intermittent 403s. A warning only: setup goes on either way, and
+  // a failed check prints nothing. Skipped on ntfy.sh, where tiers are its plans.
+  if (data.token && !isPublicNtfySh(host)) {
+    const acct = await checkAccountTier(data.server, data.token);
+    if (acct.checked && !acct.hasTier) {
+      console.log(`  ${c.warn('!')} ${c.white('This ntfy account has no tier, so overlapping requests from one IP may get intermittent 403s, which make approvals fall back to the terminal.')}`);
+      console.log(`  ${c.muted('Fix it on the server (docs/design/remote-approval.md, section 2.5, step 1):')}`);
+      console.log(`  ${c.muted('  ntfy tier add --name=approval approval')}`);
+      console.log(`  ${c.muted('  ntfy user change-tier <user> approval')}`);
+      console.log();
+    }
+  }
 
   console.log(`  ${c.white('Sent a test request. Tap Approve on your phone within 2 minutes...')}`);
   const rid = generateOneTime();

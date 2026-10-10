@@ -106,6 +106,57 @@ describe('approval setup checks the server is locked down first', () => {
   });
 });
 
+describe('approval setup warns when the ntfy account has no tier', () => {
+  const lockedDown = () => {
+    fake.mode.denyAnonymous = { responseTopicRe: /^ans-[A-Za-z0-9_-]{16}_/ };
+    fake.onRequest = (payload) => tap(actionByLabel(payload, 'Approve'));
+  };
+
+  it('a tierless account gets the warning with both commands, and setup still completes', async () => {
+    const home = freshHome();
+    lockedDown();
+    fake.mode.account = { body: { username: 'agent', role: 'user' } };
+    const res = await runSetup({ home, server: fake.base });
+    const text = res.stdout + res.stderr;
+    assert.equal(res.status, 0, text);
+    assert.match(text, /account has no tier/);
+    assert.match(text, /intermittent 403s/);
+    assert.match(text, /section 2\.5, step 1/);
+    assert.match(text, /ntfy tier add --name=approval approval/);
+    assert.match(text, /ntfy user change-tier <user> approval/);
+    assert.ok(!text.includes(TOKEN), 'the token is never printed');
+    assert.match(text, /Round trip works/);
+    assert.equal(readApproval(home).enabled, true);
+    assert.equal(hookInstalled(home), true);
+    const acct = fake.requests.findIndex((q) => q.path === '/v1/account');
+    assert.ok(acct >= 3, 'after the three anonymous probes');
+    assert.equal(fake.requests[acct].auth, `Bearer ${TOKEN}`);
+    assert.ok(acct < fake.requests.findIndex((q) => q.path.endsWith('/json') && q.auth), 'before the round trip');
+  });
+
+  it('an account with a tier prints no warning', async () => {
+    const home = freshHome();
+    lockedDown();
+    fake.mode.account = { body: { username: 'agent', tier: { code: 'approval', name: 'approval' } } };
+    const res = await runSetup({ home, server: fake.base });
+    const text = res.stdout + res.stderr;
+    assert.equal(res.status, 0, text);
+    assert.doesNotMatch(text, /no tier/);
+    assert.equal(readApproval(home).enabled, true);
+  });
+
+  it('a failed check prints nothing extra and setup continues', async () => {
+    const home = freshHome();
+    lockedDown();
+    fake.mode.account = { status: 401, body: {} };
+    const res = await runSetup({ home, server: fake.base });
+    const text = res.stdout + res.stderr;
+    assert.equal(res.status, 0, text);
+    assert.doesNotMatch(text, /no tier|intermittent/);
+    assert.equal(readApproval(home).enabled, true);
+  });
+});
+
 describe('approval setup verifies certificates (review of PR #96, M1)', () => {
   it('a self-signed server is refused even with NODE_TLS_REJECT_UNAUTHORIZED=0 in the environment', async () => {
     const secure = await startFakeNtfy({ tls: selfSignedPems() });

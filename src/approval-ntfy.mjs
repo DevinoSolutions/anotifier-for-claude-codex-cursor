@@ -13,7 +13,7 @@
 import https from 'node:https';
 import http from 'node:http';
 import crypto from 'node:crypto';
-import { ONE_TIME_RE, generateOneTime } from './approval.mjs';
+import { ONE_TIME_RE, generateOneTime, isPublicNtfySh } from './approval.mjs';
 
 // Stream caps (T15): past either one the hook gives up with no decision.
 export const STREAM_BYTE_CAP = 64 * 1024;
@@ -364,4 +364,61 @@ export async function probeLockdown(base, {
     if (!check.ok) failed = check;
   }
   return { ok: failed === null, checks, failed };
+}
+
+// Does the agent's ntfy account have a tier? ntfy shares one rate-limit
+// visitor per client IP between tierless accounts, so overlapping requests from
+// one IP (a phone and a laptop behind one router) can get intermittent 403s,
+// which make approvals fall back to the terminal (design 2.5, step 1). Setup
+// warns about it; this never refuses anything. GET <base>/v1/account with the
+// agent token, same transport and options as the lockdown probe. In ntfy
+// v2.29.0 apiAccountResponse has `Tier *apiAccountTier` tagged
+// `json:"tier,omitempty"`, so a tierless account has NO `tier` field.
+// Resolves { checked, hasTier }: checked false (hasTier null) on any network
+// error, timeout, non-200 or unparseable body. Never throws; the token is only
+// sent as the Authorization header and is never returned or logged.
+const ACCOUNT_BODY_CAP = 64 * 1024;
+
+export function checkAccountTier(base, token, { timeoutMs = PROBE_TIMEOUT_MS } = {}) {
+  const unchecked = { checked: false, hasTier: null };
+  return new Promise((resolve) => {
+    let done = false;
+    let req;
+    let timer;
+    const finish = (value) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { req?.destroy(); } catch {}
+      resolve(value);
+    };
+    if (!token) { finish(unchecked); return; }
+    try {
+      const u = new URL(`${base}/v1/account`);
+      // ntfy.sh is the hosted service; tiers there are its plans.
+      if (isPublicNtfySh(u.hostname)) { finish(unchecked); return; }
+      req = transportFor(u).request(u, { method: 'GET', agent: false, rejectUnauthorized: true, headers: authHeaders(token) }, (res) => {
+        if (res.statusCode !== 200) { res.resume(); finish(unchecked); return; }
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => {
+          body += chunk;
+          if (body.length > ACCOUNT_BODY_CAP) finish(unchecked);
+        });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(body);
+            if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) { finish(unchecked); return; }
+            finish({ checked: true, hasTier: parsed.tier !== undefined && parsed.tier !== null });
+          } catch { finish(unchecked); }
+        });
+        res.on('error', () => finish(unchecked));
+      });
+      timer = setTimeout(() => finish(unchecked), timeoutMs);
+      req.on('error', () => finish(unchecked));
+      req.end();
+    } catch {
+      finish(unchecked);
+    }
+  });
 }

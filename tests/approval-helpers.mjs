@@ -92,6 +92,13 @@ export async function startFakeNtfy({ tls = null } = {}) {
         return;
       }
     }
+    if (req.method === 'GET' && url.pathname === '/v1/account' && fake.mode.account) {
+      const a = fake.mode.account; // { status, body (object or raw string), hang }
+      if (a.hang) return;
+      res.statusCode = a.status || 200;
+      res.end(typeof a.body === 'string' ? a.body : JSON.stringify(a.body ?? {}));
+      return;
+    }
     if (req.method === 'GET' && parts.length === 2 && parts[1] === 'json' && url.searchParams.get('poll') === '1') {
       res.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
       res.end();
