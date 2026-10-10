@@ -254,7 +254,7 @@ export const DOCS: DocSection[] = [
           ],
           [
             "`session_start`",
-            "A new session started (Codex only). Toast, phone push and bell are off for this event by default; an enabled webhook still receives it unless you set `webhookEnabled: false`.",
+            "A new session started (Codex only). Every channel is off for this event by default, the webhook included from 1.7.1 (before 1.7.1 an enabled webhook still received it). Set `webhookEnabled: true` (or `toastEnabled`, `ntfyEnabled`, `terminalBellEnabled`) to get it on that channel.",
             "Default",
             "low",
             "rocket",
@@ -462,7 +462,7 @@ export const DOCS: DocSection[] = [
       {
         kind: "code",
         lang: "json",
-        code: '{\n  "ntfy": { "enabled": true, "server": "https://ntfy.sh", "topic": "", "click": "", "richContent": false },\n  "toast": { "enabled": true, "clickToFocus": true, "richContent": true },\n  "terminalBell": { "enabled": true },\n  "webhook": { "enabled": false, "url": "", "format": "generic", "richContent": true },\n  "sentry": { "enabled": false, "dsn": "" },\n  "updateCheck": { "enabled": true },\n  "usageAlerts": { "enabled": true, "thresholds": [70, 85, 95] },\n  "contextAlerts": { "enabled": true, "threshold": 85 },\n  "quietHours": { "enabled": false, "from": "22:00", "to": "08:00" },\n  "events": {\n    "task_complete": { "toastSound": "IM", "priority": "default", "ntfyTags": "white_check_mark" },\n    "needs_input": { "toastSound": "Reminder", "priority": "urgent", "ntfyTags": "bell,warning" },\n    "session_start": {\n      "toastSound": "Default", "priority": "low", "ntfyTags": "rocket",\n      "toastEnabled": false, "ntfyEnabled": false, "terminalBellEnabled": false\n    }\n  },\n  "sources": {\n    "claude": { "label": "Claude Code", "icon": "https://…/claude-app-icon.png" },\n    "codex": { "label": "Codex", "icon": "https://openai.com/favicon.ico" },\n    "gemini": { "label": "Gemini", "icon": "https://…/gemini_sparkle.svg" },\n    "cursor": { "label": "Cursor", "icon": "https://cursor.com/apple-touch-icon.png" }\n  }\n}',
+        code: '{\n  "ntfy": { "enabled": true, "server": "https://ntfy.sh", "topic": "", "click": "", "richContent": false },\n  "toast": { "enabled": true, "clickToFocus": true, "richContent": true },\n  "terminalBell": { "enabled": true },\n  "webhook": { "enabled": false, "url": "", "format": "generic", "richContent": true },\n  "sentry": { "enabled": false, "dsn": "" },\n  "updateCheck": { "enabled": true },\n  "usageAlerts": { "enabled": true, "thresholds": [70, 85, 95] },\n  "contextAlerts": { "enabled": true, "threshold": 85 },\n  "quietHours": { "enabled": false, "from": "22:00", "to": "08:00" },\n  "events": {\n    "task_complete": { "toastSound": "IM", "priority": "default", "ntfyTags": "white_check_mark" },\n    "needs_input": { "toastSound": "Reminder", "priority": "urgent", "ntfyTags": "bell,warning" },\n    "session_start": {\n      "toastSound": "Default", "priority": "low", "ntfyTags": "rocket",\n      "toastEnabled": false, "ntfyEnabled": false, "terminalBellEnabled": false, "webhookEnabled": false\n    }\n  },\n  "sources": {\n    "claude": { "label": "Claude Code", "icon": "https://…/claude-app-icon.png" },\n    "codex": { "label": "Codex", "icon": "https://openai.com/favicon.ico" },\n    "gemini": { "label": "Gemini", "icon": "https://…/gemini_sparkle.svg" },\n    "cursor": { "label": "Cursor", "icon": "https://cursor.com/apple-touch-icon.png" }\n  }\n}',
       },
       {
         kind: "table",
