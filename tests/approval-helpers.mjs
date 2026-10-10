@@ -41,6 +41,17 @@ export function closedPortBase() {
 //   flood            after a publish, stream this many bytes of junk lines
 //   junkMessages     after a publish, send this many bogus message events
 //   rawLines         after a publish, write these raw lines to subscribers
+//   denyAnonymous    { responsePrefix }: behave like the design ACL recipe for
+//                    clients with no Authorization header: 401 on every read,
+//                    401 on a publish unless the topic starts with
+//                    <responsePrefix>_ (anonymous write-only there). A
+//                    number instead of an object answers with that status.
+//                    { responseTopicRe } is a RegExp for the response topics, when
+//                    the prefix is not known (a CLI test), instead of responsePrefix.
+//                    { openReadPrefix } also lets anonymous clients read topics
+//                    under that prefix, { openPublish: true } lets them publish
+//                    anywhere (both for testing a half-open server).
+//                    Without it the server is OPEN, like a default ntfy.
 // `fake.onRequest(payload, fake)` runs for every JSON publish that carries
 // actions: that is "the phone".
 export async function startFakeNtfy({ tls = null } = {}) {
@@ -49,6 +60,7 @@ export async function startFakeNtfy({ tls = null } = {}) {
     published: [], // JSON publishes, in order: { payload, auth }
     subscribes: [], // { topic, auth }
     posts: [], // plain POST /<topic>: { topic, body }
+    requests: [], // every request: { method, path, auth }
     subscribers: new Map(), // topic -> Set(res)
     sockets: new Set(),
     onRequest: null,
@@ -67,6 +79,24 @@ export async function startFakeNtfy({ tls = null } = {}) {
   fake.server = createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
     const parts = url.pathname.split('/').filter(Boolean);
+    fake.requests.push({ method: req.method, path: `${url.pathname}${url.search}`, auth: req.headers.authorization || null });
+    const deny = fake.mode.denyAnonymous;
+    if (deny && !req.headers.authorization) {
+      const prefix = typeof deny === 'object' ? deny.responsePrefix : null;
+      const anonymousWriteOk = req.method === 'POST' && parts.length === 1 && (
+        (prefix && parts[0].startsWith(`${prefix}_`)) || (typeof deny === 'object' && deny.responseTopicRe?.test(parts[0])));
+      const anonymousReadOk = req.method === 'GET' && typeof deny === 'object' && deny.openReadPrefix && parts[0]?.startsWith(`${deny.openReadPrefix}_`);
+      if (!anonymousWriteOk && !anonymousReadOk && !(req.method === 'POST' && typeof deny === 'object' && deny.openPublish)) {
+        res.statusCode = typeof deny === 'number' ? deny : 401;
+        res.end('{"code":40101,"error":"unauthorized"}');
+        return;
+      }
+    }
+    if (req.method === 'GET' && parts.length === 2 && parts[1] === 'json' && url.searchParams.get('poll') === '1') {
+      res.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
+      res.end();
+      return;
+    }
     if (req.method === 'GET' && parts.length === 2 && parts[1] === 'json') {
       const topic = parts[0];
       fake.subscribes.push({ topic, auth: req.headers.authorization || null });
@@ -131,6 +161,7 @@ export async function startFakeNtfy({ tls = null } = {}) {
     fake.published = [];
     fake.subscribes = [];
     fake.posts = [];
+    fake.requests = [];
     fake.onRequest = null;
   };
   fake.close = () => new Promise((r) => {

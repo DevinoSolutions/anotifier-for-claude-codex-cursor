@@ -8,6 +8,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { getConfigDir } from '../src/config-loader.mjs';
 import {
@@ -17,7 +18,7 @@ import {
   APPROVAL_VERSION, DEFAULT_WAIT_SECONDS, MIN_WAIT_SECONDS, MAX_WAIT_SECONDS, DISPLAY_MODES,
   HOOK_TIMEOUT_MARGIN_SECONDS,
 } from '../src/approval.mjs';
-import { exchange, publishJson, buildFollowUpPayload } from '../src/approval-ntfy.mjs';
+import { exchange, publishJson, buildFollowUpPayload, probeLockdown } from '../src/approval-ntfy.mjs';
 import { formatClock } from '../src/suppress.mjs';
 import { patchClaudeApproval, unpatchClaudeApproval, claudeApprovalWired } from '../setup/patch-config.mjs';
 import { ask, askYN, c } from './ui.mjs';
@@ -91,6 +92,69 @@ export function aclRecipe({ requestTopic, responsePrefix }) {
   ];
 }
 
+// A readline whose echo can be switched off, for typing an access token
+// without it appearing on screen (review of PR #96, L4). Everything the
+// interface writes goes through a sink that forwards to `output` unless
+// handle.muted is set.
+export function createPromptInterface({ input = process.stdin, output = process.stdout } = {}) {
+  const handle = { muted: false, output };
+  const sink = new Writable({
+    write(chunk, encoding, callback) {
+      if (!handle.muted) output.write(chunk, encoding);
+      callback();
+    },
+  });
+  sink.columns = output.columns;
+  sink.isTTY = output.isTTY;
+  handle.rl = readline.createInterface({ input, output: sink, terminal: Boolean(output.isTTY) });
+  return handle;
+}
+
+// Ask for a secret. The prompt is shown, the typed characters are not, and a
+// newline is written afterwards so the next line starts clean. Resolves the
+// trimmed answer, or '' if the input closes first.
+export function askSecret(handle, question) {
+  return new Promise((resolve) => {
+    let done = false;
+    const onClose = () => finish('');
+    const finish = (answer) => {
+      if (done) return;
+      done = true;
+      handle.muted = false;
+      handle.rl.removeListener('close', onClose);
+      handle.output.write('\n');
+      resolve((answer ?? '').trim());
+    };
+    handle.rl.question(`  ? ${question}: `, finish); // the prompt is written before the mute
+    handle.muted = true;
+    handle.rl.on('close', onClose);
+  });
+}
+
+// What an anonymous probe that did not get 401 or 403 means, in words.
+const LOCKDOWN_RISK = {
+  'read-request': 'anyone who learns the topic could read your approval requests, which show your commands',
+  'publish-request': 'anyone who learns the topic could post fake approval prompts to your phone',
+  'read-response': 'anyone could read the responses, including the one-time tokens in them',
+};
+
+export function lockdownFailure(lock) {
+  const check = lock.failed;
+  const hint = 'Apply the ACL recipe printed above (design: docs/design/remote-approval.md, section 2.5): auth-default-access: deny-all, then the ntfy access lines. Then re-run `anotifier approval setup`; the names stay the same.';
+  if (!check) return { message: 'The server could not be checked.', hint };
+  if (check.status === null) {
+    return {
+      message: `Could not check that the server is locked down: ${check.what} failed (${check.error || 'network error'}). Remote approval stays off.`,
+      hint: 'Check the server URL and that it is reachable, with a valid https certificate, from this machine. ' + hint,
+    };
+  }
+  const risk = LOCKDOWN_RISK[check.id] || 'the server is not locked down';
+  return {
+    message: `The server is not locked down: ${check.what} got HTTP ${check.status}, not 401 or 403, so ${risk}. Remote approval stays off.`,
+    hint,
+  };
+}
+
 function fail(message, hint) {
   console.error(`  ${c.error('✗')} ${message}`);
   if (hint) console.error(`    ${c.muted(hint)}`);
@@ -104,18 +168,22 @@ function printNotice() {
 }
 
 async function setup(args) {
+  // Setup talks to the server over https and must verify it: do not let an
+  // inherited NODE_TLS_REJECT_UNAUTHORIZED=0 switch that off (review of PR #96,
+  // M1). The requests also say rejectUnauthorized: true themselves.
+  delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
   let flags;
   try { flags = parseFlags(args); } catch (err) { fail(err.message, SETUP_USAGE); return; }
   const tty = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  const rl = tty ? readline.createInterface({ input: process.stdin, output: process.stdout }) : null;
+  const prompt = tty ? createPromptInterface() : null;
   try {
-    await setupWith(flags, rl);
+    await setupWith(flags, prompt?.rl ?? null, prompt);
   } finally {
-    rl?.close();
+    prompt?.rl.close();
   }
 }
 
-async function setupWith(flags, rl) {
+async function setupWith(flags, rl, prompt = null) {
   console.log();
   console.log(`  ${c.bold('anotifier')} ${c.accent('approval setup')}`);
   printNotice();
@@ -140,7 +208,7 @@ async function setupWith(flags, rl) {
   let token = process.env.AAN_APPROVAL_TOKEN || '';
   if (!token && rl) {
     const keep = existing.token ? ' (Enter keeps the saved one)' : ' (Enter for none)';
-    token = await ask(rl, `Access token of the ntfy user this machine publishes as${keep}`, '');
+    token = await askSecret(prompt, `Access token of the ntfy user this machine publishes as${keep}`);
   }
   if (!token && existing.token) token = existing.token;
   token = token.trim() || null;
@@ -222,6 +290,23 @@ async function setupWith(flags, rl) {
       return;
     }
   }
+
+  // The ACL recipe is what keeps a stranger from reading requests or posting
+  // fake ones. Ask the server, with no credentials, whether it is enforced
+  // before trusting it with a round trip (review of PR #96, M3).
+  console.log(`  ${c.white('Checking, without credentials, that the server is locked down...')}`);
+  const lock = await probeLockdown(data.server, {
+    requestTopic: data.requestTopic,
+    responsePrefix: data.responsePrefix,
+    checkResponseTopic: !isPublicNtfySh(host),
+  });
+  if (!lock.ok) {
+    const why = lockdownFailure(lock);
+    fail(why.message, why.hint);
+    return;
+  }
+  console.log(`  ${c.success('✓')} ${c.white('The server refuses anonymous reads and publishes on the approval topics.')}`);
+  console.log();
 
   console.log(`  ${c.white('Sent a test request. Tap Approve on your phone within 2 minutes...')}`);
   const rid = generateOneTime();

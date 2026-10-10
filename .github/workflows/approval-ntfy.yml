@@ -82,6 +82,10 @@ jobs:
           docker exec ntfy ntfy access phone "$REQ" read-only
           docker exec ntfy ntfy access everyone "${PREFIX}_*" write-only
           docker exec ntfy ntfy access agent "${PREFIX}_*" read-only
+          # A topic anyone can read and write, to prove the setup lockdown
+          # probe refuses an open server.
+          OPEN=$(node -e "import('./src/approval.mjs').then((m) => console.log(m.generateRequestTopic()))")
+          docker exec ntfy ntfy access everyone "$OPEN" read-write
           TOKEN=$(docker exec ntfy ntfy token add --expires=1d --label=anotifier-ci agent | grep -o 'tk_[A-Za-z0-9]*' | head -n1)
           test -n "$TOKEN"
           echo "::add-mask::$TOKEN"
@@ -91,6 +95,7 @@ jobs:
             echo "AAN_APPROVAL_NTFY_URL=http://127.0.0.1:2586"
             echo "AAN_APPROVAL_AGENT_TOKEN=$TOKEN"
             echo "AAN_APPROVAL_REQUEST_TOPIC=$REQ"
+            echo "AAN_APPROVAL_OPEN_TOPIC=$OPEN"
             echo "AAN_APPROVAL_RESPONSE_PREFIX=$PREFIX"
             echo "AAN_APPROVAL_PHONE_USER=phone"
             echo "AAN_APPROVAL_PHONE_PASS=$PHONE_PASS"

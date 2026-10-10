@@ -13,7 +13,7 @@
 import https from 'node:https';
 import http from 'node:http';
 import crypto from 'node:crypto';
-import { ONE_TIME_RE } from './approval.mjs';
+import { ONE_TIME_RE, generateOneTime } from './approval.mjs';
 
 // Stream caps (T15): past either one the hook gives up with no decision.
 export const STREAM_BYTE_CAP = 64 * 1024;
@@ -294,4 +294,74 @@ export async function exchange({
   signal?.removeEventListener?.('abort', onAbort);
   sub.close();
   return { ...result, published: true };
+}
+
+// ── Is the server locked down? (setup, design 2.5; review of PR #96, M3) ──
+// The design's safety rests on the ACL recipe: deny-all by default, so an
+// anonymous client can neither read the request topic (T1, T7) nor publish a
+// fake prompt to it (T10), and cannot read a response topic. A server that is
+// open would make setup look like it worked while leaving all of that to the
+// topic names. This asks the server, WITHOUT credentials, whether it enforces
+// it. Never throws; makes at most three requests, none of them with a token.
+const PROBE_TIMEOUT_MS = 8000;
+
+// One anonymous request. Resolves { status } or { status: null, error }.
+function anonymousRequest(method, url, { body, timeoutMs = PROBE_TIMEOUT_MS } = {}) {
+  return new Promise((resolve) => {
+    let done = false;
+    let req;
+    let timer;
+    const finish = (value) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { req?.destroy(); } catch {}
+      resolve(value);
+    };
+    try {
+      const u = new URL(url);
+      const headers = body === undefined ? {} : { 'Content-Type': 'text/plain', 'Content-Length': Buffer.byteLength(body) };
+      req = transportFor(u).request(u, { method, agent: false, rejectUnauthorized: true, headers }, (res) => {
+        res.resume();
+        finish({ status: res.statusCode });
+      });
+      timer = setTimeout(() => finish({ status: null, error: 'timeout' }), timeoutMs);
+      req.on('error', (err) => finish({ status: null, error: err?.code || 'network' }));
+      req.end(body);
+    } catch {
+      finish({ status: null, error: 'network' });
+    }
+  });
+}
+
+const isDenied = (status) => status === 401 || status === 403;
+
+// Resolves { ok, checks, failed } where checks is
+//   [{ id, what, status, error, ok, ran }]
+// in order (read-request, publish-request, read-response), and failed is the
+// first check that did not pass (null when ok). The publish check runs only
+// if the read check passed, so a lockdown failure never also writes to a
+// topic anyone can read. checkResponseTopic false skips the third check: on
+// ntfy.sh response topics are ordinary anonymous topics (design 2.5 B).
+export async function probeLockdown(base, {
+  requestTopic, responsePrefix, checkResponseTopic = true, timeoutMs = PROBE_TIMEOUT_MS, rand = crypto.randomBytes,
+}) {
+  const plan = [
+    { id: 'read-request', what: 'an anonymous read of the request topic', run: () => anonymousRequest('GET', `${base}/${requestTopic}/json?poll=1`, { timeoutMs }) },
+    { id: 'publish-request', what: 'an anonymous publish to the request topic', run: () => anonymousRequest('POST', `${base}/${requestTopic}`, { body: 'anotifier setup check: ignore this message', timeoutMs }) },
+  ];
+  if (checkResponseTopic) {
+    const topic = `${responsePrefix}_${generateOneTime(rand)}`;
+    plan.push({ id: 'read-response', what: 'an anonymous read of a response topic', run: () => anonymousRequest('GET', `${base}/${topic}/json?poll=1`, { timeoutMs }) });
+  }
+  const checks = [];
+  let failed = null;
+  for (const step of plan) {
+    if (failed) { checks.push({ id: step.id, what: step.what, status: null, error: null, ok: false, ran: false }); continue; }
+    const r = await step.run();
+    const check = { id: step.id, what: step.what, status: r.status, error: r.error || null, ok: isDenied(r.status), ran: true };
+    checks.push(check);
+    if (!check.ok) failed = check;
+  }
+  return { ok: failed === null, checks, failed };
 }

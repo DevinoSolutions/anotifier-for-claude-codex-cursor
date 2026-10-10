@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import { seedHome, bashRequest, runApprove, cleanup, ALLOW_BYTES, DENY_BYTES, NO_DECISION_BYTES } from '../approval-helpers.mjs';
 import { waitForRequest, performAction, actionByLabel, pollTopic, request, basicAuth } from '../../scripts/approval/phone-sim.mjs';
 import { generateOneTime } from '../../src/approval.mjs';
+import { probeLockdown } from '../../src/approval-ntfy.mjs';
 
 const env = process.env;
 const base = env.AAN_APPROVAL_NTFY_URL;
@@ -17,6 +18,7 @@ const skip = base ? false : 'AAN_APPROVAL_NTFY_URL not set (real ntfy server lan
 const token = env.AAN_APPROVAL_AGENT_TOKEN;
 const requestTopic = env.AAN_APPROVAL_REQUEST_TOPIC;
 const responsePrefix = env.AAN_APPROVAL_RESPONSE_PREFIX;
+const openTopic = env.AAN_APPROVAL_OPEN_TOPIC; // a request-style topic the workflow made world read-write
 const phone = { user: env.AAN_APPROVAL_PHONE_USER, pass: env.AAN_APPROVAL_PHONE_PASS };
 const agentAuth = { Authorization: `Bearer ${token}` };
 const phoneAuth = () => ({ Authorization: basicAuth(phone.user, phone.pass) });
@@ -75,6 +77,23 @@ describe('real ntfy server: ACLs as designed (2.5)', { skip }, () => {
     assert.equal((await pollTopic(base, requestTopic, phoneAuth())).status, 200);
     const w = await request(`${base}/${requestTopic}`, { method: 'POST', headers: phoneAuth(), body: 'x' });
     assert.ok([401, 403].includes(w.status), `got ${w.status}`);
+  });
+});
+
+describe('real ntfy server: the setup lockdown probe (review of PR #96, M3)', { skip }, () => {
+  it('passes on this deny-all server, without credentials', async () => {
+    const r = await probeLockdown(base, { requestTopic, responsePrefix });
+    assert.equal(r.ok, true, JSON.stringify(r.checks));
+    assert.deepEqual(r.checks.map((c) => c.ok), [true, true, true]);
+  });
+
+  it('refuses an open topic: a world-readable request topic fails the first check', {
+    skip: openTopic ? false : 'AAN_APPROVAL_OPEN_TOPIC not set',
+  }, async () => {
+    const r = await probeLockdown(base, { requestTopic: openTopic, responsePrefix });
+    assert.equal(r.ok, false);
+    assert.equal(r.failed.id, 'read-request');
+    assert.equal(r.failed.status, 200);
   });
 });
 

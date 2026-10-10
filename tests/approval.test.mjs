@@ -1,7 +1,8 @@
 // tests/approval.test.mjs — remote approval building blocks, in-process
 // (docs/design/remote-approval.md 5.1). The subprocess safety property lives
 // in approve-faults.test.mjs.
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
+import { PassThrough } from 'node:stream';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -15,10 +16,11 @@ import {
 import {
   renderVisible, scrubSecrets, scrubDetailed, isSecretName, hasShellMeta, bashDisplay, bashDenylistHit, neverRemoteHit, tildeHome, DISPLAY_BUDGET,
 } from '../src/approval-display.mjs';
-import { createVerifier, buildRequestPayload, responseBody, failureClass } from '../src/approval-ntfy.mjs';
+import { createVerifier, buildRequestPayload, responseBody, failureClass, probeLockdown } from '../src/approval-ntfy.mjs';
 import { decisionOutput, requestText, AGENTS, parseWaitCap, NO_DECISION, modeNeverPrompts } from '../src/approve-core.mjs';
 import { approvalTokenCheck } from '../cli/doctor-checks.mjs';
-import { parseFlags, aclRecipe } from '../cli/approval.mjs';
+import { parseFlags, aclRecipe, lockdownFailure, createPromptInterface, askSecret } from '../cli/approval.mjs';
+import { startFakeNtfy, closedPortBase, selfSignedPems } from './approval-helpers.mjs';
 import {
   patchClaudeApproval, unpatchClaudeApproval, claudeApprovalWired, isManagedHookEntry, patchClaude, unpatchAll,
 } from '../setup/patch-config.mjs';
@@ -762,3 +764,183 @@ describe('approval CLI helpers', () => {
   });
 });
 
+
+describe('the server lockdown probe (review of PR #96, M3)', () => {
+  let fake;
+  before(async () => { fake = await startFakeNtfy(); });
+  after(async () => { await fake.close(); });
+
+  const names = () => ({ requestTopic: generateRequestTopic(), responsePrefix: generateResponsePrefix() });
+
+  it('passes on a server that follows the ACL recipe, and sends no credentials', async () => {
+    fake.reset();
+    const n = names();
+    fake.mode.denyAnonymous = { responsePrefix: n.responsePrefix };
+    const r = await probeLockdown(fake.base, n);
+    assert.equal(r.ok, true);
+    assert.equal(r.failed, null);
+    assert.deepEqual(r.checks.map((c) => [c.id, c.status, c.ok]), [['read-request', 401, true], ['publish-request', 401, true], ['read-response', 401, true]]);
+    assert.deepEqual(fake.requests.map((q) => [q.method, q.path.replace(/_[A-Za-z0-9_-]{22}\//, '_<one-time>/')]), [
+      ['GET', `/${n.requestTopic}/json?poll=1`],
+      ['POST', `/${n.requestTopic}`],
+      ['GET', `/${n.responsePrefix}_<one-time>/json?poll=1`],
+    ]);
+    assert.ok(fake.requests.every((q) => q.auth === null), 'no Authorization header on any probe');
+  });
+
+  it('403 counts as locked down too', async () => {
+    fake.reset();
+    fake.mode.denyAnonymous = 403;
+    const r = await probeLockdown(fake.base, names());
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.checks.map((c) => c.status), [403, 403, 403]);
+  });
+
+  it('an open server is refused at the first check, and nothing is published to it', async () => {
+    fake.reset();
+    const r = await probeLockdown(fake.base, names());
+    assert.equal(r.ok, false);
+    assert.equal(r.failed.id, 'read-request');
+    assert.equal(r.failed.status, 200);
+    assert.deepEqual(r.checks.map((c) => c.ran), [true, false, false]);
+    assert.equal(fake.posts.length + fake.published.length, 0, 'no publish when the read check already failed');
+    assert.equal(fake.requests.length, 1);
+  });
+
+  it('reads denied but anonymous publish allowed: refused at the publish check', async () => {
+    fake.reset();
+    const n = names();
+    fake.mode.denyAnonymous = { responsePrefix: n.responsePrefix, openPublish: true };
+    const r = await probeLockdown(fake.base, n);
+    assert.equal(r.ok, false);
+    assert.equal(r.failed.id, 'publish-request');
+    assert.equal(r.failed.status, 200);
+    assert.deepEqual(r.checks.map((c) => c.ran), [true, true, false]);
+    assert.equal(fake.posts.length, 1);
+    assert.equal(fake.posts[0].topic, n.requestTopic);
+    assert.match(fake.posts[0].body, /ignore this message/);
+  });
+
+  it('request topic locked but a response topic readable: refused at the third check', async () => {
+    fake.reset();
+    const n = names();
+    fake.mode.denyAnonymous = { responsePrefix: n.responsePrefix, openReadPrefix: n.responsePrefix };
+    const r = await probeLockdown(fake.base, n);
+    assert.equal(r.ok, false);
+    assert.equal(r.failed.id, 'read-response');
+    assert.equal(r.failed.status, 200);
+  });
+
+  it('checkResponseTopic false (ntfy.sh with an account) skips the third check', async () => {
+    fake.reset();
+    const n = names();
+    fake.mode.denyAnonymous = { responsePrefix: n.responsePrefix, openReadPrefix: n.responsePrefix };
+    const r = await probeLockdown(fake.base, { ...n, checkResponseTopic: false });
+    assert.equal(r.ok, true);
+    assert.equal(r.checks.length, 2);
+  });
+
+  for (const status of [404, 429, 500, 204]) {
+    it(`HTTP ${status} is not a lockdown: only 401 and 403 pass`, async () => {
+      fake.reset();
+      fake.mode.denyAnonymous = status;
+      const r = await probeLockdown(fake.base, names());
+      assert.equal(r.ok, false);
+      assert.equal(r.failed.status, status);
+    });
+  }
+
+  it('an unreachable server cannot be verified, so it is refused', async () => {
+    const r = await probeLockdown(await closedPortBase(), names());
+    assert.equal(r.ok, false);
+    assert.equal(r.failed.status, null);
+    assert.ok(r.failed.error);
+  });
+
+  it('a self-signed server is refused even with NODE_TLS_REJECT_UNAUTHORIZED=0', async () => {
+    const secure = await startFakeNtfy({ tls: selfSignedPems() });
+    const saved = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    try {
+      const r = await probeLockdown(secure.base, names());
+      assert.equal(r.ok, false);
+      assert.equal(r.failed.status, null);
+      assert.equal(secure.requests.length, 0);
+    } finally {
+      if (saved === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED; else process.env.NODE_TLS_REJECT_UNAUTHORIZED = saved;
+      await secure.close();
+    }
+  });
+
+  it('the refusal says what is exposed and points to the ACL recipe in the design', () => {
+    const open = lockdownFailure({ failed: { id: 'read-request', what: 'an anonymous read of the request topic', status: 200 } });
+    assert.match(open.message, /not locked down: an anonymous read of the request topic got HTTP 200, not 401 or 403/);
+    assert.match(open.message, /read your approval requests/);
+    assert.match(open.message, /stays off/);
+    assert.match(open.hint, /docs\/design\/remote-approval\.md, section 2\.5/);
+    const fakePrompts = lockdownFailure({ failed: { id: 'publish-request', what: 'an anonymous publish to the request topic', status: 200 } });
+    assert.match(fakePrompts.message, /fake approval prompts/);
+    const net = lockdownFailure({ failed: { id: 'read-request', what: 'an anonymous read of the request topic', status: null, error: 'ECONNREFUSED' } });
+    assert.match(net.message, /Could not check.*(ECONNREFUSED)/);
+  });
+});
+
+describe('typing the access token does not echo it (review of PR #96, L4)', () => {
+  // A terminal-mode readline on in-memory streams: with a TTY the interface
+  // echoes every typed character to its output.
+  const session = () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.isTTY = true;
+    output.columns = 80;
+    let written = '';
+    output.on('data', (c) => { written += c; });
+    return { input, output, text: () => written };
+  };
+  const tick = () => new Promise((r) => setTimeout(r, 30));
+
+  it('askSecret shows the prompt but not the typed token, then moves to a new line', async () => {
+    const io = session();
+    const handle = createPromptInterface({ input: io.input, output: io.output });
+    const answer = askSecret(handle, 'Access token');
+    await tick();
+    io.input.write('tk_s3cretvalue123');
+    await tick();
+    io.input.write('\n');
+    assert.equal(await answer, 'tk_s3cretvalue123');
+    await tick();
+    const shown = io.text();
+    assert.match(shown, /Access token/);
+    assert.ok(!shown.includes('tk_s3cretvalue123'), 'the token was echoed');
+    assert.ok(!shown.includes('s3cret'), 'not even a part of it');
+    assert.ok(shown.endsWith('\n'));
+    handle.rl.close();
+  });
+
+  it('control: the same interface echoes ordinary answers (so the test would catch a leak)', async () => {
+    const io = session();
+    const handle = createPromptInterface({ input: io.input, output: io.output });
+    const answer = new Promise((resolve) => handle.rl.question('name: ', resolve));
+    await tick();
+    io.input.write('visible-answer\n');
+    assert.equal(await answer, 'visible-answer');
+    await tick();
+    assert.ok(io.text().includes('visible-answer'));
+    handle.rl.close();
+  });
+
+  it('echo comes back after the secret, and an input that closes resolves empty', async () => {
+    const io = session();
+    const handle = createPromptInterface({ input: io.input, output: io.output });
+    const first = askSecret(handle, 'Access token');
+    await tick();
+    io.input.write('hunter2hunter2\n');
+    await first;
+    assert.equal(handle.muted, false);
+    const second = askSecret(handle, 'Again');
+    await tick();
+    io.input.end();
+    assert.equal(await second, '');
+    assert.equal(handle.muted, false);
+  });
+});

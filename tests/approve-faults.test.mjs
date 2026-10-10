@@ -526,9 +526,9 @@ describe('TLS verification cannot be switched off (review of PR #96, M1)', () =>
     }
   });
 
-  it('both request option sets say rejectUnauthorized: true, and the entry point drops the variable', () => {
+  it('every request option set in the ntfy module says rejectUnauthorized: true, and the entry point drops the variable', () => {
     const ntfy = fs.readFileSync(new URL('../src/approval-ntfy.mjs', import.meta.url), 'utf8');
-    assert.equal((ntfy.match(/rejectUnauthorized: true/g) || []).length, 2);
+    assert.equal((ntfy.match(/rejectUnauthorized: true/g) || []).length, 3, 'publish, subscribe and the anonymous probe');
     assert.ok(!/rejectUnauthorized: false/.test(ntfy));
     const entry = fs.readFileSync(new URL('../src/approve.mjs', import.meta.url), 'utf8');
     assert.match(entry, /^delete process\.env\.NODE_TLS_REJECT_UNAUTHORIZED;$/m);
