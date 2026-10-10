@@ -125,6 +125,11 @@ export default function ChannelPage({ slug }: { slug: string }) {
             <Link href="/">anotifier</Link> / <span>{channel.slug}</span>
           </div>
           <div className="hero-row">
+            {channel.icon && (
+              // The headline names the service, so the logo is decorative.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={channel.icon} alt="" width={56} height={56} />
+            )}
             <h1>
               {channel.h1.pre}
               <em>{channel.h1.em}</em>

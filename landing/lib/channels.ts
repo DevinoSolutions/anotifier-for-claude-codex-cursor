@@ -24,6 +24,9 @@ export interface Channel {
   updated: string;
   /** Display name used in breadcrumb, headings, and cross-links (e.g. "Slack"). */
   name: string;
+  /** Public path to the service's own logo file, shown beside the headline.
+      Only third-party brands get one (sources: assets/icons/SOURCES.md). */
+  icon?: string;
   /** Delivery mechanism — drives the shared privacy/safety section. */
   kind: "webhook" | "ntfy";
   title: string;
@@ -44,6 +47,7 @@ export const CHANNELS: Channel[] = [
     slug: "slack",
     updated: "2026-09-25",
     name: "Slack",
+    icon: "/assets/icons/slack.svg",
     kind: "webhook",
     title: "Slack Notifications for Claude Code & AI Agents — anotifier",
     description:
@@ -160,6 +164,7 @@ export const CHANNELS: Channel[] = [
     slug: "telegram",
     updated: "2026-09-25",
     name: "Telegram",
+    icon: "/assets/icons/telegram.svg",
     kind: "webhook",
     title: "Telegram Alerts for Claude Code & AI Coding Agents",
     description:

@@ -3,6 +3,7 @@ import LogoMark from "@/components/LogoMark";
 import { AGENTS } from "@/lib/agents";
 import { CHANNELS } from "@/lib/channels";
 import DiscordIcon from "@/components/DiscordIcon";
+import GitHubIcon from "@/components/GitHubIcon";
 import { COMMUNITY_URL, GITHUB_URL, NPM_URL, SUPPORT_URL } from "@/lib/site";
 
 /**
@@ -33,7 +34,13 @@ export default function SiteFooter() {
           <Link href="/docs/">docs</Link>
           <Link href="/guides/">guides</Link>
           <Link href="/compare/">compare</Link>
-          <a href={GITHUB_URL}>github</a>
+          <a
+            href={GITHUB_URL}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+          >
+            <GitHubIcon size={14} />
+            github
+          </a>
           <a href={NPM_URL}>npm</a>
           <a href="https://ntfy.sh">ntfy</a>
           <a
