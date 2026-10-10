@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+## [1.6.1] — 2026-10-10
+
 ### Changed
 - **Windows toast failures say why.** A failed Windows toast used to be logged
   as `Command failed: pwsh ... toast.ps1 ...`, which reads the same for a
