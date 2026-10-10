@@ -780,7 +780,13 @@ describe('the server lockdown probe (review of PR #96, M3)', () => {
     assert.equal(r.ok, true);
     assert.equal(r.failed, null);
     assert.deepEqual(r.checks.map((c) => [c.id, c.status, c.ok]), [['read-request', 401, true], ['publish-request', 401, true], ['read-response', 401, true]]);
-    assert.deepEqual(fake.requests.map((q) => [q.method, q.path.replace(/_[A-Za-z0-9_-]{22}\//, '_<one-time>/')]), [
+    // Mask only the random part of the response topic. A bare /_.{22}\// would
+    // also hit a request topic whose random part happens to hold an underscore
+    // 22 characters from its end.
+    // (The prefix is base64url, so it holds no regex metacharacters.)
+    const responseTopic = new RegExp(`^/${n.responsePrefix}_[A-Za-z0-9_-]{22}/`);
+    const mask = (p) => p.replace(responseTopic, `/${n.responsePrefix}_<one-time>/`);
+    assert.deepEqual(fake.requests.map((q) => [q.method, mask(q.path)]), [
       ['GET', `/${n.requestTopic}/json?poll=1`],
       ['POST', `/${n.requestTopic}`],
       ['GET', `/${n.responsePrefix}_<one-time>/json?poll=1`],
