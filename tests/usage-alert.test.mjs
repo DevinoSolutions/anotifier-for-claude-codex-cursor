@@ -381,12 +381,21 @@ describe('withLock on a lock being released (Windows EPERM)', () => {
 
   const eperm = () => Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' });
   const lockErrors = (label) => readRecentHookErrors(200).filter((e) => e.context === label).length;
+  // Fail only for the lock path: on Node 18, appendFileSync (the error log)
+  // goes through fs.openSync too, and must keep working.
+  const failFor = (method, target) => {
+    const real = fs[method];
+    mock.method(fs, method, function (p, ...rest) {
+      if (p === target) throw eperm();
+      return real.call(fs, p, ...rest);
+    });
+  };
 
-  it('EPERM while the lock file still exists is contention: skip quietly', () => {
+  it('EPERM while a fresh lock file exists is contention: skip quietly', () => {
     const lock = path.join(dir, 's.json.lock');
     fs.writeFileSync(lock, '');
     const before = lockErrors('test:lock-busy');
-    mock.method(fs, 'openSync', () => { throw eperm(); });
+    failFor('openSync', lock);
     let ran = false;
     assert.equal(withLock(lock, () => { ran = true; return 1; }, 'test:lock-busy'), null);
     assert.equal(ran, false);
@@ -396,8 +405,20 @@ describe('withLock on a lock being released (Windows EPERM)', () => {
   it('EPERM with no lock file is a real problem: logged', () => {
     const lock = path.join(dir, 'missing.json.lock');
     const before = lockErrors('test:lock-perm');
-    mock.method(fs, 'openSync', () => { throw eperm(); });
+    failFor('openSync', lock);
     assert.equal(withLock(lock, () => 1, 'test:lock-perm'), null);
     assert.equal(lockErrors('test:lock-perm'), before + 1);
+  });
+
+  it('a stale lock that cannot be deleted is logged, not skipped forever', () => {
+    const lock = path.join(dir, 'stuck.json.lock');
+    fs.writeFileSync(lock, '');
+    const old = new Date(Date.now() - 60000);
+    fs.utimesSync(lock, old, old);
+    const before = lockErrors('test:lock-stuck');
+    failFor('unlinkSync', lock);
+    failFor('openSync', lock);
+    assert.equal(withLock(lock, () => 1, 'test:lock-stuck'), null);
+    assert.equal(lockErrors('test:lock-stuck'), before + 1);
   });
 });

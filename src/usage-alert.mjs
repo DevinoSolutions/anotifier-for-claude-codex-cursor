@@ -182,14 +182,16 @@ export function writeState(statePath, state) {
 // On Windows, creating a file that another process has just unlinked, while a
 // handle to it is still open, fails with EPERM (or EACCES/EBUSY) rather than
 // EEXIST. That is the lock being released, not a permissions problem. A real
-// permissions problem leaves no lock file behind, so stat tells them apart.
+// permissions problem leaves no lock file behind, so stat tells them apart. A
+// lock older than LOCK_STALE_MS should have been cleared above; one that is
+// still there could not be deleted, which would silence every warning, so it
+// is reported too.
 function lockBeingReleased(lockPath, err) {
   if (!['EPERM', 'EACCES', 'EBUSY'].includes(err?.code)) return false;
   try {
-    fs.statSync(lockPath);
-    return true;
-  } catch (statErr) {
-    return statErr?.code !== 'ENOENT';
+    return Date.now() - fs.statSync(lockPath).mtimeMs <= LOCK_STALE_MS;
+  } catch {
+    return false;
   }
 }
 
