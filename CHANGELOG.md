@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+### Changed
+- **Windows toast failures say why.** A failed Windows toast used to be logged
+  as `Command failed: pwsh ... toast.ps1 ...`, which reads the same for a
+  timeout, a non-zero exit and a missing pwsh. `anotifier status` now shows the
+  cause (`timed out after 7000 ms`, `exit code 3`, `pwsh not found`), and the
+  error log keeps the exit code, signal, elapsed time and stderr.
+
 ## [1.6.0] — 2026-10-09
 
 ### Added

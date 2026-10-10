@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import os from 'node:os';
 import { esc } from '../src/platforms/macos.mjs';
 import { URGENCY_MAP, buildNotifySendArgs } from '../src/platforms/linux.mjs';
+import { toastFailureDetail } from '../src/platforms/windows.mjs';
 import { useFakeHome } from './fake-home.mjs';
 useFakeHome();
 
@@ -112,5 +113,29 @@ describe('native toast fires on its own OS (live — set AAN_TOAST_LIVE=1)', () 
       projectName: 'aan', cwd: process.cwd(), source: 'claude',
     });
     assert.equal(r, true);
+  });
+});
+
+describe('windows toastFailureDetail() — names why a toast failed', () => {
+  it('a kill at the timeout reads as a timeout, not an exit code', () => {
+    const d = toastFailureDetail({ killed: true, signal: 'SIGTERM', code: null }, '', 7012, 7000);
+    assert.equal(d.cause, 'timed out after 7000 ms');
+    assert.equal(d.signal, 'SIGTERM');
+    assert.equal(d.elapsedMs, 7012);
+  });
+  it('a non-zero exit names the exit code and keeps stderr', () => {
+    const d = toastFailureDetail({ killed: false, signal: null, code: 3 }, 'toast.ps1: BurntToast notification failed: x', 900, 7000);
+    assert.equal(d.cause, 'exit code 3');
+    assert.equal(d.exitCode, 3);
+    assert.match(d.stderr, /BurntToast notification failed/);
+  });
+  it('a missing pwsh reads as not found', () => {
+    assert.equal(toastFailureDetail({ code: 'ENOENT' }, undefined, 5).cause, 'pwsh not found');
+  });
+  it('a kill before the timeout names the signal', () => {
+    assert.equal(toastFailureDetail({ killed: true, signal: 'SIGKILL', code: null }, '', 1200, 7000).cause, 'killed by SIGKILL');
+  });
+  it('caps stderr at 400 characters', () => {
+    assert.equal(toastFailureDetail({ code: 1 }, 'x'.repeat(1000), 10).stderr.length, 400);
   });
 });
