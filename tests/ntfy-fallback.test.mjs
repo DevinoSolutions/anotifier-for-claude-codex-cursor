@@ -4,10 +4,22 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { sendNtfy } from '../src/ntfy.mjs';
+import net from 'node:net';
+import { sendNtfy, sendNtfyDetailed } from '../src/ntfy.mjs';
 import { readRecentHookErrors } from '../src/error-log.mjs';
 import { useFakeHome } from './fake-home.mjs';
 useFakeHome();
+
+// A loopback port that was just free: bind port 0, note it, close it.
+function closedPortBase() {
+  return new Promise((resolve) => {
+    const s = net.createServer();
+    s.listen(0, '127.0.0.1', () => {
+      const { port } = s.address();
+      s.close(() => resolve(`http://127.0.0.1:${port}`));
+    });
+  });
+}
 
 function startServer() {
   const s = { hits: [], status: 200 };
@@ -56,9 +68,53 @@ describe('sendNtfy with ntfy.fallbackServer', () => {
   });
 
   it('an unreachable main server falls back too', async () => {
-    const ok = await sendNtfy({ server: 'http://127.0.0.1:9', fallbackServer: backup.base, topic: 'fleet' }, msg);
+    const ok = await sendNtfy({ server: await closedPortBase(), fallbackServer: backup.base, topic: 'fleet' }, msg);
     assert.equal(ok, true);
     assert.equal(backup.hits.length, 1);
+  });
+
+  it('a main server with no scheme (an invalid URL) falls back', async () => {
+    const ok = await sendNtfy({ server: 'ntfy.example', fallbackServer: backup.base, topic: 'fleet' }, msg);
+    assert.equal(ok, true);
+    assert.equal(backup.hits.length, 1);
+  });
+
+  it('a main server that trickles bytes is cut at the 3 s deadline, then falls back', async () => {
+    // Sends a valid status line, then one more header line every 200 ms and
+    // never ends the headers: an idle socket timer would never fire, the
+    // per-attempt deadline must.
+    const sockets = new Set();
+    const drip = net.createServer((sock) => {
+      sockets.add(sock);
+      sock.on('error', () => {});
+      sock.write('HTTP/1.1 200 OK\r\n');
+      const t = setInterval(() => sock.write('X-Drip: 1\r\n'), 200);
+      sock.on('close', () => clearInterval(t));
+    });
+    await new Promise((r) => drip.listen(0, '127.0.0.1', r));
+    try {
+      const started = Date.now();
+      const res = await sendNtfyDetailed({ server: `http://127.0.0.1:${drip.address().port}`, fallbackServer: backup.base, topic: 'fleet' }, msg);
+      const elapsed = Date.now() - started;
+      assert.deepEqual(res, { ok: true, via: 'fallback', fallback: backup.base });
+      assert.ok(elapsed >= 2900 && elapsed < 4500, `took ${elapsed} ms`);
+    } finally {
+      for (const s of sockets) s.destroy();
+      await new Promise((r) => drip.close(r));
+    }
+  });
+
+  it('sendNtfyDetailed says which server delivered', async () => {
+    assert.deepEqual(
+      await sendNtfyDetailed({ server: main.base, fallbackServer: backup.base, topic: 'fleet' }, msg),
+      { ok: true, via: 'server', fallback: null },
+    );
+    main.status = 500;
+    backup.status = 500;
+    assert.deepEqual(
+      await sendNtfyDetailed({ server: main.base, fallbackServer: backup.base, topic: 'fleet' }, msg),
+      { ok: false, via: null, fallback: backup.base },
+    );
   });
 
   it('both failing resolves false and logs the fallback failure under its own context', async () => {

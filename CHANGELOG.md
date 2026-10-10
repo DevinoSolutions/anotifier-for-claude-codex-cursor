@@ -13,7 +13,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
   server and keep `https://ntfy.sh` as the fallback, so a push is not lost when
   either one is down or over its limit. With a fallback set each attempt waits
   at most 3 s (instead of 5 s) so both fit in the hook budget. A fallback failure
-  is logged as `ntfy:fallback`; `anotifier status` shows the fallback.
+  is logged as `ntfy:fallback`; `anotifier status` shows the fallback, and
+  `anotifier test ntfy` warns when only the fallback delivered.
+
+### Fixed
+- **ntfy timeout is a real deadline.** Each ntfy send now gives up after its
+  timeout in total (DNS, connect and response). The old socket idle timer
+  could be kept alive by a server sending a byte at a time.
 
 ## [1.6.1] — 2026-10-10
 
