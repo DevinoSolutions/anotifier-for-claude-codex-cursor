@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -133,9 +133,12 @@ describe('notify.mjs claude terminalSequence bell (F1)', () => {
     assert.equal(res.stdout, '{}\n');
   });
 
-  it('a suppressed duplicate claude event does not ring (second run emits {})', () => {
-    // Both invocations must share one HOME so the second collides with the
-    // first's dedup lock — runNotify makes a fresh HOME per call, so spawn here.
+  it('a suppressed duplicate claude event does not ring (the losing run emits {})', async () => {
+    // Both invocations must share one HOME so one collides with the other's
+    // dedup lock — runNotify makes a fresh HOME per call, so spawn here. They
+    // start together, like a tool's real double-fire: run back to back, the
+    // first one's exit plus the second one's node startup can outlast the
+    // 1.5 s dedup window on a busy machine, and then both rightly ring.
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-dedup-'));
     const cfgDir = path.join(home, '.anotifier');
     fs.mkdirSync(cfgDir, { recursive: true });
@@ -146,17 +149,23 @@ describe('notify.mjs claude terminalSequence bell (F1)', () => {
     const env = { ...process.env, HOME: home, USERPROFILE: home };
     for (const k of SCRUB) delete env[k];
     const input = JSON.stringify({ hook_event_name: 'Stop', cwd: '/work/app', session_id: 'dup' });
-    const spawn = () => spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {
-      cwd: repoRoot, input, env, encoding: 'utf8', timeout: 30000,
+    const run = () => new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, ['src/notify.mjs', '--source', 'claude'], { cwd: repoRoot, env, timeout: 30000 });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.setEncoding('utf8').on('data', (d) => { stdout += d; });
+      child.stderr.setEncoding('utf8').on('data', (d) => { stderr += d; });
+      child.on('error', reject);
+      child.on('close', (status) => resolve({ status, stdout, stderr }));
+      child.stdin.end(input);
     });
-    const first = spawn();
-    const second = spawn();
+    const runs = await Promise.all([run(), run()]);
     fs.rmSync(home, { recursive: true, force: true });
-    // First run wins the lock and rings; the suppressed duplicate stays silent.
-    assert.equal(first.status, 0, first.stderr);
-    assert.deepEqual(JSON.parse(first.stdout), BELL_RESPONSE);
-    assert.equal(second.status, 0, second.stderr);
-    assert.equal(second.stdout, '{}\n');
+    // One run wins the lock and rings; the suppressed duplicate stays silent.
+    for (const r of runs) assert.equal(r.status, 0, r.stderr);
+    const rang = runs.filter((r) => r.stdout !== '{}\n');
+    assert.equal(rang.length, 1, `exactly one run rings, got ${JSON.stringify(runs.map((r) => r.stdout))}`);
+    assert.deepEqual(JSON.parse(rang[0].stdout), BELL_RESPONSE);
   });
 });
 
