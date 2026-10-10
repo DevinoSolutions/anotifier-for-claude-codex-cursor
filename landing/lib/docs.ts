@@ -722,7 +722,7 @@ export const DOCS: DocSection[] = [
           "The title carries the percentage (`Claude Code · context at 87%`); the body names the chat and the size, such as `174K of 200K tokens`. Priority is high.",
           "Each chat (Claude Code `session_id`) warns once and never again, even after `/compact` brings its context back down. `/clear` starts a new session, which can warn again.",
           "The window is the auto-compact window, not the model's full one: the `CLAUDE_CODE_AUTO_COMPACT_WINDOW` environment variable, then the `autoCompactWindow` setting that `/autocompact` writes (clamped to 100K to 1M), then the model's own window. It never exceeds the model's window.",
-          "Nothing is sent when auto-compact is off (`DISABLE_AUTO_COMPACT`, `DISABLE_COMPACT` or `autoCompactEnabled: false`). The `--autocompact` flag and managed settings are invisible to a statusline, so with either the warning can be late or missing.",
+          "Nothing is sent when auto-compact is off (`DISABLE_AUTO_COMPACT` or `DISABLE_COMPACT` set to a true value, or `autoCompactEnabled: false`). The `--autocompact` flag and managed settings are invisible to a statusline, so with either the warning can be late or missing.",
           "No Claude.ai subscription is needed: API-key and proxy sessions get the warning too. It uses the same statusline wiring as the usage warnings, so `anotifier setup` covers both; a plugin-only install must wire `statusLine` by hand.",
           "It goes to the toast, ntfy and webhook channels you have on, never the terminal bell. Snooze and quiet hours hold it back without recording it. Configure it with `contextAlerts.enabled` and `contextAlerts.threshold` (see the config table).",
         ],

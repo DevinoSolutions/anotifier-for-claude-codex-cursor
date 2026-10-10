@@ -664,10 +664,10 @@ if (typeof win?.used_percentage !== "number") {
     icon: "/assets/icons/claude.png",
     title: "Claude Code Auto-Compact Warning: Get Notified at 85%",
     description:
-      "Claude Code compacts a chat on its own and has no setting that warns first. Compare context_window.total_input_tokens in your statusline, or run npx anotifier setup (1.6.0+).",
+      "Claude Code has no setting that warns before it auto-compacts. Read context_window.total_input_tokens in your statusline, or run npx anotifier setup (1.6.0+).",
     h1: "Get notified before Claude Code auto-compacts your chat",
     intro:
-      "Claude Code has no setting that warns you before it auto-compacts a chat. It does pass the chat's context size to your `statusLine` command as `context_window.total_input_tokens` on stdin, and hooks never receive it. So a warning has to live in a statusline script: compare that number with the auto-compact window and send a notification when the chat gets close. Below is a script you can write yourself, then how anotifier 1.6.0 and later does it, once per chat at 85% by default. Unlike usage-limit warnings it needs no Claude.ai subscription, so it works on API-key and proxy sessions too.",
+      "Claude Code has no setting that warns you before it auto-compacts a chat. It does pass the chat's context size to your `statusLine` command as `context_window.total_input_tokens` on stdin, while hook input carries no `context_window` field. So a warning has to live in a statusline script: compare that number with the auto-compact window and send a notification when the chat gets close. Below is a script you can write yourself, then how anotifier 1.6.0 and later does it, once per chat at 85% by default. Unlike usage-limit warnings it needs no Claude.ai subscription, so it works on API-key and proxy sessions too.",
     sections: [
       {
         id: "what",
@@ -691,7 +691,7 @@ if (typeof win?.used_percentage !== "number") {
           },
           {
             kind: "p",
-            text: "The result never goes above the model's window. If auto-compact is switched off (`DISABLE_AUTO_COMPACT` or `DISABLE_COMPACT` set, or `autoCompactEnabled: false` in the first settings file that defines it), nothing will compact and nothing is sent.",
+            text: "The result never goes above the model's window. If auto-compact is switched off (`DISABLE_AUTO_COMPACT` or `DISABLE_COMPACT` set to a true value such as `1`, `true`, `yes` or `on`, or `autoCompactEnabled: false` in the first settings file that defines it), nothing will compact and nothing is sent.",
           },
         ],
       },
@@ -725,7 +725,7 @@ if (typeof win?.used_percentage !== "number") {
           },
           {
             kind: "p",
-            text: "This Node script prints a short status line and sends an [ntfy](https://ntfy.sh) push once per chat when it passes 85% of the auto-compact window. It reads the window from `CLAUDE_CODE_AUTO_COMPACT_WINDOW` when that is set in the statusline's environment, otherwise it uses the model's window, and it never reads the `/autocompact` setting, so if you changed that, lower the 85 or read the setting yourself. It remembers each warned `session_id` in `~/.claude/.context-alert.json`, and records one only after the send succeeds, because a cancelled run would otherwise lose the warning for good. Save it as `~/.claude/context-line.mjs`:",
+            text: "This Node script prints a short status line and sends an [ntfy](https://ntfy.sh) push once per chat when it passes 85% of the auto-compact window. It reads the window from `CLAUDE_CODE_AUTO_COMPACT_WINDOW` when that is set in the statusline's environment, otherwise it uses the model's window, and it never reads the `/autocompact` setting, so if you changed that, lower the 85 or read the setting yourself. It remembers each warned `session_id` in `.context-alert.json` in your Claude config folder (`CLAUDE_CONFIG_DIR`, or `~/.claude`), and records one only after the send succeeds, because a cancelled run would otherwise lose the warning for good. It needs Node 18 or later. Save it as `~/.claude/context-line.mjs`:",
           },
           {
             kind: "code",
@@ -744,15 +744,17 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
   const env = Number.parseInt(process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW, 10);
   const clamped = Math.min(1000000, Math.max(100000, env));
   const window = Math.min(full, env > 0 ? clamped : full);
-  const pct = Math.min(100, Math.round((tokens / window) * 100));
+  const exact = Math.min(100, (tokens / window) * 100);
+  const pct = Math.round(exact);
   process.stdout.write("[" + model + "] ctx " + pct + "%\\n"); // print first
 
-  const file = path.join(os.homedir(), ".claude", ".context-alert.json");
+  const dir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+  const file = path.join(dir, ".context-alert.json");
   let warned = {};
   try {
     warned = JSON.parse(fs.readFileSync(file, "utf8"));
   } catch {}
-  if (pct >= 85 && !warned[input.session_id]) {
+  if (exact >= 85 && !warned[input.session_id]) {
     const res = await fetch("https://ntfy.sh/your-secret-topic", {
       method: "POST",
       headers: { Title: "Claude Code context at " + pct + "%", Priority: "high" },
@@ -762,7 +764,10 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
     // Record it only after a successful send, so a cancelled run retries.
     if (res?.ok) {
       warned[input.session_id] = Date.now();
-      fs.writeFileSync(file, JSON.stringify(warned));
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(file, JSON.stringify(warned));
+      } catch {}
     }
   }
 }`,
@@ -850,7 +855,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
       },
       {
         q: "Why can't a hook warn me about context?",
-        a: "Claude Code only gives the context numbers to the statusline command, never to hooks, so the warning has to be triggered from the statusline.",
+        a: "Claude Code passes the context_window numbers to the statusline command, and hook input has no context_window field, so the warning is triggered from the statusline.",
       },
       {
         q: "Does this need a Claude.ai Pro or Max plan?",
