@@ -79,13 +79,11 @@ describe('real ntfy server: ACLs as designed (2.5)', { skip }, () => {
     assert.ok([401, 403].includes(w.status), `got ${w.status}`);
   });
 
-  // ntfy keys a TIERLESS user's visitor by IP and overwrites its user on every
-  // request, then authorizes the topic against that shared visitor. Clients on
-  // one IP (here all on 127.0.0.1; in real use a phone and a laptop behind one
-  // home router) can then be authorized as each other: the phone got a 403,
-  // and an anonymous request could pass as the phone. The recipe gives every
-  // account a tier (design 2.5, step 1), which keys its visitor by account.
-  it('clients on one IP are never authorized as each other (accounts have a tier)', async () => {
+  // Without a tier, ntfy shares one visitor per IP between accounts, and
+  // overlapping requests from one IP (here all on 127.0.0.1; in real use a
+  // phone and a laptop behind one home router) gave the phone an intermittent
+  // 403. The recipe gives every account a tier (design 2.5, step 1).
+  it('overlapping requests from one IP each get the answer their ACL gives (accounts have a tier)', async () => {
     for (let wave = 0; wave < 2; wave++) {
       const phoneReads = [];
       const anonReads = [];
