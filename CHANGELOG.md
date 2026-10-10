@@ -6,6 +6,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+### Fixed
+
+- On Windows, a usage or context warning lock released by another chat at the same moment is no longer logged as an EPERM error in `anotifier status`.
+
 ## [1.7.0] — 2026-10-10
 
 ### Added
