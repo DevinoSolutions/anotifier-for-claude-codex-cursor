@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-10-10
+
 ### Added
 - **ntfy fallback server.** New optional `ntfy.fallbackServer`: when the main
   `ntfy.server` fails (unreachable, timed out, or an error such as a 429 daily
