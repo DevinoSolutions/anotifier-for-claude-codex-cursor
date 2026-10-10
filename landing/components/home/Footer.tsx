@@ -1,6 +1,7 @@
 import Link from "next/link";
 import LogoMark from "../LogoMark";
 import DiscordIcon from "../DiscordIcon";
+import GitHubIcon from "../GitHubIcon";
 import {
   COMMUNITY_URL,
   DEMO_VIDEO_URL,
@@ -13,7 +14,7 @@ const primaryLinks = [
   { href: "/docs/", label: "docs", internal: true },
   { href: "/guides/", label: "guides", internal: true },
   { href: "/compare/", label: "compare", internal: true },
-  { href: GITHUB_URL, label: "github" },
+  { href: GITHUB_URL, label: "github", github: true },
   { href: NPM_URL, label: "npm" },
   { href: DEMO_VIDEO_URL, label: "demo video" },
   { href: COMMUNITY_URL, label: "join our Discord", community: true },
@@ -145,6 +146,20 @@ export default function Footer() {
                 }}
               >
                 <DiscordIcon size={14} />
+                {l.label}
+              </a>
+            ) : l.github ? (
+              <a
+                key={l.href}
+                href={l.href}
+                style={{
+                  color: "#9c9c9d",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <GitHubIcon size={14} />
                 {l.label}
               </a>
             ) : (
