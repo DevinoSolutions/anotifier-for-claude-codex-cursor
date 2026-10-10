@@ -57,11 +57,14 @@ jobs:
       - name: Start ntfy with deny-all, users, ACLs and an agent token
         run: |
           set -euo pipefail
+          # v2.29.0 pinned by digest (the multi-arch manifest list from Docker Hub,
+          # checked against the registry Docker-Content-Digest header), so a moved tag
+          # cannot change the server under test.
           docker run -d --name ntfy -p 127.0.0.1:2586:80 \
             -e NTFY_BASE_URL=http://127.0.0.1:2586 \
             -e NTFY_AUTH_FILE=/tmp/user.db \
             -e NTFY_AUTH_DEFAULT_ACCESS=deny-all \
-            binwiederhier/ntfy:v2.29.0 serve
+            binwiederhier/ntfy:v2.29.0@sha256:4c599cf0818965782f93f652bd843e92714992e84d6b88ad17713dc0951cda1f serve
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:2586/v1/health && break
             sleep 1
