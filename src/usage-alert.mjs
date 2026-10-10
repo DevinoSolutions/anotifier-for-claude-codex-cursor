@@ -179,6 +179,22 @@ export function writeState(statePath, state) {
 // Several chats refresh their statuslines at once, so the read-decide-write
 // runs under an exclusive lock file. A run that cannot get the lock simply
 // skips: the holder is evaluating the same account-wide numbers.
+// On Windows, creating a file that another process has just unlinked, while a
+// handle to it is still open, fails with EPERM (or EACCES/EBUSY) rather than
+// EEXIST. That is the lock being released, not a permissions problem. A real
+// permissions problem leaves no lock file behind, so stat tells them apart. A
+// lock older than LOCK_STALE_MS should have been cleared above; one that is
+// still there could not be deleted, which would silence every warning, so it
+// is reported too.
+function lockBeingReleased(lockPath, err) {
+  if (!['EPERM', 'EACCES', 'EBUSY'].includes(err?.code)) return false;
+  try {
+    return Date.now() - fs.statSync(lockPath).mtimeMs <= LOCK_STALE_MS;
+  } catch {
+    return false;
+  }
+}
+
 export function withLock(lockPath, fn, label = 'usage-alert:lock') {
   try {
     const st = fs.statSync(lockPath);
@@ -191,7 +207,7 @@ export function withLock(lockPath, fn, label = 'usage-alert:lock') {
   } catch (err) {
     // EEXIST: another chat holds it. Anything else (permissions, a file where
     // the directory should be) would silence every warning, so say so.
-    if (err?.code !== 'EEXIST') logHookError(label, err);
+    if (err?.code !== 'EEXIST' && !lockBeingReleased(lockPath, err)) logHookError(label, err);
     return null;
   }
   try {

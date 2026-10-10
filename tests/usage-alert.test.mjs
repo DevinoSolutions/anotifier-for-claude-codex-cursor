@@ -1,14 +1,15 @@
 // tests/usage-alert.test.mjs — Claude Code usage-limit early warning.
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
   evaluateUsage, effectiveThresholds, formatReset, chatLabel,
-  buildUsageNotification, checkUsage, sendUsageNotifications, DEFAULT_THRESHOLDS,
+  buildUsageNotification, checkUsage, sendUsageNotifications, DEFAULT_THRESHOLDS, withLock,
 } from '../src/usage-alert.mjs';
 import { useFakeHome } from './fake-home.mjs';
+import { readRecentHookErrors } from '../src/error-log.mjs';
 useFakeHome();
 
 const NOW = Date.UTC(2026, 9, 9, 12, 0, 0); // fixed clock
@@ -370,5 +371,54 @@ describe('sendUsageNotifications', () => {
     assert.equal(calls.toast.length, 1);
     assert.equal(calls.webhook.length, 1);
     assert.equal(res.filter((r) => r.status === 'rejected').length, 1);
+  });
+});
+
+describe('withLock on a lock being released (Windows EPERM)', () => {
+  let dir;
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'an-lock-')); });
+  afterEach(() => { mock.restoreAll(); fs.rmSync(dir, { recursive: true, force: true }); });
+
+  const eperm = () => Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' });
+  const lockErrors = (label) => readRecentHookErrors(200).filter((e) => e.context === label).length;
+  // Fail only for the lock path: on Node 18, appendFileSync (the error log)
+  // goes through fs.openSync too, and must keep working.
+  const failFor = (method, target) => {
+    const real = fs[method];
+    mock.method(fs, method, function (p, ...rest) {
+      if (p === target) throw eperm();
+      return real.call(fs, p, ...rest);
+    });
+  };
+
+  it('EPERM while a fresh lock file exists is contention: skip quietly', () => {
+    const lock = path.join(dir, 's.json.lock');
+    fs.writeFileSync(lock, '');
+    const before = lockErrors('test:lock-busy');
+    failFor('openSync', lock);
+    let ran = false;
+    assert.equal(withLock(lock, () => { ran = true; return 1; }, 'test:lock-busy'), null);
+    assert.equal(ran, false);
+    assert.equal(lockErrors('test:lock-busy'), before, 'not logged');
+  });
+
+  it('EPERM with no lock file is a real problem: logged', () => {
+    const lock = path.join(dir, 'missing.json.lock');
+    const before = lockErrors('test:lock-perm');
+    failFor('openSync', lock);
+    assert.equal(withLock(lock, () => 1, 'test:lock-perm'), null);
+    assert.equal(lockErrors('test:lock-perm'), before + 1);
+  });
+
+  it('a stale lock that cannot be deleted is logged, not skipped forever', () => {
+    const lock = path.join(dir, 'stuck.json.lock');
+    fs.writeFileSync(lock, '');
+    const old = new Date(Date.now() - 60000);
+    fs.utimesSync(lock, old, old);
+    const before = lockErrors('test:lock-stuck');
+    failFor('unlinkSync', lock);
+    failFor('openSync', lock);
+    assert.equal(withLock(lock, () => 1, 'test:lock-stuck'), null);
+    assert.equal(lockErrors('test:lock-stuck'), before + 1);
   });
 });

@@ -13,6 +13,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
   cause (`timed out after 7000 ms`, `exit code 3`, `pwsh not found`), and the
   error log keeps the exit code, signal, elapsed time and stderr.
 
+### Fixed
+- **No false lock errors on Windows.** Two chats refreshing their statusline at
+  the same moment could log `usage-alert:lock EPERM`: Windows reports a lock
+  file that is being released as EPERM instead of "already exists". That is now
+  treated as the lock being busy and skipped quietly; a real permissions problem
+  is still logged.
+
 ## [1.6.0] — 2026-10-09
 
 ### Added
