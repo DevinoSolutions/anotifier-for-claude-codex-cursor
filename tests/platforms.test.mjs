@@ -129,11 +129,21 @@ describe('windows toastFailureDetail() — names why a toast failed', () => {
     assert.equal(d.exitCode, 3);
     assert.match(d.stderr, /BurntToast notification failed/);
   });
-  it('a missing pwsh reads as not found', () => {
-    assert.equal(toastFailureDetail({ code: 'ENOENT' }, undefined, 5).cause, 'pwsh not found');
+  it('a timeout kill whose timer fired a millisecond early still reads as a timeout', () => {
+    assert.equal(toastFailureDetail({ killed: true, signal: 'SIGTERM', code: null }, '', 6999, 7000).cause, 'timed out after 7000 ms');
   });
-  it('a kill before the timeout names the signal', () => {
-    assert.equal(toastFailureDetail({ killed: true, signal: 'SIGKILL', code: null }, '', 1200, 7000).cause, 'killed by SIGKILL');
+  it('a missing pwsh reads as not found, with no numeric exit code', () => {
+    const d = toastFailureDetail({ code: 'ENOENT' }, undefined, 5);
+    assert.equal(d.cause, 'pwsh not found');
+    assert.equal(d.exitCode, null);
+  });
+  it('another string error code is named as the cause, not as an exit code', () => {
+    const d = toastFailureDetail({ code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' }, '', 50);
+    assert.equal(d.cause, 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER');
+    assert.equal(d.exitCode, null);
+  });
+  it('a kill from outside (not by Node) names the signal', () => {
+    assert.equal(toastFailureDetail({ killed: false, signal: 'SIGKILL', code: null }, '', 1200, 7000).cause, 'killed by SIGKILL');
   });
   it('caps stderr at 400 characters', () => {
     assert.equal(toastFailureDetail({ code: 1 }, 'x'.repeat(1000), 10).stderr.length, 400);
