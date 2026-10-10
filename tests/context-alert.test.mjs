@@ -83,6 +83,26 @@ describe('resolveAutoCompactWindow', () => {
     assert.equal(resolve(payload(1)), 450000, 'no model id falls back to top-level');
   });
 
+  it('a per-model "auto" means the model window and beats a top-level number', () => {
+    user({ autoCompactWindow: 450000, modelSettings: { 'claude-opus-4': { autoCompactWindow: 'auto' } } });
+    const p = payload(1, { model: { id: 'claude-opus-4' } });
+    assert.equal(resolve(p), p.context_window.context_window_size);
+    assert.equal(resolve(payload(1, { model: { id: 'claude-other' } })), 450000, 'another model keeps the top-level value');
+  });
+
+  it('a per-model "auto" in a higher file beats a number in a lower one', () => {
+    user({ autoCompactWindow: 300000 });
+    projLocal({ modelSettings: { mine: { autoCompactWindow: 'auto' } } });
+    const p = withProj(payload(1, { model: { id: 'mine' } }));
+    assert.equal(resolve(p), p.context_window.context_window_size);
+  });
+
+  it('a per-model "auto" with no known model window resolves to null, and the env var still wins', () => {
+    user({ modelSettings: { mine: { autoCompactWindow: 'auto' } } });
+    assert.equal(resolve({ model: { id: 'mine' }, context_window: { total_input_tokens: 1 } }), null);
+    assert.equal(resolve(payload(1, { model: { id: 'mine' } }), { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '300000' }), 300000);
+  });
+
   it('a model id like __proto__ is not looked up on the prototype', () => {
     user({ autoCompactWindow: 450000, modelSettings: {} });
     assert.equal(resolve(payload(1, { model: { id: '__proto__' } })), 450000);

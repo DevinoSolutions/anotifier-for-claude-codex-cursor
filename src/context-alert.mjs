@@ -73,14 +73,20 @@ function loadSettings(payload, { env, home, fsImpl }) {
   return out;
 }
 
+// The per-model setting "auto": use the window Claude Code tunes for the model.
+const MODEL_WINDOW = Symbol('model window');
+
 // Claude Code >= 2.1.288 saves /autocompact per model under
-// modelSettings.<model id>.autoCompactWindow; older versions write the
-// top-level key. In each file the per-model value wins.
+// modelSettings.<model id>.autoCompactWindow (a number, or "auto" for the
+// window tuned for the model); older versions write the top-level key. In each
+// file the per-model value wins, so a per-model "auto" also overrides a
+// top-level number and resolves to the model's own window.
 function settingsWindow(settings, modelId) {
   for (const s of settings) {
     const perModel = typeof modelId === 'string' && s.modelSettings && Object.hasOwn(s.modelSettings, modelId)
       ? s.modelSettings[modelId]?.autoCompactWindow
       : undefined;
+    if (perModel === 'auto') return MODEL_WINDOW;
     if (positive(perModel)) return clampWindow(perModel);
     if (positive(s.autoCompactWindow)) return clampWindow(s.autoCompactWindow);
   }
@@ -113,7 +119,7 @@ function windowFrom(payload, env, settings) {
     const fromEnv = Number.parseInt(String(env?.CLAUDE_CODE_AUTO_COMPACT_WINDOW ?? '').trim(), 10);
     window = fromEnv > 0 ? clampWindow(fromEnv) : settingsWindow(settings, payload?.model?.id);
   }
-  if (window === null) window = model;
+  if (window === null || window === MODEL_WINDOW) window = model;
   if (window === null) return null;
   return model !== null && window > model ? model : window;
 }
