@@ -362,6 +362,7 @@ export const DOCS: DocSection[] = [
             kind: "ul",
             items: [
               "`server`: any ntfy server, including a self-hosted one.",
+              "`fallbackServer` (1.7.0 and later, optional): a second ntfy server. If `server` fails (unreachable, a timeout, or an error answer such as a 429 daily limit), the same push is sent once to the fallback with the same topic. With a fallback set, each attempt waits at most 3 s instead of 5 s. For example, set your own server as `server` and `https://ntfy.sh` as `fallbackServer`, and subscribe your phone to the topic on both. If the main server accepts a push but answers slowly, a phone subscribed on both can get it twice. `anotifier status` shows a `fallback` line, and `anotifier test ntfy` warns when only the fallback delivered.",
               "`click`: URL opened when you tap the notification. Empty means no link.",
               "`richContent`: **off by default for privacy.** Public ntfy.sh topics are guessable, so the body stays generic (`my-app: Task complete`) unless you run a private server and opt in.",
               "Event `priority` (`min`, `low`, `default`, `high`, `urgent`) becomes the ntfy push priority; `ntfyTags` become the emoji tags.",
@@ -478,6 +479,12 @@ export const DOCS: DocSection[] = [
             "URL",
             "`https://ntfy.sh`",
             "ntfy server, public or self-hosted.",
+          ],
+          [
+            "`ntfy.fallbackServer`",
+            "URL",
+            "unset",
+            "Optional second ntfy server, tried once if `ntfy.server` fails (1.7.0 and later).",
           ],
           [
             "`ntfy.topic`",
