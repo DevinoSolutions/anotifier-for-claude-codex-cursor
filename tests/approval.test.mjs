@@ -16,7 +16,7 @@ import {
   renderVisible, scrubSecrets, scrubDetailed, isSecretName, hasShellMeta, bashDisplay, bashDenylistHit, neverRemoteHit, tildeHome, DISPLAY_BUDGET,
 } from '../src/approval-display.mjs';
 import { createVerifier, buildRequestPayload, responseBody, failureClass } from '../src/approval-ntfy.mjs';
-import { decisionOutput, requestText, AGENTS, parseWaitCap, NO_DECISION } from '../src/approve.mjs';
+import { decisionOutput, requestText, AGENTS, parseWaitCap, NO_DECISION, modeNeverPrompts } from '../src/approve-core.mjs';
 import { approvalTokenCheck } from '../cli/doctor-checks.mjs';
 import { parseFlags, aclRecipe } from '../cli/approval.mjs';
 import {
@@ -419,6 +419,14 @@ describe('hook output (design 3.1, verified against the Claude Code hooks refere
     assert.ok(!hidden.message.includes('rm -rf x'));
     const long = requestText({ ...base, display: bashDisplay('x '.repeat(400)) });
     assert.match(long.message, /Too long to approve from the phone/);
+  });
+
+  it('the permission mode is read from the input, and dontAsk / bypassPermissions never prompt (review L2)', () => {
+    const parse = (mode) => AGENTS.claude.parse({ hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: {}, permission_mode: mode });
+    assert.equal(parse('dontAsk').permissionMode, 'dontAsk');
+    assert.equal(parse(undefined).permissionMode, null);
+    for (const m of ['dontAsk', 'DONTASK', 'bypassPermissions']) assert.equal(modeNeverPrompts(m), true, m);
+    for (const m of ['default', 'plan', 'acceptEdits', 'auto', null, undefined, 7, '']) assert.equal(modeNeverPrompts(m), false, String(m));
   });
 
   it('AAN_APPROVAL_WAIT_MS must be a positive integer', () => {

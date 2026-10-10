@@ -7,7 +7,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
+import https from 'node:https';
 import net from 'node:net';
+import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { generateRequestTopic, generateResponsePrefix } from '../src/approval.mjs';
@@ -41,7 +43,7 @@ export function closedPortBase() {
 //   rawLines         after a publish, write these raw lines to subscribers
 // `fake.onRequest(payload, fake)` runs for every JSON publish that carries
 // actions: that is "the phone".
-export async function startFakeNtfy() {
+export async function startFakeNtfy({ tls = null } = {}) {
   const fake = {
     mode: {},
     published: [], // JSON publishes, in order: { payload, auth }
@@ -61,7 +63,8 @@ export async function startFakeNtfy() {
   fake.writeAll = (topic, raw) => {
     for (const res of fake.subscribers.get(topic) || []) res.write(raw);
   };
-  fake.server = http.createServer((req, res) => {
+  const createServer = tls ? (handler) => https.createServer(tls, handler) : http.createServer;
+  fake.server = createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
     const parts = url.pathname.split('/').filter(Boolean);
     if (req.method === 'GET' && parts.length === 2 && parts[1] === 'json') {
@@ -122,7 +125,7 @@ export async function startFakeNtfy() {
   });
   fake.server.on('connection', (s) => { fake.sockets.add(s); s.on('close', () => fake.sockets.delete(s)); });
   await new Promise((r) => fake.server.listen(0, '127.0.0.1', r));
-  fake.base = `http://127.0.0.1:${fake.server.address().port}`;
+  fake.base = `${tls ? 'https' : 'http'}://127.0.0.1:${fake.server.address().port}`;
   fake.reset = () => {
     fake.mode = {};
     fake.published = [];
@@ -227,4 +230,40 @@ export function runApprove({ home, stdin = '', args = ['--source', 'claude'], en
 
 export function cleanup(home) {
   try { fs.rmSync(home, { recursive: true, force: true }); } catch {}
+}
+
+// ── A throwaway self-signed certificate, built with node:crypto only ──
+// Node cannot create X.509 certificates, so this assembles the DER by hand:
+// an EC P-256 key, CN=localhost, valid from yesterday for a year, signed by
+// itself. Nothing is committed to the repo and nothing is trusted; tests use
+// it to prove the hook refuses a server whose certificate it cannot verify.
+function der(tag, ...parts) {
+  const body = Buffer.concat(parts);
+  const n = body.length;
+  const len = n < 128 ? Buffer.from([n]) : n < 256 ? Buffer.from([0x81, n]) : Buffer.from([0x82, n >> 8, n & 0xff]);
+  return Buffer.concat([Buffer.from([tag]), len, body]);
+}
+const derSeq = (...p) => der(0x30, ...p);
+const derSet = (...p) => der(0x31, ...p);
+const ECDSA_SHA256 = Buffer.from('06082a8648ce3d040302', 'hex');
+const OID_CN = Buffer.from('0603550403', 'hex');
+const utc = (d) => der(0x17, Buffer.from(`${d.toISOString().slice(2, 19).replace(/[-:T]/g, '')}Z`, 'ascii'));
+
+export function selfSignedPems() {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const name = derSeq(derSet(derSeq(OID_CN, der(0x0c, Buffer.from('localhost')))));
+  const now = Date.now();
+  const tbs = derSeq(
+    der(0xa0, der(0x02, Buffer.from([2]))), // version v3
+    der(0x02, Buffer.from([1])), // serial
+    derSeq(ECDSA_SHA256),
+    name,
+    derSeq(utc(new Date(now - 86400e3)), utc(new Date(now + 365 * 86400e3))),
+    name,
+    publicKey.export({ type: 'spki', format: 'der' }),
+  );
+  const signature = crypto.sign('sha256', tbs, privateKey);
+  const cert = derSeq(tbs, derSeq(ECDSA_SHA256), der(0x03, Buffer.concat([Buffer.from([0]), signature])));
+  const pem = (label, buf) => `-----BEGIN ${label}-----\n${buf.toString('base64').match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
+  return { cert: pem('CERTIFICATE', cert), key: privateKey.export({ type: 'pkcs8', format: 'pem' }) };
 }

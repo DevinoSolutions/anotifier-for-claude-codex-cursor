@@ -60,6 +60,7 @@ export function publishJson(base, payload, { token = null, timeoutMs = PUBLISH_T
       req = transportFor(url).request(url, {
         method: 'POST',
         agent: false, // no keep-alive socket may outlive the hook (see sentry.mjs)
+        rejectUnauthorized: true, // never trust NODE_TLS_REJECT_UNAUTHORIZED=0 (review of PR #96, M1)
         headers: { ...authHeaders(token), 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
       }, (res) => {
         res.resume();
@@ -120,6 +121,7 @@ export function subscribe(base, topic, { token = null, openTimeoutMs = OPEN_TIME
     req = transportFor(url).request(url, {
       method: 'GET',
       agent: false,
+      rejectUnauthorized: true, // see publishJson
       headers: { ...authHeaders(token), Accept: 'application/x-ndjson' },
     }, (res) => {
       if (res.statusCode !== 200) {

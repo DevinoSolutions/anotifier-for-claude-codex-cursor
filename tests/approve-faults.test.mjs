@@ -10,9 +10,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import https from 'node:https';
+import { spawnSync } from 'node:child_process';
 import {
   startFakeNtfy, closedPortBase, seedHome, bashRequest, runApprove, tap, actionByLabel, cleanup,
-  ALLOW_BYTES, DENY_BYTES, NO_DECISION_BYTES,
+  ALLOW_BYTES, DENY_BYTES, NO_DECISION_BYTES, selfSignedPems, repoRoot,
 } from './approval-helpers.mjs';
 import { generateOneTime } from '../src/approval.mjs';
 
@@ -463,8 +465,103 @@ describe('signals and crashes', () => {
   });
 
   it('the source never exits 2 and has a single allow construction', () => {
-    const src = fs.readFileSync(new URL('../src/approve.mjs', import.meta.url), 'utf8');
-    assert.ok(!/process\.exit\(\s*[1-9]/.test(src), 'only exit(0)');
-    assert.equal((src.match(/behavior: 'allow'/g) || []).length, 1, 'one place builds allow');
+    for (const file of ['approve.mjs', 'approve-core.mjs']) {
+      const src = fs.readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
+      assert.ok(!/process\.exit\(\s*[1-9]/.test(src), `${file}: only exit(0)`);
+    }
+    const all = ['approve.mjs', 'approve-core.mjs'].map((n) => fs.readFileSync(new URL(`../src/${n}`, import.meta.url), 'utf8')).join('\n');
+    assert.equal((all.match(/behavior: 'allow'/g) || []).length, 1, 'one place builds allow');
   });
+});
+
+describe('modes in which the call would be denied anyway (review of PR #96, L2)', () => {
+  for (const mode of ['dontAsk', 'dontask', 'bypassPermissions']) {
+    it(`permission_mode ${mode}: no decision, no network, even though the phone could be asked`, async () => {
+      const h = home();
+      fake.onRequest = (payload) => tap(actionByLabel(payload, 'Approve'));
+      const res = await runApprove({ home: h.home, stdin: bashRequest('npm test', { permission_mode: mode }) });
+      assertNoDecision(res, mode);
+      assertNoNetwork();
+      const last = JSON.parse(fs.readFileSync(path.join(h.approvalsDir, 'last.json'), 'utf8'));
+      assert.equal(last.outcome, 'auto-deny-mode');
+    });
+  }
+
+  for (const mode of ['default', 'plan', 'acceptEdits', 'auto']) {
+    it(`permission_mode ${mode} still asks the phone`, async () => {
+      const h = home();
+      fake.onRequest = (payload) => tap(actionByLabel(payload, 'Approve'));
+      const res = await runApprove({ home: h.home, stdin: bashRequest('npm test', { permission_mode: mode }) });
+      assert.equal(res.stdout, ALLOW_BYTES, res.stderr);
+    });
+  }
+});
+
+describe('TLS verification cannot be switched off (review of PR #96, M1)', () => {
+  it('NODE_TLS_REJECT_UNAUTHORIZED=0 does not make a self-signed server trusted', async () => {
+    const tls = selfSignedPems();
+    const secure = await startFakeNtfy({ tls });
+    try {
+      // Control: a client that opts out of verification does reach this server,
+      // so the fixture is valid and the refusal below is about trust alone.
+      const control = await new Promise((resolve) => {
+        const req = https.request(secure.base, { method: 'POST', rejectUnauthorized: false }, (res) => { res.resume(); resolve(res.statusCode); });
+        req.on('error', (e) => resolve(e.code));
+        req.end('{}');
+      });
+      assert.equal(control, 200);
+      secure.reset();
+
+      const h = seedHome({ server: secure.base, token: TOKEN });
+      homes.push(h.home);
+      secure.onRequest = (payload) => tap(actionByLabel(payload, 'Approve')).catch(() => {});
+      const res = await runApprove({ home: h.home, stdin: bashRequest('npm test'), env: { NODE_TLS_REJECT_UNAUTHORIZED: '0' } });
+      assertNoDecision(res, 'self-signed');
+      assert.equal(secure.subscribes.length, 0, 'the TLS handshake was refused, so nothing was requested');
+      assert.equal(secure.published.length, 0);
+      const last = JSON.parse(fs.readFileSync(path.join(h.approvalsDir, 'last.json'), 'utf8'));
+      assert.match(last.outcome, /^(error|network)$/, 'a connection failure, not a decision');
+    } finally {
+      await secure.close();
+    }
+  });
+
+  it('both request option sets say rejectUnauthorized: true, and the entry point drops the variable', () => {
+    const ntfy = fs.readFileSync(new URL('../src/approval-ntfy.mjs', import.meta.url), 'utf8');
+    assert.equal((ntfy.match(/rejectUnauthorized: true/g) || []).length, 2);
+    assert.ok(!/rejectUnauthorized: false/.test(ntfy));
+    const entry = fs.readFileSync(new URL('../src/approve.mjs', import.meta.url), 'utf8');
+    assert.match(entry, /^delete process\.env\.NODE_TLS_REJECT_UNAUTHORIZED;$/m);
+  });
+});
+
+describe('the entry point survives a failure to load the real logic (review of PR #96, L3)', () => {
+  // Copy only the tiny entry point into a directory of its own, next to a
+  // broken (or missing) approve-core.mjs, and run that copy.
+  const runEntry = (coreSource) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-entry-'));
+    homes.push(dir);
+    fs.copyFileSync(path.join(repoRoot, 'src', 'approve.mjs'), path.join(dir, 'approve.mjs'));
+    if (coreSource !== null) fs.writeFileSync(path.join(dir, 'approve-core.mjs'), coreSource);
+    const res = spawnSync(process.execPath, [path.join(dir, 'approve.mjs'), '--source', 'claude'], {
+      input: bashRequest('npm test'), encoding: 'utf8', timeout: 20000, env: { ...process.env, HOME: dir, USERPROFILE: dir },
+    });
+    return res;
+  };
+
+  const broken = {
+    'the logic file is missing': null,
+    'the logic file has a syntax error': 'export function main( {',
+    'the logic file throws while loading': "throw new Error('boom at import');\nexport async function main() {}",
+    'the logic file imports a module that does not exist': "import './nope-not-here.mjs';\nexport async function main() {}",
+    'main() itself throws': "export async function main() { throw new Error('boom in main'); }",
+    'main() never settles and the event loop empties': "export async function main() { await new Promise(() => {}); }",
+  };
+  for (const [name, source] of Object.entries(broken)) {
+    it(`${name}: prints {} and exits 0`, () => {
+      const res = runEntry(source);
+      assert.equal(res.stdout, NO_DECISION_BYTES, res.stderr);
+      assert.equal(res.status, 0, res.stderr);
+    });
+  }
 });

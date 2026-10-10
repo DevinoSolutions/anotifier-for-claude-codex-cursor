@@ -259,6 +259,10 @@ Source: [hooks reference, PermissionRequest](https://code.claude.com/docs/en/hoo
 }
 ```
 
+**Permission mode.** `permission_mode` is one of `default`, `plan`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions` (hooks reference, fetched 2026-10-10). In `dontAsk` mode Claude Code "auto-denies every tool call that would otherwise prompt you", and `bypassPermissions` never prompts. The hook returns no decision in both, so a phone tap can never turn a policy denial into an allow.
+
+**Entry point.** `src/approve.mjs` is a tiny wrapper that installs the exit-0-with-`{}` handlers and drops `NODE_TLS_REJECT_UNAUTHORIZED` before it loads the real logic (`src/approve-core.mjs`) with a dynamic `import()` inside a try/catch, so even a failure to load the logic prints `{}` and exits 0. The hook path in the agent settings is the wrapper and does not change.
+
 **Output (stdout, exit 0).**
 
 ```json
