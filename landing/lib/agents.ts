@@ -70,7 +70,7 @@ const CLICK_TO_FOCUS =
 export const AGENTS: Agent[] = [
   {
     slug: "claude-code",
-    updated: "2026-10-09",
+    updated: "2026-10-10",
     name: "Claude Code",
     title: "Claude Code Notifier — Desktop, Phone & Slack Alerts",
     description:
@@ -130,7 +130,7 @@ export const AGENTS: Agent[] = [
           },
           {
             kind: "p",
-            text: "From 1.5.0, setup also routes the statusline through anotifier, which is how usage-limit warnings work. It adds this `statusLine` entry; the `--wrap-b64` part appears only if you already had a statusline, and carries your old command, base64-encoded, so it keeps printing:",
+            text: "From 1.5.0, setup also routes the statusline through anotifier, which is how usage-limit warnings (1.5.0) and context warnings (1.6.0) work. It adds this `statusLine` entry; the `--wrap-b64` part appears only if you already had a statusline, and carries your old command, base64-encoded, so it keeps printing:",
           },
           {
             kind: "code",
@@ -189,8 +189,38 @@ export const AGENTS: Agent[] = [
           },
         ],
       },
+      {
+        id: "context-warning",
+        kicker: "[ CONTEXT WARNING ]",
+        title: "A warning before Claude Code auto-compacts.",
+        blocks: [
+          {
+            kind: "p",
+            text: "Version 1.6.0 and later sends **one** notification per chat when its context passes **85%** of the auto-compact window, so you can wrap up or run `/compact` before Claude Code compacts on its own. It names the chat and the size, such as `174K of 200K tokens`, at high priority.",
+          },
+          {
+            kind: "ul",
+            items: [
+              "**Once per chat.** A chat never warns twice, even after `/compact`. `/clear` starts a new session, which can warn again.",
+              "**Measured against the auto-compact window,** from `CLAUDE_CODE_AUTO_COMPACT_WINDOW` or your `/autocompact` setting, else the model's window. Skipped when auto-compact is off. The `--autocompact` flag and managed settings are invisible to a statusline, so the warning can be late or missing with them.",
+              "**No subscription needed.** It works on API-key and proxy sessions too, through the same statusline wiring as usage warnings.",
+              "**Toast, ntfy and webhook, never the bell.** Snooze and quiet hours hold it back.",
+              '**Configurable.** `contextAlerts: { "enabled": true, "threshold": 85 }` in `~/.anotifier/config.json`.',
+            ],
+          },
+          {
+            kind: "p",
+            text: "The [auto-compact warning guide](/guides/claude-code-auto-compact-warning/) explains how the window is resolved and has a statusline script to write yourself.",
+          },
+        ],
+      },
     ],
     faqs: [
+      {
+        q: "Can anotifier warn me before Claude Code auto-compacts?",
+        aHtml:
+          '<p>Yes, from anotifier 1.6.0. It sends one notification per chat when its context passes 85% of the auto-compact window, so you can wrap up or <code>/compact</code> first. It works on API-key and proxy sessions too, not only Pro and Max. It reads the numbers from Claude Code\'s statusline, which <code>anotifier setup</code> routes through anotifier. See the <a href="/guides/claude-code-auto-compact-warning/">auto-compact warning guide</a>.</p>',
+      },
       {
         q: "Can anotifier warn me before Claude Code hits a usage limit?",
         aHtml:

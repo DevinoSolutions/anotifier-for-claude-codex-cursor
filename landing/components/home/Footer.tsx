@@ -54,6 +54,10 @@ const seoLinks = [
     label: "Claude Code usage limit warning",
   },
   {
+    href: "/guides/claude-code-auto-compact-warning/",
+    label: "Claude Code auto-compact warning",
+  },
+  {
     href: "/guides/codex-notification-sound/",
     label: "Codex approval ding",
   },
