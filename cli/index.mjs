@@ -19,10 +19,14 @@ const COMMANDS = {
   snooze: () => import('./snooze.mjs'),
   telemetry: () => import('./telemetry.mjs'),
   uninstall: () => import('./uninstall.mjs'),
-  // Experimental remote approval: deliberately absent from --help until it
-  // ships (docs/design/remote-approval.md, D4).
-  approval: () => import('./approval.mjs'),
-  away: () => import('./away.mjs'),
+  // Experimental remote approval: absent from --help, and an unknown command
+  // unless ANOTIFIER_EXPERIMENTAL_APPROVAL=1, until it ships. Design D4: not
+  // before a real phone shows whether ntfy action buttons fire without an
+  // unlock (docs/design/remote-approval.md). The flag keeps a release from
+  // handing the commands to users by accident.
+  ...(process.env.ANOTIFIER_EXPERIMENTAL_APPROVAL === '1'
+    ? { approval: () => import('./approval.mjs'), away: () => import('./away.mjs') }
+    : {}),
 };
 
 // Commands that queue no usage event at all. Remote approval sends no

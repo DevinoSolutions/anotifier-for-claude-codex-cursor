@@ -12,7 +12,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ### Internal
 
-- Remote approval (approve or deny a Claude Code Bash permission request from the phone) is in progress and experimental. It is not enabled by `anotifier setup` and not yet ready to use.
+- Remote approval (approve or deny a Claude Code Bash permission request from the phone) is in progress and experimental. It is not enabled by `anotifier setup`, its `approval` and `away` commands exist only with `ANOTIFIER_EXPERIMENTAL_APPROVAL=1`, and it is not yet ready to use.
 
 ## [1.7.0] — 2026-10-10
 
