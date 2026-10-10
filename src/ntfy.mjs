@@ -31,14 +31,42 @@ export function buildNtfyRequest(ntfyConfig, notification) {
   return { url, headers, body: notification.message };
 }
 
-export function sendNtfy(ntfyConfig, notification) {
-  return new Promise((resolve) => {
-    if (!ntfyConfig.topic) {
-      logHookError('ntfy', new Error('ntfy is enabled but no topic is configured'));
-      resolve(false);
-      return;
-    }
+// Per-request timeout. With a fallback server configured, each attempt gets
+// less so both fit together inside the hook's 10 s budget (hooks.json), next
+// to the Windows toast's 7 s.
+const TIMEOUT_MS = 5000;
+const TIMEOUT_WITH_FALLBACK_MS = 3000;
 
+const normalizeServer = (s) => String(s || '').trim().replace(/\/+$/, '');
+
+// Send to ntfyConfig.server, and if that fails and ntfyConfig.fallbackServer
+// is set (and differs), send the same message once to the fallback with the
+// same topic. Resolves true when either delivered. Never throws.
+export async function sendNtfy(ntfyConfig, notification) {
+  return (await sendNtfyDetailed(ntfyConfig, notification)).ok;
+}
+
+// sendNtfy that also says which server delivered: { ok, via, fallback } with
+// via 'server', 'fallback' or null. `anotifier test ntfy` uses it so a dead
+// main server is not hidden behind a working fallback.
+export async function sendNtfyDetailed(ntfyConfig, notification) {
+  if (!ntfyConfig.topic) {
+    logHookError('ntfy', new Error('ntfy is enabled but no topic is configured'));
+    return { ok: false, via: null, fallback: null };
+  }
+  const primary = normalizeServer(ntfyConfig.server) || 'https://ntfy.sh';
+  const fallback = normalizeServer(ntfyConfig.fallbackServer);
+  const hasFallback = Boolean(fallback) && fallback !== primary;
+  const timeoutMs = hasFallback ? TIMEOUT_WITH_FALLBACK_MS : TIMEOUT_MS;
+
+  if (await postNtfy(ntfyConfig, notification, timeoutMs, 'ntfy')) return { ok: true, via: 'server', fallback: null };
+  if (!hasFallback) return { ok: false, via: null, fallback: null };
+  const ok = await postNtfy({ ...ntfyConfig, server: fallback }, notification, timeoutMs, 'ntfy:fallback');
+  return { ok, via: ok ? 'fallback' : null, fallback };
+}
+
+function postNtfy(ntfyConfig, notification, timeoutMs, context) {
+  return new Promise((resolve) => {
     const { url, headers, body } = buildNtfyRequest(ntfyConfig, notification);
 
     // A bare-hostname typo (server: "ntfy.sh" with no scheme) makes `new URL`
@@ -48,11 +76,21 @@ export function sendNtfy(ntfyConfig, notification) {
     try {
       parsed = new URL(url);
     } catch {
-      logHookError('ntfy', new Error(`ntfy server is not a valid URL: ${ntfyConfig.server || 'https://ntfy.sh'}`));
+      logHookError(context, new Error(`ntfy server is not a valid URL: ${ntfyConfig.server || 'https://ntfy.sh'}`));
       resolve(false);
       return;
     }
     const transport = parsed.protocol === 'https:' ? https : http;
+
+    let done = false;
+    let timer;
+    const finish = (ok, err) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (err) logHookError(context, err, { url: parsed.origin });
+      resolve(ok);
+    };
 
     // transport.request can throw SYNCHRONOUSLY (not via 'error') on a non-http(s)
     // protocol that still parses (e.g. ftp://) or invalid header chars — guard the
@@ -62,27 +100,23 @@ export function sendNtfy(ntfyConfig, notification) {
         method: 'POST',
         agent: false, // no keep-alive socket may outlive the hook's process.exit() (see sentry.mjs)
         headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' },
-        timeout: 5000,
       }, (res) => {
         res.resume(); // drain
         const ok = res.statusCode >= 200 && res.statusCode < 300;
-        if (!ok) logHookError('ntfy', new Error(`ntfy server responded ${res.statusCode}`), { url: parsed.origin });
-        resolve(ok);
+        finish(ok, ok ? null : new Error(`ntfy server responded ${res.statusCode}`));
       });
 
-      req.on('error', (err) => {
-        logHookError('ntfy', err, { url: parsed.origin });
-        resolve(false);
-      });
-      req.on('timeout', () => {
+      // One deadline for the whole attempt (DNS, connect, response headers).
+      // The socket `timeout` option is only an idle timer, which a server
+      // sending a byte at a time could keep alive far past the hook's budget.
+      timer = setTimeout(() => {
+        finish(false, new Error(`ntfy request timed out after ${timeoutMs}ms`));
         req.destroy();
-        logHookError('ntfy', new Error('ntfy request timed out after 5000ms'), { url: parsed.origin });
-        resolve(false);
-      });
+      }, timeoutMs);
+      req.on('error', (err) => finish(false, err));
       req.end(body);
     } catch (err) {
-      logHookError('ntfy', err, { url: parsed.origin });
-      resolve(false);
+      finish(false, err);
     }
   });
 }

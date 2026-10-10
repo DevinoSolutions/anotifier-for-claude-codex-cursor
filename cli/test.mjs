@@ -1,6 +1,6 @@
 // cli/test.mjs
 import { loadConfigResult } from '../src/config-loader.mjs';
-import { sendNtfy } from '../src/ntfy.mjs';
+import { sendNtfyDetailed } from '../src/ntfy.mjs';
 import { sendWebhook } from '../src/webhook.mjs';
 import { resolveToastBackend } from '../src/platforms/index.mjs';
 import { sendBell } from '../src/bell.mjs';
@@ -65,9 +65,10 @@ export async function run(channel) {
   if (doNtfy) {
     if (config.ntfy?.enabled && config.ntfy?.topic) {
       const spin = spinner('Sending ntfy push...');
-      const ok = await sendNtfy(config.ntfy, testNotif);
+      const { ok, via, fallback } = await sendNtfyDetailed(config.ntfy, testNotif);
       outcomes.ntfy = ok ? 'sent' : 'failed';
-      if (ok) spin.stop('ntfy sent');
+      if (via === 'fallback') spin.warn(`ntfy sent through the fallback ${fallback}; the main server ${config.ntfy.server || 'https://ntfy.sh'} failed (see anotifier status)`);
+      else if (ok) spin.stop('ntfy sent');
       else { spin.fail('ntfy failed'); failed = true; }
     } else {
       outcomes.ntfy = 'not_configured';

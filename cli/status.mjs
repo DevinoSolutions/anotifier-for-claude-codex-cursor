@@ -143,6 +143,9 @@ export async function run() {
     kv('Context alerts', contextAlertsValue(config)),
     kv('ntfy', ''),
     `${''.padEnd(15)} ${ntfyValue}`,
+    ...(config.ntfy?.enabled && config.ntfy?.topic && config.ntfy?.fallbackServer
+      ? [`${''.padEnd(15)} ${c.muted('fallback')} ${c.white(String(config.ntfy.fallbackServer).replace(/\/+$/, ''))}`]
+      : []),
     ...(config.webhook?.enabled && config.webhook?.url
       ? [kv('Webhook', c.success(webhookOrigin(config.webhook.url)))]
       : []),
