@@ -11,7 +11,7 @@ export const SUPPORT_URL = "https://github.com/sponsors/DevinoSolutions";
     the CLI's src/support.mjs repeats it (tests/community.test.mjs pins both). */
 export const COMMUNITY_URL = "https://discord.gg/CWDxfEJGcS";
 /** Latest published npm version. Bump with every release. */
-export const VERSION = "1.6.0";
+export const VERSION = "1.6.1";
 /** ISO date of the newest content edit anywhere on the site (llms-full.txt). */
 export const CONTENT_UPDATED = "2026-10-10";
 /** Last significant content edit of each one-off page (YYYY-MM-DD): its
