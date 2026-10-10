@@ -7,6 +7,7 @@ import { notificationAuthState, verifyDelivery, ncDbPath } from '../src/platform
 import { toastPlatform } from '../src/platforms/index.mjs';
 import { findWslPowerShell } from '../src/platforms/wsl.mjs';
 import { toastOffBySetup, toastOffNoBackendLabel, probeCommand } from './toast-backend.mjs';
+import { readApprovalRaw } from '../src/approval.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -170,6 +171,24 @@ function configCheck(config, configProblem) {
   return { id: 'config', channel: 'config', status: 'ok', detail: 'config valid' };
 }
 
+// Remote approval (experimental, design 2.5): when the agent access token
+// expires every publish fails with an auth error and every approval silently
+// falls back to the terminal. Warn 14 days ahead, fail once it has passed.
+// Only reported when approval.json exists, so it costs other users nothing.
+const TOKEN_WARN_MS = 14 * 24 * 60 * 60 * 1000;
+
+export function approvalTokenCheck(raw, now = Date.now()) {
+  if (!raw || raw.enabled !== true) return null;
+  const base = { id: 'approval-token', channel: 'approval' };
+  if (!raw.token) return { ...base, status: 'ok', detail: 'no access token configured' };
+  if (!raw.tokenExpiresAt) return { ...base, status: 'info', detail: 'access token expiry not recorded', hint: 're-run: anotifier approval setup --token-expires <YYYY-MM-DD>' };
+  const at = Date.parse(raw.tokenExpiresAt);
+  if (!Number.isFinite(at)) return { ...base, status: 'warn', detail: 'access token expiry is not a date', hint: 're-run: anotifier approval setup' };
+  if (at <= now) return { ...base, status: 'fail', detail: `access token expired ${raw.tokenExpiresAt}; phone approvals fall back to the terminal`, hint: 'create a new token, then re-run: anotifier approval setup' };
+  if (at - now <= TOKEN_WARN_MS) return { ...base, status: 'warn', detail: `access token expires ${raw.tokenExpiresAt}`, hint: 'create a new token, then re-run: anotifier approval setup' };
+  return { ...base, status: 'ok', detail: `access token valid until ${raw.tokenExpiresAt}` };
+}
+
 function focusCheck() {
   return { id: 'focus', channel: 'focus', status: ncDbPath() ? 'ok' : 'warn', detail: 'Focus/DND does not block delivery records (warn-only probe)' };
 }
@@ -330,5 +349,7 @@ export async function runChecks({ config, configProblem = null, deep = false, st
   }
   results.push(bellCheck(), ntfyCheck(config), webhookCheck(config), configCheck(config, configProblem));
   if (p === 'darwin') results.push(focusCheck());
+  const approvalRow = approvalTokenCheck(readApprovalRaw());
+  if (approvalRow) results.push(approvalRow);
   return results;
 }

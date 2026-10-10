@@ -3,7 +3,7 @@ import os from 'node:os';
 import readline from 'node:readline';
 import path from 'node:path';
 import { getConfigDir } from '../src/config-loader.mjs';
-import { unpatchAll } from '../setup/patch-config.mjs';
+import { unpatchAll, unpatchClaudeApproval } from '../setup/patch-config.mjs';
 import { execFileSync } from 'node:child_process';
 import { track } from '../src/telemetry.mjs';
 import { c, spinner } from './ui.mjs';
@@ -64,6 +64,15 @@ export async function run() {
   const spin = spinner('Removing hooks...');
   const results = unpatchAll(os.homedir(), backupDir);
   if (os.platform() === 'win32') results.push(removeFocusProtocol());
+  // The experimental remote-approval hook lives under its own tag, outside
+  // unpatchAll's notification events, so remove it explicitly.
+  try {
+    if (unpatchClaudeApproval(path.join(os.homedir(), '.claude'), backupDir)) {
+      results.push({ tool: 'Remote approval', ok: true, reason: 'hook removed' });
+    }
+  } catch (err) {
+    results.push({ tool: 'Remote approval', ok: false, reason: err.message });
+  }
   spin.stop('Processed all tools');
 
   let anyFailed = false;

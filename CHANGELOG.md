@@ -10,6 +10,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 - On Windows, a usage or context warning lock released by another chat at the same moment is no longer logged as an EPERM error in `anotifier status`.
 
+### Internal
+
+- Remote approval (approve or deny a Claude Code Bash permission request from the phone) is in progress and experimental. It is not enabled by `anotifier setup` and not yet ready to use.
+
 ## [1.7.0] — 2026-10-10
 
 ### Added
