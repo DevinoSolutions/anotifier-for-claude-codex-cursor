@@ -97,6 +97,12 @@ describe('resolveAutoCompactWindow', () => {
     assert.equal(resolve(p), p.context_window.context_window_size);
   });
 
+  it('a per-model "auto" with no known model window resolves to null, and the env var still wins', () => {
+    user({ modelSettings: { mine: { autoCompactWindow: 'auto' } } });
+    assert.equal(resolve({ model: { id: 'mine' }, context_window: { total_input_tokens: 1 } }), null);
+    assert.equal(resolve(payload(1, { model: { id: 'mine' } }), { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '300000' }), 300000);
+  });
+
   it('a model id like __proto__ is not looked up on the prototype', () => {
     user({ autoCompactWindow: 450000, modelSettings: {} });
     assert.equal(resolve(payload(1, { model: { id: '__proto__' } })), 450000);
