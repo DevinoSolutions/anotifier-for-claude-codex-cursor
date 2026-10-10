@@ -191,7 +191,7 @@ export const DOCS: DocSection[] = [
           ],
           [
             "`status`",
-            "Shows version, platform, toast backend, Sentry, snooze, quiet hours, usage alerts and whether the Claude Code statusline is wired (1.5.0 and later), ntfy URL, webhook origin, wired tools with their events, per-event toggles, and the last 8 hook errors from `~/.anotifier/errors.log`.",
+            "Shows version, platform, toast backend, Sentry, snooze, quiet hours, usage alerts, context alerts (1.6.0 and later) and whether the Claude Code statusline is wired (1.5.0 and later), ntfy URL, webhook origin, wired tools with their events, per-event toggles, and the last 8 hook errors from `~/.anotifier/errors.log`.",
             "1 if the config file is invalid.",
           ],
           [
@@ -461,7 +461,7 @@ export const DOCS: DocSection[] = [
       {
         kind: "code",
         lang: "json",
-        code: '{\n  "ntfy": { "enabled": true, "server": "https://ntfy.sh", "topic": "", "click": "", "richContent": false },\n  "toast": { "enabled": true, "clickToFocus": true, "richContent": true },\n  "terminalBell": { "enabled": true },\n  "webhook": { "enabled": false, "url": "", "format": "generic", "richContent": true },\n  "sentry": { "enabled": false, "dsn": "" },\n  "updateCheck": { "enabled": true },\n  "usageAlerts": { "enabled": true, "thresholds": [70, 85, 95] },\n  "quietHours": { "enabled": false, "from": "22:00", "to": "08:00" },\n  "events": {\n    "task_complete": { "toastSound": "IM", "priority": "default", "ntfyTags": "white_check_mark" },\n    "needs_input": { "toastSound": "Reminder", "priority": "urgent", "ntfyTags": "bell,warning" },\n    "session_start": {\n      "toastSound": "Default", "priority": "low", "ntfyTags": "rocket",\n      "toastEnabled": false, "ntfyEnabled": false, "terminalBellEnabled": false\n    }\n  },\n  "sources": {\n    "claude": { "label": "Claude Code", "icon": "https://…/claude-app-icon.png" },\n    "codex": { "label": "Codex", "icon": "https://openai.com/favicon.ico" },\n    "gemini": { "label": "Gemini", "icon": "https://…/gemini_sparkle.svg" },\n    "cursor": { "label": "Cursor", "icon": "https://cursor.com/apple-touch-icon.png" }\n  }\n}',
+        code: '{\n  "ntfy": { "enabled": true, "server": "https://ntfy.sh", "topic": "", "click": "", "richContent": false },\n  "toast": { "enabled": true, "clickToFocus": true, "richContent": true },\n  "terminalBell": { "enabled": true },\n  "webhook": { "enabled": false, "url": "", "format": "generic", "richContent": true },\n  "sentry": { "enabled": false, "dsn": "" },\n  "updateCheck": { "enabled": true },\n  "usageAlerts": { "enabled": true, "thresholds": [70, 85, 95] },\n  "contextAlerts": { "enabled": true, "threshold": 85 },\n  "quietHours": { "enabled": false, "from": "22:00", "to": "08:00" },\n  "events": {\n    "task_complete": { "toastSound": "IM", "priority": "default", "ntfyTags": "white_check_mark" },\n    "needs_input": { "toastSound": "Reminder", "priority": "urgent", "ntfyTags": "bell,warning" },\n    "session_start": {\n      "toastSound": "Default", "priority": "low", "ntfyTags": "rocket",\n      "toastEnabled": false, "ntfyEnabled": false, "terminalBellEnabled": false\n    }\n  },\n  "sources": {\n    "claude": { "label": "Claude Code", "icon": "https://…/claude-app-icon.png" },\n    "codex": { "label": "Codex", "icon": "https://openai.com/favicon.ico" },\n    "gemini": { "label": "Gemini", "icon": "https://…/gemini_sparkle.svg" },\n    "cursor": { "label": "Cursor", "icon": "https://cursor.com/apple-touch-icon.png" }\n  }\n}',
       },
       {
         kind: "table",
@@ -566,6 +566,18 @@ export const DOCS: DocSection[] = [
             "number[]",
             "`[70, 85, 95]`",
             "Percentages above 0 and at most 100 at which the 5-hour and weekly windows each warn once. An invalid list is reported and the default applies.",
+          ],
+          [
+            "`contextAlerts.enabled`",
+            "boolean",
+            "`true`",
+            "Claude Code only, 1.6.0 and later. Warn once per chat before it auto-compacts; `false` turns the warning off (the statusline and the usage warnings keep working).",
+          ],
+          [
+            "`contextAlerts.threshold`",
+            "number",
+            "`85`",
+            "Percentage above 0 and at most 100 of the auto-compact window at which a chat warns once. An invalid value is reported and 85 applies.",
           ],
           [
             "`quietHours.enabled`",
@@ -696,6 +708,33 @@ export const DOCS: DocSection[] = [
       {
         kind: "note",
         text: "The [usage limit notifications guide](/guides/claude-code-usage-limit-notifications/) also shows a statusline script you can write yourself.",
+      },
+    ],
+  },
+  {
+    id: "context-warnings",
+    title: "How do I get warned before Claude Code auto-compacts a chat?",
+    lead: "Version 1.6.0 and later sends one notification per Claude Code chat when its context passes 85% of the auto-compact window, so you can wrap up or run /compact first.",
+    blocks: [
+      {
+        kind: "ul",
+        items: [
+          "The title carries the percentage (`Claude Code · context at 87%`); the body names the chat and the size, such as `174K of 200K tokens`. Priority is high.",
+          "Each chat (Claude Code `session_id`) warns once and never again, even after `/compact` brings its context back down. `/clear` starts a new session, which can warn again.",
+          "The window is the auto-compact window, not the model's full one: the `CLAUDE_CODE_AUTO_COMPACT_WINDOW` environment variable, then the `autoCompactWindow` setting that `/autocompact` writes (clamped to 100K to 1M), then the model's own window. It never exceeds the model's window.",
+          "Nothing is sent when auto-compact is off (`DISABLE_AUTO_COMPACT`, `DISABLE_COMPACT` or `autoCompactEnabled: false`). The `--autocompact` flag and managed settings are invisible to a statusline, so with either the warning can be late or missing.",
+          "No Claude.ai subscription is needed: API-key and proxy sessions get the warning too. It uses the same statusline wiring as the usage warnings, so `anotifier setup` covers both; a plugin-only install must wire `statusLine` by hand.",
+          "It goes to the toast, ntfy and webhook channels you have on, never the terminal bell. Snooze and quiet hours hold it back without recording it. Configure it with `contextAlerts.enabled` and `contextAlerts.threshold` (see the config table).",
+        ],
+      },
+      {
+        kind: "code",
+        lang: "json",
+        code: '{ "contextAlerts": { "enabled": true, "threshold": 85 } }',
+      },
+      {
+        kind: "note",
+        text: "The [auto-compact warning guide](/guides/claude-code-auto-compact-warning/) explains auto-compact and shows a statusline script you can write yourself.",
       },
     ],
   },

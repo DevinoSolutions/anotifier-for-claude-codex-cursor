@@ -655,4 +655,223 @@ if (typeof win?.used_percentage !== "number") {
       },
     ],
   },
+  {
+    slug: "claude-code-auto-compact-warning",
+    updated: "2026-10-10",
+    kind: "topic",
+    agentSlug: "claude-code",
+    name: "Claude Code auto-compact warning",
+    icon: "/assets/icons/claude.png",
+    title: "Claude Code Auto-Compact Warning: Get Notified at 85%",
+    description:
+      "Claude Code compacts a chat on its own and has no setting that warns first. Compare context_window.total_input_tokens in your statusline, or run npx anotifier setup (1.6.0+).",
+    h1: "Get notified before Claude Code auto-compacts your chat",
+    intro:
+      "Claude Code has no setting that warns you before it auto-compacts a chat. It does pass the chat's context size to your `statusLine` command as `context_window.total_input_tokens` on stdin, and hooks never receive it. So a warning has to live in a statusline script: compare that number with the auto-compact window and send a notification when the chat gets close. Below is a script you can write yourself, then how anotifier 1.6.0 and later does it, once per chat at 85% by default. Unlike usage-limit warnings it needs no Claude.ai subscription, so it works on API-key and proxy sessions too.",
+    sections: [
+      {
+        id: "what",
+        title: "What auto-compact is, and which window counts",
+        blocks: [
+          {
+            kind: "p",
+            text: "When a chat's context fills up, Claude Code summarizes the conversation to free space. That is auto-compact, and `/compact` does the same on demand. It kicks in before the model's full context window is used, at the auto-compact window, which you can change with `/autocompact`. So a percentage measured against the model's full window runs low: Claude Code's own `context_window.used_percentage` is measured against the full window, not the auto-compact window, and anotifier does not use it.",
+          },
+          {
+            kind: "p",
+            text: "anotifier works out the auto-compact window in this order, and stops at the first hit:",
+          },
+          {
+            kind: "ul",
+            items: [
+              "The `CLAUDE_CODE_AUTO_COMPACT_WINDOW` environment variable, clamped to 100,000 to 1,000,000 tokens. It overrides the setting.",
+              "The `autoCompactWindow` setting that `/autocompact` writes, clamped the same way. A per-model value (`modelSettings.<model id>.autoCompactWindow`, written by Claude Code 2.1.288 and later) wins over the top-level key in the same file. Files are read in this order: `<project>/.claude/settings.local.json`, `<project>/.claude/settings.json`, then `settings.json` in `$CLAUDE_CONFIG_DIR` (default `~/.claude`).",
+              "The model's own window, `context_window.context_window_size`.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "The result never goes above the model's window. If auto-compact is switched off (`DISABLE_AUTO_COMPACT` or `DISABLE_COMPACT` set, or `autoCompactEnabled: false` in the first settings file that defines it), nothing will compact and nothing is sent.",
+          },
+        ],
+      },
+      {
+        id: "diy",
+        title: "DIY: a statusline script that reads total_input_tokens",
+        blocks: [
+          {
+            kind: "p",
+            text: "Claude Code runs your `statusLine` command and writes a JSON session object to its stdin. These fields matter here:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              session_id: "3f9a1c2e-0000-0000-0000-000000000000",
+              model: { display_name: "Opus" },
+              context_window: {
+                total_input_tokens: 174000,
+                context_window_size: 200000,
+              },
+            }),
+          },
+          {
+            kind: "ul",
+            items: [
+              "`total_input_tokens` counts input plus cache creation plus cache read tokens, and is 0 before the first API response of a session.",
+              "`context_window_size` is the model's full window, not the auto-compact window.",
+              "Claude Code runs the statusline again after each assistant message, after `/compact`, at session start, and on a few other events. A new run cancels one that is still going, so keep the script fast.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "This Node script prints a short status line and sends an [ntfy](https://ntfy.sh) push once per chat when it passes 85% of the auto-compact window. It reads the window from `CLAUDE_CODE_AUTO_COMPACT_WINDOW` when that is set in the statusline's environment, otherwise it uses the model's window, and it never reads the `/autocompact` setting, so if you changed that, lower the 85 or read the setting yourself. It remembers each warned `session_id` in `~/.claude/.context-alert.json`, and records one only after the send succeeds, because a cancelled run would otherwise lose the warning for good. Save it as `~/.claude/context-line.mjs`:",
+          },
+          {
+            kind: "code",
+            lang: "js",
+            code: `import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const input = JSON.parse(fs.readFileSync(0, "utf8"));
+const model = input.model?.display_name ?? "Claude";
+const tokens = input.context_window?.total_input_tokens;
+const full = input.context_window?.context_window_size;
+if (!(tokens > 0) || !(full > 0) || !input.session_id) {
+  process.stdout.write("[" + model + "]\\n");
+} else {
+  const env = Number.parseInt(process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW, 10);
+  const clamped = Math.min(1000000, Math.max(100000, env));
+  const window = Math.min(full, env > 0 ? clamped : full);
+  const pct = Math.min(100, Math.round((tokens / window) * 100));
+  process.stdout.write("[" + model + "] ctx " + pct + "%\\n"); // print first
+
+  const file = path.join(os.homedir(), ".claude", ".context-alert.json");
+  let warned = {};
+  try {
+    warned = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {}
+  if (pct >= 85 && !warned[input.session_id]) {
+    const res = await fetch("https://ntfy.sh/your-secret-topic", {
+      method: "POST",
+      headers: { Title: "Claude Code context at " + pct + "%", Priority: "high" },
+      body: "Close to auto-compact. Wrap up or run /compact.",
+      signal: AbortSignal.timeout(3000),
+    }).catch(() => null);
+    // Record it only after a successful send, so a cancelled run retries.
+    if (res?.ok) {
+      warned[input.session_id] = Date.now();
+      fs.writeFileSync(file, JSON.stringify(warned));
+    }
+  }
+}`,
+          },
+          {
+            kind: "p",
+            text: "Then point Claude Code at it in `~/.claude/settings.json`:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              statusLine: {
+                type: "command",
+                command: "node ~/.claude/context-line.mjs",
+              },
+            }),
+          },
+          {
+            kind: "note",
+            text: "Claude Code runs one statusline command, so this replaces any statusline you already have. The script never prunes old session ids from its file, and anyone who knows a public ntfy.sh topic can read it, so choose a private name and keep the text generic. The [ntfy guide](/guides/ntfy-phone-notifications/) covers private topics and self-hosting.",
+          },
+        ],
+      },
+      {
+        id: "anotifier",
+        title: "With anotifier 1.6.0 and later",
+        blocks: [
+          { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
+          {
+            kind: "p",
+            text: "anotifier sends one notification per chat when its context passes 85% of the auto-compact window. The title carries the percentage, such as `Claude Code · context at 87%`, and the body names the chat and the size: `my-app [3f9a1c2e] is at 87% of its auto-compact window (174K of 200K tokens). It will compact soon — wrap up or /compact now.` Priority is high.",
+          },
+          {
+            kind: "ul",
+            items: [
+              "**Once per chat.** Each `session_id` warns once and never again, even after `/compact` brings its context back down. `/clear` starts a new session, which can warn again. Warned chats are remembered in `~/.anotifier/.context-alerts.json` and forgotten after 14 days.",
+              "**It reaches the channels you have on.** Desktop toast, ntfy push and webhook. It never rings the terminal bell, because a statusline has no terminal of its own.",
+              "**Snooze and quiet hours hold it back.** While either is active nothing is sent and nothing is recorded, so a chat already over the line is warned once it ends, if a statusline refresh happens.",
+              "**No subscription needed.** The context numbers come with every statusline refresh, so API-key and proxy sessions are covered, unlike the usage-limit warnings.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "It uses the same statusline wiring as the [usage limit warnings](/guides/claude-code-usage-limit-notifications/): setup points the Claude Code `statusLine` at anotifier's `statusline.mjs`, wraps a statusline you already have so it still prints your line, and `npx anotifier uninstall` restores it. `anotifier status` shows whether the context warning is on and its threshold.",
+          },
+          {
+            kind: "p",
+            text: "Change the threshold or turn the warning off in `~/.anotifier/config.json`. This is the default:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({ contextAlerts: { enabled: true, threshold: 85 } }),
+          },
+          {
+            kind: "p",
+            text: "`threshold` is a percentage above 0 and at most 100. An invalid value is reported and 85 applies. Set `enabled` to `false` to stop the checks; the statusline and the usage warnings keep working.",
+          },
+          {
+            kind: "note",
+            text: 'Installed as a Claude Code plugin, or skipped setup? Nothing wires the statusline for you. Add it by hand to `~/.claude/settings.json`, pointing at `src/statusline.mjs` inside the installed package (`npm root -g` shows where): `"statusLine": { "type": "command", "command": "node \\"/path/to/anotifier/src/statusline.mjs\\"" }`.',
+          },
+        ],
+      },
+      {
+        id: "limits",
+        title: "Limits worth knowing",
+        blocks: [
+          {
+            kind: "ul",
+            items: [
+              "**Some settings are invisible to a statusline.** The `--autocompact` command-line flag and managed (enterprise) settings never reach it, so with either in play the warning can come late or not at all.",
+              "**An idle chat is not checked.** The statusline runs on Claude Code's own events, so a chat you leave alone does not warn until it next refreshes, unless you set `refreshInterval` on `statusLine`.",
+              "**One warning, not a countdown.** After the warning a chat is never warned again, even if you keep working past it.",
+            ],
+          },
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Can Claude Code warn me before it auto-compacts?",
+        a: "Not with a setting, but it passes the chat's context size (context_window.total_input_tokens) to your statusLine command. A script there can send a notification when it nears the auto-compact window. anotifier 1.6.0 and later does this for you, once per chat at 85%.",
+      },
+      {
+        q: "Why can't a hook warn me about context?",
+        a: "Claude Code only gives the context numbers to the statusline command, never to hooks, so the warning has to be triggered from the statusline.",
+      },
+      {
+        q: "Does this need a Claude.ai Pro or Max plan?",
+        a: "No. Unlike the usage-limit warning, the context numbers come with every statusline refresh, so API-key and proxy sessions get the warning too.",
+      },
+      {
+        q: "Does it follow my /autocompact setting?",
+        a: "Yes. anotifier uses the CLAUDE_CODE_AUTO_COMPACT_WINDOW environment variable first, then the autoCompactWindow setting from your project and user settings files, then the model's window, and never goes above the model's window. The --autocompact flag and managed settings are invisible to a statusline, so with those the warning can be late or missing.",
+      },
+      {
+        q: "Will it warn again after I run /compact?",
+        a: "No. Each chat warns once and never again, even after /compact. /clear starts a new session, which can warn again.",
+      },
+      {
+        q: "Can I change the threshold or turn the warning off?",
+        a: 'Yes. Set contextAlerts.threshold in ~/.anotifier/config.json to a percentage above 0 and at most 100, or contextAlerts.enabled to false. The default is { "enabled": true, "threshold": 85 }.',
+      },
+      {
+        q: "Does a warning come through while I am snoozed?",
+        a: "No. While you are snoozed or inside quiet hours nothing is sent and nothing is recorded, so a chat already over the line is warned once that ends, if the statusline refreshes.",
+      },
+    ],
+  },
 ];
