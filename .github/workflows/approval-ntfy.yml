@@ -81,6 +81,15 @@ jobs:
 
           docker exec -e NTFY_PASSWORD="$AGENT_PASS" ntfy ntfy user add agent
           docker exec -e NTFY_PASSWORD="$PHONE_PASS" ntfy ntfy user add phone
+          # Each account needs a tier. ntfy keys a tierless user's rate-limit
+          # visitor by IP and overwrites its user on every request, so two
+          # accounts (or an account and an anonymous client) on one IP can be
+          # authorized as each other. Here the hook and the phone sim share
+          # 127.0.0.1, which gave the phone an intermittent 403.
+          # Design 2.5, step 1.
+          docker exec ntfy ntfy tier add --name=approval approval
+          docker exec ntfy ntfy user change-tier agent approval
+          docker exec ntfy ntfy user change-tier phone approval
           docker exec ntfy ntfy access agent "$REQ" write-only
           docker exec ntfy ntfy access phone "$REQ" read-only
           docker exec ntfy ntfy access everyone "${PREFIX}_*" write-only

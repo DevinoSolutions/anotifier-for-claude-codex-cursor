@@ -161,6 +161,9 @@ auth-default-access: deny-all
 ```
 ntfy user add agent            # used by the hook
 ntfy user add phone            # used by the phone app login
+ntfy tier add --name=approval approval   # step 1: every account gets a tier
+ntfy user change-tier agent approval
+ntfy user change-tier phone approval
 ntfy access agent    anr-<req>         write-only
 ntfy access phone    anr-<req>         read-only
 ntfy access everyone "<responsePrefix>_*"  write-only
@@ -169,6 +172,12 @@ ntfy token add --expires=90d --label=anotifier agent
 ```
 
 `<responsePrefix>` is the full `ans-` + 16 chars value from section 2.2, so the pattern reads like `ans-Xy3...Q_*`.
+
+**Why every account needs a tier (step 1).** ntfy 2.29 keys a tierless user's rate-limit visitor by client IP (`visitorID` in `server/visitor.go`). Every request first resets that shared visitor's user to anonymous, then sets it to the authenticated user (`maybeAuthenticate` in `server/server_auth.go`). The topic check then reads the user back from the shared visitor (`authorizeTopic` in `server/server_middleware.go`). Two concurrent requests from one IP can therefore be authorized as each other's user. A phone and a laptop behind one home router, or anyone sharing a NAT with them, share that IP.
+- The phone, or the hook, gets an intermittent 403. The hook then falls back to the terminal (no decision).
+- An anonymous request can briefly pass as the phone or the agent. A same-IP attacker who also knows the secret topic names could then read the request topic and with it the Approve token.
+
+A user with a tier gets a visitor keyed by account (`user:<id>`), so the race goes away. The tier's limits do not matter here; the defaults are fine. The real-ntfy CI lane sets the tiers, and it has a test that sends concurrent phone, agent and anonymous requests from one IP and fails on any cross-authorization. Found in CI on PR #96 (the phone sim got a 403 reading the request topic during the `deny` round). This is upstream ntfy behaviour; it is not reported upstream yet.
 
 **Token expiry.** When the 90-day agent token expires, every publish fails with an auth error and every approval falls back to the terminal prompt without telling the user why. Setup records the token's expiry date in `approval.json`. A `doctor` check (`approval-token`) warns 14 days before expiry and fails after it. If the server is reachable, the check can confirm the date with the account endpoint the ntfy web app uses (`GET /v1/account`, which lists the user's tokens; **verify the response shape**). The hook also records the last failure class (`auth`, `network`, `quota`) without content, so `status` can name the cause.
 

@@ -78,6 +78,29 @@ describe('real ntfy server: ACLs as designed (2.5)', { skip }, () => {
     const w = await request(`${base}/${requestTopic}`, { method: 'POST', headers: phoneAuth(), body: 'x' });
     assert.ok([401, 403].includes(w.status), `got ${w.status}`);
   });
+
+  // ntfy keys a TIERLESS user's visitor by IP and overwrites its user on every
+  // request, then authorizes the topic against that shared visitor. Clients on
+  // one IP (here all on 127.0.0.1; in real use a phone and a laptop behind one
+  // home router) can then be authorized as each other: the phone got a 403,
+  // and an anonymous request could pass as the phone. The recipe gives every
+  // account a tier (design 2.5, step 1), which keys its visitor by account.
+  it('clients on one IP are never authorized as each other (accounts have a tier)', async () => {
+    for (let wave = 0; wave < 2; wave++) {
+      const phoneReads = [];
+      const anonReads = [];
+      const agentReads = [];
+      for (let i = 0; i < 8; i++) {
+        phoneReads.push(pollTopic(base, requestTopic, phoneAuth()));
+        anonReads.push(pollTopic(base, requestTopic));
+        agentReads.push(pollTopic(base, `${responsePrefix}_${generateOneTime()}`, agentAuth));
+      }
+      const [phone, anon, agent] = await Promise.all([phoneReads, anonReads, agentReads].map((p) => Promise.all(p)));
+      assert.deepEqual(phone.map((r) => r.status), Array(8).fill(200), 'every phone read of the request topic succeeds');
+      assert.deepEqual(agent.map((r) => r.status), Array(8).fill(200), 'every agent read of a response topic succeeds');
+      for (const r of anon) assert.ok([401, 403].includes(r.status), `an anonymous read of the request topic got ${r.status}`);
+    }
+  });
 });
 
 describe('real ntfy server: the setup lockdown probe (review of PR #96, M3)', { skip }, () => {
