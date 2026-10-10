@@ -402,12 +402,67 @@ describe('withLock on a lock being released (Windows EPERM)', () => {
     assert.equal(lockErrors('test:lock-busy'), before, 'not logged');
   });
 
-  it('EPERM with no lock file is a real problem: logged', () => {
+  it('EPERM with no lock file, still failing on the retry, is a real problem: logged once', () => {
     const lock = path.join(dir, 'missing.json.lock');
     const before = lockErrors('test:lock-perm');
     failFor('openSync', lock);
-    assert.equal(withLock(lock, () => 1, 'test:lock-perm'), null);
+    let ran = false;
+    assert.equal(withLock(lock, () => { ran = true; return 1; }, 'test:lock-perm'), null);
+    assert.equal(ran, false);
     assert.equal(lockErrors('test:lock-perm'), before + 1);
+  });
+
+  it('EPERM whose lock vanished before the stat is retried once and then runs', () => {
+    const lock = path.join(dir, 'raced.json.lock');
+    const before = lockErrors('test:lock-raced');
+    const real = fs.openSync;
+    let lockOpens = 0;
+    mock.method(fs, 'openSync', function (p, ...rest) {
+      if (p === lock && ++lockOpens === 1) throw eperm();
+      return real.call(fs, p, ...rest);
+    });
+    assert.equal(withLock(lock, () => 'ran', 'test:lock-raced'), 'ran');
+    assert.equal(lockOpens, 2, 'retried exactly once');
+    assert.equal(lockErrors('test:lock-raced'), before, 'not logged');
+    assert.equal(fs.existsSync(lock), false, 'lock released');
+  });
+
+  it('EPERM then EEXIST on the retry is contention: skip quietly', () => {
+    const lock = path.join(dir, 'taken.json.lock');
+    const before = lockErrors('test:lock-taken');
+    const real = fs.openSync;
+    let lockOpens = 0;
+    mock.method(fs, 'openSync', function (p, ...rest) {
+      if (p === lock) {
+        lockOpens++;
+        throw lockOpens === 1 ? eperm() : Object.assign(new Error('EEXIST: file already exists'), { code: 'EEXIST' });
+      }
+      return real.call(fs, p, ...rest);
+    });
+    let ran = false;
+    assert.equal(withLock(lock, () => { ran = true; return 1; }, 'test:lock-taken'), null);
+    assert.equal(ran, false);
+    assert.equal(lockOpens, 2);
+    assert.equal(lockErrors('test:lock-taken'), before, 'not logged');
+  });
+
+  it('a non-release error code is logged at once, with no retry', () => {
+    const lock = path.join(dir, 'notdir.json.lock');
+    const before = lockErrors('test:lock-notdir');
+    const real = fs.openSync;
+    let lockOpens = 0;
+    mock.method(fs, 'openSync', function (p, ...rest) {
+      if (p === lock) {
+        lockOpens++;
+        throw Object.assign(new Error('ENOTDIR: not a directory'), { code: 'ENOTDIR' });
+      }
+      return real.call(fs, p, ...rest);
+    });
+    let ran = false;
+    assert.equal(withLock(lock, () => { ran = true; return 1; }, 'test:lock-notdir'), null);
+    assert.equal(ran, false);
+    assert.equal(lockOpens, 1, 'no retry');
+    assert.equal(lockErrors('test:lock-notdir'), before + 1);
   });
 
   it('a stale lock that cannot be deleted is logged, not skipped forever', () => {
