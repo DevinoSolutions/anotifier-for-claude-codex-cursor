@@ -185,9 +185,16 @@ export function writeState(statePath, state) {
 // permissions problem leaves no lock file behind, so stat tells them apart. A
 // lock older than LOCK_STALE_MS should have been cleared above; one that is
 // still there could not be deleted, which would silence every warning, so it
-// is reported too.
+// is reported too. Stat can lose the race: the other chat may finish unlinking
+// between our failed create and our stat, leaving nothing to see. So a release
+// code with no lock file is retried once after a short wait; only a failure
+// that still looks like a real problem is reported.
+const RELEASE_CODES = ['EPERM', 'EACCES', 'EBUSY'];
+const RETRY_WAIT_MS = 25;
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
 function lockBeingReleased(lockPath, err) {
-  if (!['EPERM', 'EACCES', 'EBUSY'].includes(err?.code)) return false;
+  if (!RELEASE_CODES.includes(err?.code)) return false;
   try {
     return Date.now() - fs.statSync(lockPath).mtimeMs <= LOCK_STALE_MS;
   } catch {
@@ -203,7 +210,13 @@ export function withLock(lockPath, fn, label = 'usage-alert:lock') {
   let fd;
   try {
     fs.mkdirSync(path.dirname(lockPath), { recursive: true });
-    fd = fs.openSync(lockPath, 'wx');
+    try {
+      fd = fs.openSync(lockPath, 'wx');
+    } catch (err) {
+      if (!RELEASE_CODES.includes(err?.code) || lockBeingReleased(lockPath, err)) throw err;
+      sleepSync(RETRY_WAIT_MS);
+      fd = fs.openSync(lockPath, 'wx');
+    }
   } catch (err) {
     // EEXIST: another chat holds it. Anything else (permissions, a file where
     // the directory should be) would silence every warning, so say so.
