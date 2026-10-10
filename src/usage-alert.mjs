@@ -213,7 +213,8 @@ export function withLock(lockPath, fn, label = 'usage-alert:lock') {
     try {
       fd = fs.openSync(lockPath, 'wx');
     } catch (err) {
-      if (!RELEASE_CODES.includes(err?.code) || lockBeingReleased(lockPath, err)) throw err;
+      if (!RELEASE_CODES.includes(err?.code)) throw err;
+      if (lockBeingReleased(lockPath, err)) return null;
       sleepSync(RETRY_WAIT_MS);
       fd = fs.openSync(lockPath, 'wx');
     }
