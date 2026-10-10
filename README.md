@@ -239,7 +239,8 @@ Config lives at `~/.anotifier/config.json`. Abbreviated — see [config/default-
       "priority": "low",
       "toastEnabled": false,
       "ntfyEnabled": false,
-      "terminalBellEnabled": false
+      "terminalBellEnabled": false,
+      "webhookEnabled": false
     }
   }
 }
@@ -413,7 +414,7 @@ Get a heads-up before Claude Code auto-compacts a long chat. anotifier sends **o
 |-------|:------------:|:-------------:|-------------|
 | `task_complete` | IM | default | Agent finished its task |
 | `needs_input` | Reminder | urgent | Agent needs your input or permission |
-| `session_start` | Default | low | New session started (all channels off by default) |
+| `session_start` | Default | low | New session started (all channels off by default, webhook included) |
 
 **Only Claude notifications that wait on you are urgent.** Claude Code's `Notification` hook fires for many kinds of notification and names each one in its `notification_type` field. anotifier reads that field and alerts as follows:
 

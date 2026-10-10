@@ -61,7 +61,8 @@
       "ntfyTags": "rocket",
       "toastEnabled": false,
       "ntfyEnabled": false,
-      "terminalBellEnabled": false
+      "terminalBellEnabled": false,
+      "webhookEnabled": false
     }
   },
   "sources": {
