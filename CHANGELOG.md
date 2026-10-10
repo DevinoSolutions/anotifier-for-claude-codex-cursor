@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+## [1.7.1] — 2026-10-10
+
 ### Changed
 
 - **session_start is now off on the webhook by default**, like every other channel. The default config already turned off the toast, ntfy and the terminal bell for a new session, but not the webhook, so anyone with a webhook enabled (Slack, Discord, Telegram, generic) got a "session started" post on every new agent session. Your config is deep-merged over the defaults: if you never set `events.session_start.webhookEnabled`, those posts stop after you upgrade; if you set it to `true`, nothing changes. To get them back, add `"events": { "session_start": { "webhookEnabled": true } }` to `~/.anotifier/config.json` (the `anotifier config` prompts have no per-event webhook setting).
