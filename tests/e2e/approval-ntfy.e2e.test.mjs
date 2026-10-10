@@ -10,7 +10,7 @@ import crypto from 'node:crypto';
 import { seedHome, bashRequest, runApprove, cleanup, ALLOW_BYTES, DENY_BYTES, NO_DECISION_BYTES } from '../approval-helpers.mjs';
 import { waitForRequest, performAction, actionByLabel, pollTopic, request, basicAuth } from '../../scripts/approval/phone-sim.mjs';
 import { generateOneTime } from '../../src/approval.mjs';
-import { probeLockdown } from '../../src/approval-ntfy.mjs';
+import { probeLockdown, checkAccountTier } from '../../src/approval-ntfy.mjs';
 
 const env = process.env;
 const base = env.AAN_APPROVAL_NTFY_URL;
@@ -115,6 +115,13 @@ describe('real ntfy server: the setup lockdown probe (review of PR #96, M3)', { 
     assert.equal(r.ok, false);
     assert.equal(r.failed.id, 'read-request');
     assert.equal(r.failed.status, 200);
+  });
+});
+
+describe('real ntfy server: the account tier check', { skip }, () => {
+  it('the agent account has a tier (design 2.5, step 1), so setup would not warn', async () => {
+    const r = await checkAccountTier(base, token);
+    assert.deepEqual(r, { checked: true, hasTier: true });
   });
 });
 

@@ -16,7 +16,7 @@ import {
 import {
   renderVisible, scrubSecrets, scrubDetailed, isSecretName, hasShellMeta, bashDisplay, bashDenylistHit, neverRemoteHit, tildeHome, DISPLAY_BUDGET,
 } from '../src/approval-display.mjs';
-import { createVerifier, buildRequestPayload, responseBody, failureClass, probeLockdown } from '../src/approval-ntfy.mjs';
+import { createVerifier, buildRequestPayload, responseBody, failureClass, probeLockdown, checkAccountTier } from '../src/approval-ntfy.mjs';
 import { decisionOutput, requestText, AGENTS, parseWaitCap, NO_DECISION, modeNeverPrompts } from '../src/approve-core.mjs';
 import { approvalTokenCheck } from '../cli/doctor-checks.mjs';
 import { parseFlags, aclRecipe, lockdownFailure, createPromptInterface, askSecret } from '../cli/approval.mjs';
@@ -888,6 +888,78 @@ describe('the server lockdown probe (review of PR #96, M3)', () => {
     assert.match(fakePrompts.message, /fake approval prompts/);
     const net = lockdownFailure({ failed: { id: 'read-request', what: 'an anonymous read of the request topic', status: null, error: 'ECONNREFUSED' } });
     assert.match(net.message, /Could not check.*(ECONNREFUSED)/);
+  });
+});
+
+describe('the account tier check (setup warns when the ntfy account has no tier)', () => {
+  let fake;
+  before(async () => { fake = await startFakeNtfy(); });
+  after(async () => { await fake.close(); });
+  const TOK = 'tk_tiercheckabcdefghijklmnopqrs';
+
+  it('an account with a tier is checked and has one; the token goes only in the Authorization header', async () => {
+    fake.reset();
+    fake.mode.account = { body: { username: 'agent', role: 'user', tier: { code: 'approval', name: 'approval' } } };
+    const r = await checkAccountTier(fake.base, TOK);
+    assert.deepEqual(r, { checked: true, hasTier: true });
+    assert.equal(fake.requests.length, 1);
+    assert.equal(fake.requests[0].path, '/v1/account');
+    assert.equal(fake.requests[0].auth, `Bearer ${TOK}`);
+    assert.ok(!JSON.stringify(r).includes(TOK));
+  });
+
+  it('an account without the tier field is checked and has no tier', async () => {
+    fake.reset();
+    fake.mode.account = { body: { username: 'agent', role: 'user' } };
+    assert.deepEqual(await checkAccountTier(fake.base, TOK), { checked: true, hasTier: false });
+  });
+
+  for (const [name, account] of [
+    ['a 401', { status: 401, body: { code: 40101, error: 'unauthorized' } }],
+    ['a 500', { status: 500, body: {} }],
+    ['a junk body', { body: 'not json at all' }],
+    ['a JSON body that is not an object', { body: '[1,2]' }],
+    ['no such route (404)', undefined],
+  ]) {
+    it(`${name} is not checked: checked false, hasTier null`, async () => {
+      fake.reset();
+      if (account) fake.mode.account = account;
+      assert.deepEqual(await checkAccountTier(fake.base, TOK), { checked: false, hasTier: null });
+    });
+  }
+
+  it('a server that never answers times out as not checked', async () => {
+    fake.reset();
+    fake.mode.account = { hang: true };
+    assert.deepEqual(await checkAccountTier(fake.base, TOK, { timeoutMs: 200 }), { checked: false, hasTier: null });
+  });
+
+  it('a network error is not checked', async () => {
+    assert.deepEqual(await checkAccountTier(await closedPortBase(), TOK), { checked: false, hasTier: null });
+  });
+
+  it('no token means no request', async () => {
+    fake.reset();
+    assert.deepEqual(await checkAccountTier(fake.base, null), { checked: false, hasTier: null });
+    assert.equal(fake.requests.length, 0);
+  });
+
+  it('ntfy.sh is skipped without a request', async () => {
+    assert.deepEqual(await checkAccountTier('https://ntfy.sh', TOK), { checked: false, hasTier: null });
+  });
+
+  it('a self-signed server is not trusted, even with NODE_TLS_REJECT_UNAUTHORIZED=0', async () => {
+    const secure = await startFakeNtfy({ tls: selfSignedPems() });
+    secure.mode.account = { body: { username: 'agent' } };
+    const saved = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    try {
+      assert.deepEqual(await checkAccountTier(secure.base, TOK), { checked: false, hasTier: null });
+      assert.equal(secure.requests.length, 0);
+    } finally {
+      if (saved === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED; else process.env.NODE_TLS_REJECT_UNAUTHORIZED = saved;
+      await secure.close();
+    }
   });
 });
 
