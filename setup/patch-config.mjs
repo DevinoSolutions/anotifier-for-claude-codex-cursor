@@ -134,6 +134,67 @@ export function patchClaude(claudeDir, notifyPath, backupDir) {
   writeJSON(settingsPath, settings);
 }
 
+// ── Remote approval hook (docs/design/remote-approval.md 3.3) ────────
+// Installed ONLY by `anotifier approval setup`, never by `anotifier setup`
+// (and not in hooks/hooks.json): it can approve commands, so it must stay an
+// explicit opt-in. Its own tag keeps the notification patcher, whose
+// predicate is isManagedHookEntry, from ever touching it, and vice versa.
+export const APPROVAL_TAG = 'anotifier-approval';
+
+export function isApprovalHookEntry(entry) {
+  if (!entry || typeof entry !== 'object') return false;
+  return entry._managed_by === APPROVAL_TAG ||
+    (Array.isArray(entry.hooks) && entry.hooks.some((hh) =>
+      typeof hh?.command === 'string' && /[\\/]src[\\/]approve\.mjs"/.test(hh.command) &&
+      (hh.command.includes('anotifier') || hh.command.includes('agent-notify'))));
+}
+
+export function approvalHookEntry(approvePath, { timeout, matcher = 'Bash' }) {
+  return {
+    matcher,
+    hooks: [{
+      type: 'command',
+      command: `node "${approvePath}" --source claude`,
+      timeout,
+      statusMessage: 'Waiting for phone approval',
+    }],
+    _managed_by: APPROVAL_TAG,
+  };
+}
+
+// Add (or replace) our PermissionRequest entry in ~/.claude/settings.json.
+export function patchClaudeApproval(claudeDir, approvePath, { timeout, backupDir } = {}) {
+  const settingsPath = path.join(claudeDir, 'settings.json');
+  backup(settingsPath, backupDir);
+  const settings = readJSONOrNull(settingsPath) || {};
+  if (!settings.hooks || typeof settings.hooks !== 'object') settings.hooks = {};
+  const kept = (Array.isArray(settings.hooks.PermissionRequest) ? settings.hooks.PermissionRequest : [])
+    .filter((e) => !isApprovalHookEntry(e));
+  settings.hooks.PermissionRequest = [...kept, approvalHookEntry(approvePath, { timeout })];
+  writeJSON(settingsPath, settings);
+}
+
+// Remove it again. True when an entry was removed. A missing settings file
+// has nothing to remove.
+export function unpatchClaudeApproval(claudeDir, backupDir) {
+  const settingsPath = path.join(claudeDir, 'settings.json');
+  const settings = readJSONOrNull(settingsPath);
+  const list = settings?.hooks?.PermissionRequest;
+  if (!Array.isArray(list) || !list.some(isApprovalHookEntry)) return false;
+  backup(settingsPath, backupDir);
+  const kept = list.filter((e) => !isApprovalHookEntry(e));
+  if (kept.length) settings.hooks.PermissionRequest = kept;
+  else delete settings.hooks.PermissionRequest;
+  writeJSON(settingsPath, settings);
+  return true;
+}
+
+// True when our approval entry is in the settings object.
+export function claudeApprovalWired(settings) {
+  const list = settings?.hooks?.PermissionRequest;
+  return Array.isArray(list) && list.some(isApprovalHookEntry);
+}
+
 // Usage-limit warnings read rate_limits from the statusline payload, the only
 // place Claude Code exposes them, so setup routes the statusline through
 // src/statusline.mjs. A user's own statusline keeps working: it is wrapped,

@@ -161,6 +161,9 @@ auth-default-access: deny-all
 ```
 ntfy user add agent            # used by the hook
 ntfy user add phone            # used by the phone app login
+ntfy tier add --name=approval approval   # step 1: every account gets a tier
+ntfy user change-tier agent approval
+ntfy user change-tier phone approval
 ntfy access agent    anr-<req>         write-only
 ntfy access phone    anr-<req>         read-only
 ntfy access everyone "<responsePrefix>_*"  write-only
@@ -169,6 +172,8 @@ ntfy token add --expires=90d --label=anotifier agent
 ```
 
 `<responsePrefix>` is the full `ans-` + 16 chars value from section 2.2, so the pattern reads like `ans-Xy3...Q_*`.
+
+**Why every account needs a tier (step 1).** Without a tier, ntfy shares one rate-limit visitor per client IP between accounts, so overlapping requests from one IP (a phone and a laptop behind one home router, or the hook and the phone sim on 127.0.0.1 in CI) can get an intermittent 403 even though the ACL allows them. The hook then falls back to the terminal (no decision). A tiered account gets its own visitor, which removes this. The tier's limits do not matter; the defaults are fine. The real-ntfy CI lane sets the tiers and has a test that sends overlapping phone, agent and anonymous requests from one IP and checks each gets the answer its ACL gives. Found in CI on PR #96 (the phone sim got a 403 on the request topic in the `deny` round).
 
 **Token expiry.** When the 90-day agent token expires, every publish fails with an auth error and every approval falls back to the terminal prompt without telling the user why. Setup records the token's expiry date in `approval.json`. A `doctor` check (`approval-token`) warns 14 days before expiry and fails after it. If the server is reachable, the check can confirm the date with the account endpoint the ntfy web app uses (`GET /v1/account`, which lists the user's tokens; **verify the response shape**). The hook also records the last failure class (`auth`, `network`, `quota`) without content, so `status` can name the cause.
 
@@ -201,7 +206,7 @@ The prior art returns `{"behavior": "ask"}` on failure. `ask` is not a documente
 
 Title: `<project> · <Agent> wants to <verb> <Tool>` (project is the cwd basename, already sent by today's notifications). Body: one content line, then `Session <4-char tag> · expires HH:MM`.
 
-Display mode `summary` is the default. `minimal` and `full` are opt-in.
+Display mode `summary` is the default. `minimal` and `full` are opt-in. `minimal` shows no command, so a Bash request in `minimal` mode carries no Approve button: only Deny and "At terminal" are offered, because the user cannot judge what would run.
 
 | Tool | `minimal` | `summary` (default) | `full` |
 |---|---|---|---|
@@ -218,12 +223,13 @@ Rendering rules, applied before display and before length checks. **Nothing is s
 
 - A newline becomes ` ⏎ `, so `cmd1` followed by a newline and `rm -rf x` shows as `cmd1 ⏎ rm -rf x`, not as one fused line. Tabs become a single space.
 - Every other control character (C0, DEL, C1), every bidi control (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C) and every zero-width or invisible character (U+200B to U+200D, U+2060, U+FEFF, U+00AD) becomes a marker naming its code point, for example `[U+202E]`.
+- Right-to-left letters (Hebrew, Arabic and the other bidi class R/AL scripts) become `[U+XXXX]` markers, and so does any non-ASCII character in the host of a `scheme://host` URL. Ordinary non-ASCII in paths and arguments (accented Latin, CJK) stays readable.
 - Replace the home directory prefix with `~`.
 
 Secret scrubbing, also applied before display. **It is a heuristic, not a guarantee:**
 
-- Replace `NAME=value` where `NAME` matches `(?i)(secret|token|key|pass|pwd|auth|cred)` with `NAME=[redacted N chars]`.
-- Replace `Authorization:` / `Bearer` header values, credentials in URLs (`https://user:pass@`), and runs of 32 or more base64/hex characters with `[redacted N chars]`.
+- Replace `NAME=value` where a whole segment of `NAME` (split on `_`, `-`, `.` and camelCase) names a secret (`key`, `token`, `secret`, `pass`, `password`, `pwd`, `auth`, `cred`, and compounds such as `PGPASSWORD`) with `NAME=[redacted N chars]`. `API_KEY` and `GH_TOKEN` match; `MONKEY` and `KEYBOARD` do not. **A value that holds shell syntax is never redacted**: `$(`, `${`, a backtick, a newline, `;`, `|`, `&`, `<` or `>` mean the value can run or chain something, so it is shown as it is. If a redaction ever did cover such syntax, Approve is withheld.
+- Replace `Authorization:` / `Bearer` header values, credentials in URLs (`https://user:pass@`), and runs of 32 or more base64/hex characters with `[redacted N chars]`. A run that contains `/` or a backslash, or follows `~` or a backslash, is a path and is shown. A command far over the display budget has only its first 6,000 characters scrubbed (the rest is never shown), which bounds the work.
 - Known misses: secrets passed as separate arguments (`--token abc123`, `--password hunter2`), glued short flags (`mysql -pSECRET`), short passwords anywhere, secrets in positional arguments, and any secret format the patterns do not know. Users who send real secrets through commands should use `minimal` display or keep the request topic on a server they run.
 
 Redaction markers stay visible on purpose. A payload hidden in a long base64 blob shows up as `echo [redacted 812 chars] | base64 -d | sh`, which a user can recognise as suspicious (T11).
@@ -257,6 +263,10 @@ Source: [hooks reference, PermissionRequest](https://code.claude.com/docs/en/hoo
   ]
 }
 ```
+
+**Permission mode.** `permission_mode` is one of `default`, `plan`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions` (hooks reference, fetched 2026-10-10). In `dontAsk` mode Claude Code "auto-denies every tool call that would otherwise prompt you", and `bypassPermissions` never prompts. The hook returns no decision in both, so a phone tap can never turn a policy denial into an allow.
+
+**Entry point.** `src/approve.mjs` is a tiny wrapper that installs the exit-0-with-`{}` handlers and drops `NODE_TLS_REJECT_UNAUTHORIZED` before it loads the real logic (`src/approve-core.mjs`) with a dynamic `import()` inside a try/catch, so even a failure to load the logic prints `{}` and exits 0. The hook path in the agent settings is the wrapper and does not change.
 
 **Output (stdout, exit 0).**
 
@@ -358,7 +368,7 @@ Off by default, never enabled by `anotifier setup`. A separate `anotifier approv
 2. Asks for the server. Offers self-hosted (prints the ACL recipe from 2.5 with the generated names filled in) or an ntfy.sh account with a reserved request topic. Anonymous public ntfy.sh is refused in v1 (D1). If a later version allows it, choosing it requires typing `public` to acknowledge, and forces `minimal` display and `X-Firebase: no`.
 3. Generates topics, writes `approval.json` mode 0600, adds the hook entries.
 4. Shows the request topic once as a QR code / subscribe link for the phone, then never prints it again in full (`status` shows `anr-****…last4`).
-5. Sends a test request and requires the user to tap Approve on the phone. Setup does not finish until a real round trip works. This also proves the phone can reach the response URL.
+5. Checks, with no credentials, that the server is locked down, and refuses to enable otherwise: an anonymous poll read of the request topic must answer 401 or 403; an anonymous publish to the request topic must answer 401 or 403 (tried only if the read was refused); an anonymous read of a fresh response-prefix topic must answer 401 or 403 (skipped on ntfy.sh, where response topics are ordinary anonymous topics). A failure names the exposure and points back to the ACL recipe in 2.5. Then sends a test request and requires the user to tap Approve on the phone. Setup does not finish until a real round trip works. This also proves the phone can reach the response URL.
 6. Tells the user to hide sensitive content for the ntfy app on the lock screen, to turn off notification mirroring of the ntfy app to watches, and not to subscribe to the request topic in a desktop browser or the ntfy web app on a shared machine (T5).
 7. Tells the user to treat any approval prompt they did not expect, or any button with an unusual label, as hostile and not to tap it (T10).
 8. If the user opts in to file tools, states plainly: "File approvals are blind. Your phone shows the file name, not the change."
