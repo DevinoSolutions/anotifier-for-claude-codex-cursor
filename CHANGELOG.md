@@ -14,6 +14,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
   error log keeps the exit code, signal, elapsed time and stderr.
 
 ### Fixed
+- **Per-model `"auto"` auto-compact window.** A `modelSettings.<model>.autoCompactWindow`
+  of `"auto"` (the window Claude Code tunes for the model) now means the model's
+  own window for the context warning, instead of falling through to a
+  top-level `autoCompactWindow` number that Claude Code does not apply to that
+  model.
 - **No false lock errors on Windows.** Two chats refreshing their statusline at
   the same moment could log `usage-alert:lock EPERM`: Windows reports a lock
   file that is being released as EPERM instead of "already exists". That is now
