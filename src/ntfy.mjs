@@ -31,14 +31,34 @@ export function buildNtfyRequest(ntfyConfig, notification) {
   return { url, headers, body: notification.message };
 }
 
-export function sendNtfy(ntfyConfig, notification) {
-  return new Promise((resolve) => {
-    if (!ntfyConfig.topic) {
-      logHookError('ntfy', new Error('ntfy is enabled but no topic is configured'));
-      resolve(false);
-      return;
-    }
+// Per-request timeout. With a fallback server configured, each attempt gets
+// less so both fit together inside the hook's 10 s budget (hooks.json), next
+// to the Windows toast's 7 s.
+const TIMEOUT_MS = 5000;
+const TIMEOUT_WITH_FALLBACK_MS = 3000;
 
+const normalizeServer = (s) => String(s || '').trim().replace(/\/+$/, '');
+
+// Send to ntfyConfig.server, and if that fails and ntfyConfig.fallbackServer
+// is set (and differs), send the same message once to the fallback with the
+// same topic. Resolves true when either delivered. Never throws.
+export async function sendNtfy(ntfyConfig, notification) {
+  if (!ntfyConfig.topic) {
+    logHookError('ntfy', new Error('ntfy is enabled but no topic is configured'));
+    return false;
+  }
+  const primary = normalizeServer(ntfyConfig.server) || 'https://ntfy.sh';
+  const fallback = normalizeServer(ntfyConfig.fallbackServer);
+  const hasFallback = Boolean(fallback) && fallback !== primary;
+  const timeoutMs = hasFallback ? TIMEOUT_WITH_FALLBACK_MS : TIMEOUT_MS;
+
+  if (await postNtfy(ntfyConfig, notification, timeoutMs, 'ntfy')) return true;
+  if (!hasFallback) return false;
+  return postNtfy({ ...ntfyConfig, server: fallback }, notification, timeoutMs, 'ntfy:fallback');
+}
+
+function postNtfy(ntfyConfig, notification, timeoutMs, context) {
+  return new Promise((resolve) => {
     const { url, headers, body } = buildNtfyRequest(ntfyConfig, notification);
 
     // A bare-hostname typo (server: "ntfy.sh" with no scheme) makes `new URL`
@@ -48,7 +68,7 @@ export function sendNtfy(ntfyConfig, notification) {
     try {
       parsed = new URL(url);
     } catch {
-      logHookError('ntfy', new Error(`ntfy server is not a valid URL: ${ntfyConfig.server || 'https://ntfy.sh'}`));
+      logHookError(context, new Error(`ntfy server is not a valid URL: ${ntfyConfig.server || 'https://ntfy.sh'}`));
       resolve(false);
       return;
     }
@@ -62,26 +82,26 @@ export function sendNtfy(ntfyConfig, notification) {
         method: 'POST',
         agent: false, // no keep-alive socket may outlive the hook's process.exit() (see sentry.mjs)
         headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' },
-        timeout: 5000,
+        timeout: timeoutMs,
       }, (res) => {
         res.resume(); // drain
         const ok = res.statusCode >= 200 && res.statusCode < 300;
-        if (!ok) logHookError('ntfy', new Error(`ntfy server responded ${res.statusCode}`), { url: parsed.origin });
+        if (!ok) logHookError(context, new Error(`ntfy server responded ${res.statusCode}`), { url: parsed.origin });
         resolve(ok);
       });
 
       req.on('error', (err) => {
-        logHookError('ntfy', err, { url: parsed.origin });
+        logHookError(context, err, { url: parsed.origin });
         resolve(false);
       });
       req.on('timeout', () => {
         req.destroy();
-        logHookError('ntfy', new Error('ntfy request timed out after 5000ms'), { url: parsed.origin });
+        logHookError(context, new Error(`ntfy request timed out after ${timeoutMs}ms`), { url: parsed.origin });
         resolve(false);
       });
       req.end(body);
     } catch (err) {
-      logHookError('ntfy', err, { url: parsed.origin });
+      logHookError(context, err, { url: parsed.origin });
       resolve(false);
     }
   });

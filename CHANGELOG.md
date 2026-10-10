@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+### Added
+- **ntfy fallback server.** New optional `ntfy.fallbackServer`: when the main
+  `ntfy.server` fails (unreachable, timed out, or an error such as a 429 daily
+  limit), the same push goes once to the fallback, same topic. Run your own ntfy
+  server and keep `https://ntfy.sh` as the fallback, so a push is not lost when
+  either one is down or over its limit. With a fallback set each attempt waits
+  at most 3 s (instead of 5 s) so both fit in the hook budget. A fallback failure
+  is logged as `ntfy:fallback`; `anotifier status` shows the fallback.
+
 ## [1.6.1] — 2026-10-10
 
 ### Changed
