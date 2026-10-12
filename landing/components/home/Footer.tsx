@@ -62,6 +62,7 @@ const seoLinks = [
     href: "/guides/claude-code-hooks-security/",
     label: "Claude Code hooks security",
   },
+  { href: "/guides/ccnotify/", label: "ccnotify: which one?" },
   {
     href: "/guides/codex-notification-sound/",
     label: "Codex approval ding",

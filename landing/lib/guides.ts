@@ -118,7 +118,7 @@ const WHAT_ANOTIFIER_ADDS_CURSOR: Block[] = WHAT_ANOTIFIER_ADDS.map((block) =>
 const AGENT_GUIDES: Guide[] = [
   {
     slug: "claude-code-notifications",
-    updated: "2026-10-07",
+    updated: "2026-10-12",
     kind: "agent",
     agentSlug: "claude-code",
     name: "Claude Code",
@@ -219,6 +219,10 @@ const AGENT_GUIDES: Guide[] = [
           {
             kind: "p",
             text: "The wizard detects Claude Code, registers the `Stop` and `Notification` hooks in `~/.claude/settings.json` (backing the file up first), sets up the desktop toast backend for your OS, and offers to create an ntfy topic for phone push. Restart Claude Code and you are done. It also works as a Claude Code plugin: `/plugin marketplace add DevinoSolutions/anotifier-for-claude-codex-cursor` then `/plugin install anotifier@anotifier`.",
+          },
+          {
+            kind: "p",
+            text: "Searching for ccnotify? Several unrelated Claude Code tools share that name, and none of them is anotifier. [ccnotify: which one is which](/guides/ccnotify/) tells them apart and compares each with anotifier.",
           },
           ...WHAT_ANOTIFIER_ADDS,
         ],
