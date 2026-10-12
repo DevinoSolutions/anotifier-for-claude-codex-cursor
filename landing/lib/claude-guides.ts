@@ -879,4 +879,374 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
       },
     ],
   },
+  {
+    slug: "claude-code-hooks-security",
+    updated: "2026-10-11",
+    kind: "topic",
+    agentSlug: "claude-code",
+    name: "Claude Code hooks security",
+    icon: "/assets/icons/claude.png",
+    title: "Claude Code Hooks Security: What Runs and How to Audit It",
+    description:
+      "Claude Code hooks run shell commands with your full user permissions. See where they come from, how to audit them with /hooks, and how to lock them down.",
+    h1: "Claude Code hooks security: what hooks can run and how to audit them",
+    intro:
+      "A Claude Code hook is a shell command that runs with your full user permissions. Anyone who can put one in a settings file, a plugin or a repository you trust can run code as you. Hooks come from your user, project and local settings files, from plugins, from skill and subagent frontmatter, and from managed policy. Type `/hooks` to see every active hook and where it came from. Set `disableAllHooks` to switch them all off, and an admin can set `allowManagedHooksOnly` to block everything except managed hooks. Codex CLI, Gemini CLI and Cursor work the same way, each with its own review step. The last section lists exactly what anotifier's own hooks do.",
+    sections: [
+      {
+        id: "what",
+        title: "What a hook is allowed to run",
+        blocks: [
+          {
+            kind: "p",
+            text: "A Claude Code `command` hook runs a shell command and passes it the event as JSON on stdin. The [Claude Code docs](https://code.claude.com/docs/en/hooks#security-considerations) put it plainly: command hooks execute shell commands with your full user permissions, and can modify, delete or access any file your user account can. A hook process also inherits Claude Code's environment, apart from the `OTEL_*` exporter variables and, when `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is set to `1`, the variables Claude Code strips. So an API key exported in your shell is visible to every hook.",
+          },
+          {
+            kind: "ul",
+            items: [
+              "**What it receives.** Every event carries `session_id`, `transcript_path` and `cwd`. Tool events add the tool name and its input, so a `PreToolUse` hook sees the command or file path Claude is about to use.",
+              "**What it can change.** A hook can do more than watch. A `PreToolUse` hook can deny a tool call or rewrite its input, so a hook can change what Claude does as well as read it.",
+              "**Other handler types.** Besides `command`, a hook can be `http` (the event JSON is sent as a POST request to a URL), `mcp_tool`, `prompt` or `agent`.",
+            ],
+          },
+        ],
+      },
+      {
+        id: "where",
+        title: "Where Claude Code hooks come from",
+        blocks: [
+          {
+            kind: "table",
+            head: ["Location", "Applies to", "Shared with others"],
+            rows: [
+              ["`~/.claude/settings.json`", "All your projects", "No"],
+              [
+                "`.claude/settings.json`",
+                "One project",
+                "Yes, it can be committed to the repo",
+              ],
+              [
+                "`.claude/settings.local.json`",
+                "One project",
+                "No, gitignored when Claude Code saves a setting to it",
+              ],
+              [
+                "Managed policy settings",
+                "The whole organization",
+                "Yes, set by an admin",
+              ],
+              [
+                "A plugin's `hooks/hooks.json`",
+                "While the plugin is enabled",
+                "Yes, bundled with the plugin",
+              ],
+              [
+                "Skill frontmatter",
+                "The rest of the session once the skill is invoked",
+                "Yes, defined in the skill file",
+              ],
+              [
+                "Subagent frontmatter",
+                "While that subagent is running",
+                "Yes, defined in the subagent file",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "Entries add up. User, project and local hooks are merged rather than replacing each other, and none of them can remove a managed hook. Hooks from settings files, managed policy and plugins also run inside subagents.",
+          },
+        ],
+      },
+      {
+        id: "risks",
+        title: "The real risks",
+        blocks: [
+          {
+            kind: "ul",
+            items: [
+              "**A repository you cloned.** A project's `.claude/settings.json` can hold hooks and is meant to be committed. In an interactive session, Claude Code holds back hooks from every settings file until you accept the workspace trust dialog for the folder, or for a parent folder whose trust extends to it. Once you accept, the repository's hooks run. In a `claude -p` or SDK session no dialog ever appears and the folder counts as trusted, so the repository's hooks run straight away.",
+              "**Hooks that change under you.** Claude Code picks up edits to hooks in settings files automatically. After a `git pull` in a repository you already trust, read the diff of `.claude/` as well as the code.",
+              "**Plugins.** An enabled plugin's hooks run with the same permissions as hooks you wrote yourself. Read a plugin's `hooks/hooks.json` before you enable it.",
+              "**Secrets.** A hook sees your whole environment, the session's `transcript_path` and the inputs of tool calls. A command can hand any of that to another program. Claude Code's own advice for hook authors includes skipping sensitive files such as `.env`, `.git/` and keys.",
+              "**Network exfiltration.** A command hook is an ordinary command, so it can make network requests. An `http` hook posts the event JSON to the URL it names. Two settings narrow the second kind: `allowedHttpHookUrls` limits which URLs an HTTP hook may call, and `httpHookAllowedEnvVars` limits which environment variables go into hook headers.",
+            ],
+          },
+        ],
+      },
+      {
+        id: "audit",
+        title: "How to audit the hooks you have",
+        blocks: [
+          {
+            kind: "ol",
+            items: [
+              "**List them.** Type `/hooks` in Claude Code. It is a read-only browser. It labels each hook with where it comes from (user settings, project settings, local settings, a plugin or the current session) and shows the full text of what it runs.",
+              "**Read the files.** Open `~/.claude/settings.json`, then `.claude/settings.json` and `.claude/settings.local.json` in each project, then the `hooks/hooks.json` of each enabled plugin. To remove a hook, delete its entry. Claude Code has no way to disable one hook and keep it in the config.",
+              "**Switch them all off while you look.** Set `disableAllHooks` to `true` in a settings file. It also turns off a custom status line and a custom file suggestion command.",
+            ],
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({ disableAllHooks: true }),
+          },
+          {
+            kind: "p",
+            text: 'Claude Code reads the value left after settings precedence, so a project\'s `.claude/settings.json` that sets `"disableAllHooks": false` overrides a `true` in your user settings. To turn hooks off for one run whatever the project says, pass the setting on the command line, which takes precedence over project and local settings:',
+          },
+          {
+            kind: "code",
+            lang: "bash",
+            code: `claude --settings '{"disableAllHooks": true}'`,
+          },
+        ],
+      },
+      {
+        id: "lockdown",
+        title: "How to lock hooks down",
+        blocks: [
+          {
+            kind: "p",
+            text: "For code you didn't write, the [permissions docs](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder) suggest three options before you run `claude -p` there. Each stops the project's own hooks from running:",
+          },
+          {
+            kind: "code",
+            lang: "bash",
+            code: [
+              "# read only your user settings, not the project's",
+              'claude -p --setting-sources user "your prompt"',
+              "# read no hooks, skills, commands, subagents, plugins or .mcp.json servers from the project",
+              'claude -p --bare "your prompt"',
+              "# turn hooks off for this run",
+              `claude -p --settings '{"disableAllHooks": true}' "your prompt"`,
+            ].join("\n"),
+          },
+          {
+            kind: "p",
+            text: "Setting `disableAllHooks` in your user settings alone is not enough here, because the project's settings take precedence over yours.",
+          },
+          {
+            kind: "p",
+            text: "For a team, an admin sets `allowManagedHooksOnly` in [managed settings](https://code.claude.com/docs/en/managed-settings):",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({ allowManagedHooksOnly: true }),
+          },
+          {
+            kind: "ul",
+            items: [
+              "**Still runs:** hooks from managed settings, hooks the Agent SDK registers in process, and hooks from plugins your managed settings force-enable through `enabledPlugins`.",
+              "**Blocked:** user, project and local hooks, hooks from other installed plugins, and hooks declared in agent frontmatter.",
+              "**Also narrowed:** `statusLine`, `fileSuggestion` and `subagentStatusLine` are read from managed settings only.",
+              "**Cannot be undone from below:** only `disableAllHooks` set at the managed level can disable managed hooks.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "The [setting's reference entry](https://code.claude.com/docs/en/settings-reference#allowmanagedhooksonly) lists the rest, including how command-sourced plugins are treated.",
+          },
+        ],
+      },
+      {
+        id: "sdk",
+        title: "Claude Agent SDK hooks",
+        blocks: [
+          {
+            kind: "p",
+            text: "The Agent SDK has hooks of its own: callback functions you register in your code with `options.hooks`, which run in your process. When the SDK collects the hooks for an event, it also includes shell command hooks from settings files, if the matching `settingSources` (TypeScript) or `setting_sources` (Python) entry is enabled. The [SDK hooks docs](https://code.claude.com/docs/en/agent-sdk/hooks) say it is enabled for default `query()` options. So an SDK agent started in a folder can run that folder's project hooks.",
+          },
+          {
+            kind: "p",
+            text: "When the folder isn't yours, set `settingSources` without project settings. Under `allowManagedHooksOnly`, hooks the SDK registers in process still run, and user, project and local settings hooks do not.",
+          },
+        ],
+      },
+      {
+        id: "others",
+        title: "Codex CLI, Gemini CLI and Cursor",
+        blocks: [
+          {
+            kind: "ul",
+            items: [
+              "**Codex CLI.** Hooks live in `~/.codex/hooks.json`, `~/.codex/config.toml`, `<repo>/.codex/hooks.json` and `<repo>/.codex/config.toml`, in plugins, and in managed `requirements.toml`. Before a non-managed hook runs, Codex requires you to review and trust the exact hook definition. It records trust against the hook's hash, so new or changed hooks are skipped until you trust them. Run `/hooks` to inspect sources, trust hooks or disable individual non-managed hooks. Project hooks load only when the project's `.codex/` layer is trusted. To turn hooks off, set `hooks = false` under `[features]` in `config.toml`. Admins can set `allow_managed_hooks_only = true` to ignore user, project, session and plugin hooks. The docs also say to treat tool hooks as a guardrail, not a complete enforcement boundary.",
+              "**Gemini CLI.** Hooks live in `settings.json`: `.gemini/settings.json` in the project, `~/.gemini/settings.json`, `/etc/gemini-cli/settings.json`, and installed extensions. The docs say hooks execute arbitrary code with your user privileges and that project-level hooks are particularly risky in untrusted projects. Gemini CLI fingerprints project hooks. If a hook's name or command changes, for example after a `git pull`, it is treated as a new, untrusted hook and you are warned before it runs. `/hooks panel` lists them, `/hooks disable-all` turns them all off and `/hooks disable <name>` turns one off. Hooks run with a sanitized environment.",
+              "**Cursor.** Hooks live in `.cursor/hooks.json` in a project and `~/.cursor/hooks.json` for you. Enterprise installs add a system-wide `hooks.json` (`/Library/Application Support/Cursor/` on macOS, `/etc/cursor/` on Linux and WSL, `C:\\ProgramData\\Cursor\\` on Windows), and Enterprise teams can sync hooks from the web dashboard. Project hooks run in any trusted workspace. The Hooks tab in Customize and the Hooks output channel show what is configured and what ran. Cursor reloads `hooks.json` when you save it, so removing an entry is how you stop a hook.",
+            ],
+          },
+        ],
+      },
+      {
+        id: "anotifier",
+        title: "What anotifier's own hooks do",
+        blocks: [
+          {
+            kind: "p",
+            text: "anotifier is a set of hooks, so it should pass the same audit. This section follows the source of anotifier 1.7.1: [src/notify.mjs](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/blob/main/src/notify.mjs) and [setup/patch-config.mjs](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/blob/main/setup/patch-config.mjs). `npx anotifier setup` edits your user-level files only, never a project's settings:",
+          },
+          {
+            kind: "table",
+            head: ["Agent", "File setup edits", "Events it registers"],
+            rows: [
+              [
+                "Claude Code",
+                "`~/.claude/settings.json`",
+                "`Notification`, `Stop`, and the `statusLine` command",
+              ],
+              [
+                "Codex CLI",
+                "`~/.codex/hooks.json` and `~/.codex/config.toml`",
+                "`Stop`, `SessionStart`, `PermissionRequest`",
+              ],
+              ["Cursor", "`~/.cursor/hooks.json`", "`stop`"],
+              [
+                "Gemini CLI",
+                "`~/.gemini/settings.json`",
+                "`AfterAgent`, `Notification`",
+              ],
+              ["Antigravity CLI", "`~/.gemini/config/hooks.json`", "`Stop`"],
+            ],
+          },
+          {
+            kind: "p",
+            text: 'Every entry runs `node "<path>/src/notify.mjs" --source <agent>`, a local script in the anotifier package. For Claude Code, setup also points `statusLine` at `src/statusline.mjs`, which drives the usage and context warnings. If you already had a statusline, anotifier wraps it and still prints your line. `disableAllHooks` switches this statusline off too. Installed as a Claude Code plugin instead, the same `Notification` and `Stop` hooks come from the plugin\'s `hooks/hooks.json`.',
+          },
+          {
+            kind: "p",
+            text: "For Codex, setup also sets `hooks = true` in `config.toml` and writes the `trusted_hash` of each of its own hooks, so Codex does not ask you to review them. If you edit one by hand, Codex skips it until you trust it again in `/hooks`.",
+          },
+          {
+            kind: "p",
+            text: "When a hook fires, `notify.mjs` does this:",
+          },
+          {
+            kind: "ul",
+            items: [
+              "Reads the event JSON from stdin and your settings from `~/.anotifier/config.json`.",
+              "For Claude Code, it can read the session transcript so a toast or webhook shows Claude's last message. That is the `richContent` setting: on for toast and webhook, off for ntfy. Other agents get generic text.",
+              "Shows a desktop toast by running a local program: PowerShell 7 with BurntToast on Windows, `osascript` on macOS, `notify-send` on Linux, and PowerShell through Windows interop on WSL.",
+              "Writes small lock files and an `errors.log` under `~/.anotifier/`, and always exits 0 so it can't fail your agent's turn.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "The only network calls come from these channels. Each one is off unless you turned it on, except the version check:",
+          },
+          {
+            kind: "table",
+            head: ["Destination", "When", "What is sent", "Turn it off"],
+            rows: [
+              [
+                "Your ntfy server (default `https://ntfy.sh`)",
+                "ntfy enabled with a topic",
+                "The notification title and text. Claude's last message only with `ntfy.richContent`",
+                "`ntfy.enabled: false`",
+              ],
+              [
+                "Your webhook URL",
+                "Webhook enabled with a URL",
+                "JSON with title, message, source, project, event and timestamp in the generic format. For Claude Code the message is Claude's last message unless `webhook.richContent` is false",
+                "`webhook.enabled: false`",
+              ],
+              [
+                "Your Sentry DSN",
+                "`sentry.enabled` with a `sentry.dsn`",
+                "Hook and channel errors",
+                "`sentry.enabled: false`",
+              ],
+              [
+                "`posthog.devino.ca`",
+                "You opted in to usage stats. At most once a day from hooks",
+                "Counts and which features are on. Never message text, project names, paths, topics or URLs",
+                "`anotifier telemetry off`, or `DO_NOT_TRACK=1`",
+              ],
+              [
+                "`registry.npmjs.org`",
+                "At most once every 24 hours",
+                "A plain request for the latest `anotifier` version",
+                "`updateCheck.enabled: false` stops the hook's check",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "Setup itself downloads the notification icon from `claude.ai` once and, on Windows, installs the BurntToast PowerShell module for your user. Apart from the calls above, the hook path makes no network calls of its own. The README lists every usage-stats field.",
+          },
+          {
+            kind: "p",
+            text: "To inspect and remove it:",
+          },
+          {
+            kind: "code",
+            lang: "bash",
+            code: [
+              "npx anotifier@latest status     # which agents are wired, and with which events",
+              "npx anotifier@latest telemetry  # usage stats on or off, and what is waiting to be sent",
+              "npx anotifier@latest uninstall  # remove anotifier's hooks from every agent",
+            ].join("\n"),
+          },
+          {
+            kind: "ul",
+            items: [
+              "`uninstall` asks first, backs up each file to `~/.anotifier/backups/`, and removes only anotifier's entries, its Codex trust hashes and its statusline wrapper, which restores your own statusline. It keeps `~/.anotifier/`, so delete that folder by hand if you want it gone. On Windows it also removes the `agentfocus://` click-to-focus protocol that the first toast registers.",
+              "A plugin install is separate: remove it from Claude Code's `/plugin` menu. `uninstall` doesn't touch it.",
+              "`/hooks` in Claude Code and Codex, `/hooks panel` in Gemini CLI, and the Hooks tab in Cursor show the entries too.",
+            ],
+          },
+        ],
+      },
+      {
+        id: "sources",
+        title: "Official docs this page follows",
+        blocks: [
+          {
+            kind: "p",
+            text: "Checked on 2026-10-11. Docs change, so confirm a setting there before you rely on it.",
+          },
+          {
+            kind: "ul",
+            items: [
+              "Claude Code: [hooks reference](https://code.claude.com/docs/en/hooks), [permissions and workspace trust](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder), [`allowManagedHooksOnly` and `disableAllHooks`](https://code.claude.com/docs/en/settings-reference#allowmanagedhooksonly), [managed settings](https://code.claude.com/docs/en/managed-settings)",
+              "Claude Agent SDK: [hooks](https://code.claude.com/docs/en/agent-sdk/hooks)",
+              "Codex CLI: [hooks](https://learn.chatgpt.com/docs/hooks)",
+              "Gemini CLI: [hooks](https://geminicli.com/docs/hooks/)",
+              "Cursor: [hooks](https://cursor.com/docs/hooks)",
+            ],
+          },
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Can a Claude Code hook run any command?",
+        a: "Yes. A command hook runs a shell command with your full user permissions, so it can read, change or delete anything your user account can, and it can make network requests. Claude Code's docs say to review and test every hook command before you add it.",
+      },
+      {
+        q: "Does Claude Code run hooks from a repository I just cloned?",
+        a: "Only after you accept the workspace trust dialog in an interactive session. Until then Claude Code holds back hooks from every settings file. In a claude -p or SDK session there is no dialog and the folder counts as trusted, so the repository's hooks run right away. Use --setting-sources user, --bare or --settings with disableAllHooks set to true for code you didn't write.",
+      },
+      {
+        q: "How do I see which hooks are active in Claude Code?",
+        a: "Type /hooks. It is a read-only browser that labels each hook with its source (user, project or local settings, a plugin, or the session) and shows the full text of what it runs.",
+      },
+      {
+        q: "How do I turn off all Claude Code hooks?",
+        a: 'Set disableAllHooks to true in a settings file, or pass --settings with {"disableAllHooks": true} for one run. A project\'s settings take precedence over your user settings, so the flag is the reliable way for a single run. Only the managed settings level can disable managed hooks.',
+      },
+      {
+        q: "What does allowManagedHooksOnly do?",
+        a: "It is a managed-settings key. When true, only managed hooks run, plus hooks the Agent SDK registers in process and hooks from plugins that managed settings force-enable. User, project and local hooks and other plugins' hooks are blocked.",
+      },
+      {
+        q: "Do Codex CLI, Gemini CLI and Cursor review hooks before running them?",
+        a: "Codex skips new or changed non-managed hooks until you trust them, and loads project hooks only for a trusted project. Gemini CLI fingerprints project hooks and warns before a changed one runs. Cursor runs project hooks in a trusted workspace.",
+      },
+      {
+        q: "Is anotifier's hook safe to run?",
+        a: "It is a local Node script you can read. It runs with your permissions like any hook, sends notifications only to the channels you turned on (ntfy, a webhook, and Sentry if you set a DSN), and makes a version check against the npm registry at most once a day. Usage stats are off unless you opt in. Run npx anotifier status to see what is wired and npx anotifier uninstall to remove it.",
+      },
+    ],
+  },
 ];
