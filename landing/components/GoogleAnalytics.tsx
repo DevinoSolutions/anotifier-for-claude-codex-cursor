@@ -15,7 +15,14 @@ import Script from "next/script";
     gtag.js loads lazyOnload, not afterInteractive: afterInteractive emits a
     high-priority preload that pulled its ~170 KB in alongside the fonts and
     CSS and pushed out mobile LCP. The bootstrap stays afterInteractive so the
-    queued config is sent the moment gtag.js arrives. */
+    queued config is sent the moment gtag.js arrives.
+
+    gtag.js loads from /gx4t/ on anotifier.io, not googletagmanager.com:
+    Cloudflare's Google Tag Gateway (zone setting, endpoint /gx4t, original IP
+    hidden from Google) serves the tag at the edge and relays its hits, so
+    blocklists that match Google's hostnames miss them. The path only exists
+    behind Cloudflare; local and CI builds have no measurement id and load
+    nothing. */
 export default function GoogleAnalytics() {
   const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
   if (!gaId) {
@@ -24,10 +31,7 @@ export default function GoogleAnalytics() {
 
   return (
     <>
-      <Script
-        src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
-        strategy="lazyOnload"
-      />
+      <Script src={`/gx4t/?id=${gaId}`} strategy="lazyOnload" />
       <Script id="google-analytics" strategy="afterInteractive">
         {`window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
