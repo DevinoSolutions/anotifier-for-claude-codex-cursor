@@ -7,6 +7,7 @@ import CopyButton from "@/components/home/CopyButton";
 import CodeBlock from "@/components/docs/CodeBlock";
 import DocShell from "@/components/docs/DocShell";
 import Inline from "@/components/docs/Inline";
+import { getAgent } from "@/lib/agents";
 import { GUIDES, getGuide } from "@/lib/guides";
 import {
   COMMUNITY_URL,
@@ -64,6 +65,10 @@ export default async function GuidePage({
   const url = `${SITE_URL}/guides/${guide.slug}/`;
   const others = GUIDES.filter((g) => g.slug !== guide.slug);
   const isAgent = guide.kind === "agent";
+  // Topic guides carry a topic name ("ccnotify"), not the agent's, so the
+  // overview link and the agent icon's alt text use the agent's own name.
+  const agentName =
+    (guide.agentSlug && getAgent(guide.agentSlug)?.name) || guide.name;
 
   const jsonLd = [
     {
@@ -129,7 +134,7 @@ export default async function GuidePage({
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={guide.icon}
-              alt={`${guide.name} logo`}
+              alt={`${agentName} logo`}
               width={56}
               height={56}
             />
@@ -155,7 +160,7 @@ export default async function GuidePage({
           {guide.agentSlug && (
             <>
               the{" "}
-              <Link href={`/${guide.agentSlug}/`}>{guide.name} overview</Link>{" "}
+              <Link href={`/${guide.agentSlug}/`}>{agentName} overview</Link>{" "}
               and{" "}
             </>
           )}
