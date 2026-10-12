@@ -107,14 +107,56 @@ test("home: no render-blocking stylesheet and no early gtag.js preload", () => {
   );
   assert.doesNotMatch(
     body,
-    /<link[^>]+rel="preload"[^>]+gtag\/js/,
+    /<link[^>]+rel="preload"[^>]+(gtag\/js|\/gx4t\/)/,
     "gtag.js is preloaded",
   );
   assert.doesNotMatch(
     body,
-    /<link[^>]+gtag\/js[^>]+rel="preload"/,
+    /<link[^>]+(gtag\/js|\/gx4t\/)[^>]+rel="preload"/,
     "gtag.js is preloaded",
   );
+});
+
+test("first-party tracking: PostHog via /_t/n4q, gtag via /gx4t, no third-party hosts", async () => {
+  const { body } = pages.get("/");
+  // Keyed builds point both trackers at anotifier.io paths. Keyless builds
+  // (local, CI) ship neither tracker, so there only the proxy is checked.
+  assert.doesNotMatch(
+    body,
+    /googletagmanager\.com\/gtag/,
+    "gtag.js loads from Google",
+  );
+  assert.doesNotMatch(
+    body,
+    /api_host[^,]*posthog\.devino\.ca/,
+    "PostHog api_host is third-party",
+  );
+  if (body.includes('\\"id\\":\\"posthog\\"')) {
+    assert.match(
+      body,
+      /api_host[^,]*\/_t\/n4q/,
+      "PostHog api_host is not /_t/n4q",
+    );
+  }
+  // nginx forwards /_t/n4q/ to the self-hosted PostHog (CI and production).
+  const res = await get("/_t/n4q/static/array.js");
+  assert.equal(
+    res.status,
+    200,
+    `/_t/n4q/static/array.js returned ${res.status}`,
+  );
+  assert.match(res.headers.get("content-type") ?? "", /javascript/);
+  assert.equal(
+    res.headers.get("set-cookie"),
+    null,
+    "the proxy passed a cookie on",
+  );
+  // The Google Tag Gateway path only exists at Cloudflare's edge.
+  if (BASE_URL === SITE_URL) {
+    const tag = await get("/gx4t/?id=G-TT12DKE7H6");
+    assert.equal(tag.status, 200, `/gx4t/ returned ${tag.status}`);
+    assert.match(tag.headers.get("content-type") ?? "", /javascript/);
+  }
 });
 
 test("home: PostHog, when the build has a key, loads only after the load event", () => {
