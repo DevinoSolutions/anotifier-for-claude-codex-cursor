@@ -75,7 +75,13 @@ test("agent pages target the product, guides the how-to, and link to each other"
       /Notifications/,
       `${agent} title competes with ${guide}`,
     );
-    assert.match(a.h1Text, /^anotifier for /, `${agent} h1`);
+    assert.match(
+      a.h1Text,
+      agent === "/claude-code/"
+        ? /^anotifier: the Claude Code notifier /
+        : /^anotifier for /,
+      `${agent} h1`,
+    );
     assert.ok(
       a.body.includes(`href="${guide}"`),
       `${agent} does not link ${guide}`,

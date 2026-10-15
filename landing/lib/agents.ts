@@ -58,6 +58,8 @@ export interface Agent {
   /** Agent-specific sections after the hook list: what setup writes, limits. */
   sections: AgentSection[];
   faqs: AgentFaq[];
+  /** Anchor text for the guides' link to this page; defaults to "<name> overview". */
+  linkText?: string;
   /** Public path to the agent icon. */
   icon: string;
 }
@@ -67,16 +69,60 @@ const NOTIFY = "/path/to/anotifier/src/notify.mjs";
 const CLICK_TO_FOCUS =
   "**Click-to-focus is Windows-only.** Clicking the toast brings forward the window whose title contains the project folder. macOS, Linux and WSL toasts have no click action.";
 
+/** The hand-written Claude Code hook pair, in the shape Claude Code's hooks
+    guide gives (https://code.claude.com/docs/en/hooks-guide). */
+const BY_HAND_HOOKS = json({
+  hooks: {
+    Stop: [
+      {
+        hooks: [
+          {
+            type: "command",
+            command:
+              'osascript -e \'display notification "Claude finished" with title "Claude Code"\'',
+          },
+        ],
+      },
+    ],
+    Notification: [
+      {
+        matcher: "",
+        hooks: [
+          {
+            type: "command",
+            command:
+              'osascript -e \'display notification "Claude needs your input" with title "Claude Code"\'',
+          },
+        ],
+      },
+    ],
+  },
+});
+
+const BY_HAND_COMMANDS = `# macOS
+osascript -e 'display notification "Claude finished" with title "Claude Code"'
+
+# Linux (needs a notification daemon; libnotify-bin provides notify-send)
+notify-send 'Claude Code' 'Claude finished'
+
+# Windows (PowerShell)
+powershell.exe -Command "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); [System.Windows.Forms.MessageBox]::Show('Claude finished', 'Claude Code')"`;
+
 export const AGENTS: Agent[] = [
   {
     slug: "claude-code",
     updated: "2026-10-15",
     name: "Claude Code",
+    linkText: "Claude Code notifier",
     title: "Claude Code Notifier — Desktop, Phone & Slack Alerts",
     description:
-      "anotifier is a free Claude Code notifier: a desktop toast, phone push, or Slack message when Claude finishes or needs input. One command, terminal or VS Code.",
-    h1: { pre: "anotifier for ", em: "Claude Code", post: "." },
-    sub: "Claude Code runs for minutes at a time — refactoring, running tests, waiting on a permission prompt you haven't seen. anotifier hooks into Claude Code's native event system and pings you the moment it finishes or needs you.",
+      "anotifier is a free Claude Code notifier for Windows, macOS, Linux and WSL: a desktop, phone or Slack alert when Claude finishes or needs input.",
+    h1: {
+      pre: "anotifier: the ",
+      em: "Claude Code notifier",
+      post: " for desktop, phone and Slack.",
+    },
+    sub: "anotifier is a free, open-source Claude Code notifier. The moment Claude Code finishes a turn, asks for permission or waits for your input, it sends a desktop toast, a phone push, or a Slack, Discord or Telegram message, on Windows, macOS, Linux and WSL, in a terminal or in VS Code. Run the command below once, then restart Claude Code.",
     hooksIntro:
       "Setup adds two hook entries to Claude Code's own `~/.claude/settings.json`, plus a `statusLine` entry that routes the statusline through anotifier (1.5.0 and later). The hooks run inside Claude Code itself, with no wrapper process.",
     hooks: [
@@ -94,6 +140,97 @@ export const AGENTS: Agent[] = [
     extraInstall:
       "Or install it as a Claude Code plugin, in two steps: <code>/plugin marketplace add DevinoSolutions/anotifier-for-claude-codex-cursor</code> then <code>/plugin install anotifier@anotifier</code>",
     sections: [
+      {
+        id: "options",
+        kicker: "[ THE OPTIONS ]",
+        title: "The ways to get Claude Code notifications.",
+        blocks: [
+          {
+            kind: "p",
+            text: "Searching for a Claude Code notifier turns up four kinds of tool: Claude Code's own notifications, companion apps, VS Code extensions, and hooks. Each suits someone. Facts about other projects come from their own pages, linked below, and may have changed since.",
+          },
+          {
+            kind: "table",
+            head: ["Option", "Good for", "Where it stops"],
+            rows: [
+              [
+                "Claude Code's built-in notifications",
+                "No setup. By default Claude Code sends a desktop notification in Ghostty, Kitty and iTerm2, and `preferredNotifChannel` set to `terminal_bell` rings the bell in other terminals ([Claude Code docs](https://code.claude.com/docs/en/terminal-config#get-a-terminal-bell-or-notification)).",
+                "Terminal-side: a desktop notification or a bell on the machine running Claude Code. Not a phone or chat channel on its own.",
+              ],
+              [
+                "Companion apps, such as [Claude Code Notifier](https://claudecodenotifier.com)",
+                "A macOS menu bar app with iOS and Android apps. Its page says you can approve permission requests and reply from your phone (mobile response needs iTerm2).",
+                "The desktop app needs macOS 14 or later, and its page lists no Windows or Linux desktop app. Its mobile features are on a paid plan, per its pricing.",
+              ],
+              [
+                "Native macOS tools, such as [kovoor/claude-code-notifier](https://github.com/kovoor/claude-code-notifier)",
+                "MIT-licensed native macOS banners for Claude Code and OpenCode, showing which Ghostty tab or project raised them.",
+                "macOS only, needs `jq`, and works best in Ghostty.",
+              ],
+              [
+                "VS Code extensions, such as [Claude Code Notifier](https://marketplace.visualstudio.com/items?itemName=erdemgiray.claude-code-notifier)",
+                "Free. Different sounds and banners for permission, question and finished events inside the VS Code window with the project open, and it installs its own hooks on first run. Per its listing it works over SSH, WSL and containers.",
+                "Built for VS Code. Claude Code in a standalone terminal is outside its remit.",
+              ],
+              [
+                "Hooks you write yourself",
+                "Free, any OS, no extra software. The next section has a working pair.",
+                "One command per OS and fixed text. Every extra (project name, what Claude said, phone push, priority) is a script you maintain.",
+              ],
+              [
+                "**anotifier**",
+                "One command wires `Stop` and `Notification` hooks. Desktop toasts on Windows, macOS, Linux and WSL, phone push over [ntfy](/phone/) with no account, [Slack](/slack/), [Discord](/discord/), [Telegram](/telegram/) or any webhook, and the same config for [Codex CLI](/codex/), [Cursor](/cursor/) and [Gemini CLI](/gemini-cli/). Free and open source (AGPL-3.0).",
+                "A command-line tool with no menu bar app or GUI. It alerts you; you answer Claude in the terminal. Click-to-focus works on Windows only.",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "Pick by what you need to reach. One platform and one editor: a companion app or an extension may fit better. More than one OS, your phone or a chat channel, or more than one agent: a hook-based tool like anotifier covers them with one install. For how each hook option works, the [guide to every option](/guides/claude-code-notifications/) walks through them.",
+          },
+        ],
+      },
+      {
+        id: "by-hand",
+        kicker: "[ DO IT BY HAND ]",
+        title: "Set up a Claude Code notifier yourself.",
+        blocks: [
+          {
+            kind: "p",
+            text: "Claude Code runs hooks: shell commands registered in a settings file. Your user settings file is `~/.claude/settings.json` (`%USERPROFILE%\\.claude\\settings.json` on Windows), and it applies to every project. `Stop` fires when Claude finishes a turn; `Notification` fires when it is waiting for permission or input. This pair shows a macOS banner for both:",
+          },
+          { kind: "code", lang: "json", code: BY_HAND_HOOKS },
+          {
+            kind: "p",
+            text: "Swap in the command for your OS. The Windows one is the dialog box from Claude Code's own docs:",
+          },
+          { kind: "code", lang: "bash", code: BY_HAND_COMMANDS },
+          {
+            kind: "ul",
+            items: [
+              "If the file already has a `hooks` key, add `Stop` and `Notification` next to the events already there rather than replacing the object. Type `/hooks` in Claude Code to check they registered.",
+              'The `Notification` hook with an empty matcher runs for every notification type. To alert only for approvals, set `"matcher": "permission_prompt"`; see the [permission notifications guide](/guides/claude-code-permission-notifications/).',
+              "Claude Code's documentation names `~/.claude/settings.json` as the user settings file. If you set `CLAUDE_CONFIG_DIR`, Claude Code reads its settings from that folder instead. `~/.config/claude/settings.json`, which some summaries give, is not a path the docs list.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "What anotifier adds on top of this:",
+          },
+          {
+            kind: "ul",
+            items: [
+              "**A useful message.** The title names the project (`my-app · Claude Code`) and the toast carries the start of Claude's last reply or its question, instead of fixed text.",
+              "**Phone and chat in the same hook,** sent to every channel in parallel with a short timeout each, so a dead channel never holds Claude up.",
+              "**Priorities.** Needs-input alerts go out urgent; the idle reminder goes out at normal priority.",
+              "**No double alerts.** A repeat of the same event within 1.5 seconds is dropped.",
+              "**Snooze and quiet hours,** an `uninstall` that removes only its own entries, and a backup of `settings.json` before it edits.",
+              "**Usage and context warnings** through the statusline, covered below.",
+            ],
+          },
+        ],
+      },
       {
         id: "setup",
         kicker: "[ WHAT SETUP WRITES ]",
@@ -216,6 +353,21 @@ export const AGENTS: Agent[] = [
       },
     ],
     faqs: [
+      {
+        q: "What is the best Claude Code notifier?",
+        aHtml:
+          '<p>It depends on what you need to reach. On macOS only, a companion app may feel more native. In VS Code only, an extension is closest to the editor. If you want one install that works on Windows, macOS, Linux and WSL, reaches your phone or Slack, and covers Codex CLI, Cursor and Gemini CLI from one config, anotifier is built for that. And if you want no extra software, two hooks you write yourself take about ten lines. The <a href="#options">comparison above</a> lists what each option does.</p>',
+      },
+      {
+        q: "Is anotifier free?",
+        aHtml:
+          "<p>Yes. It is free and open source under AGPL-3.0, with no account and no paid tier. It runs with <code>npx</code> and needs Node.js 18 or newer. Phone push goes through ntfy, which is also free and open source; use the public ntfy.sh server or your own.</p>",
+      },
+      {
+        q: "Does it work on Windows and WSL?",
+        aHtml:
+          '<p>Yes. On Windows the toast needs PowerShell 7 and the BurntToast module; <code>anotifier setup</code> installs BurntToast for your user. Inside WSL the toast goes to Windows through interop, as a plainer banner without the agent icon, a custom sound or click-to-focus, so run anotifier from the WSL shell where your Claude Code settings live. macOS and Linux work too, with <code>osascript</code> and <code>notify-send</code>. See the <a href="/guides/windows-wsl-notifications/">Windows and WSL guide</a>.</p>',
+      },
       {
         q: "Can anotifier warn me before Claude Code auto-compacts?",
         aHtml:
