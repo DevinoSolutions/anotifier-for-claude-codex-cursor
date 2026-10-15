@@ -58,7 +58,7 @@ export interface Channel {
 export const CHANNELS: Channel[] = [
   {
     slug: "slack",
-    updated: "2026-09-25",
+    updated: "2026-10-15",
     name: "Slack",
     icon: "/assets/icons/slack.svg",
     kind: "webhook",
@@ -76,7 +76,7 @@ export const CHANNELS: Channel[] = [
       },
       {
         label: "config",
-        text: "Run <code>npx anotifier@latest setup</code>, or drop the block below into <code>~/.anotifier/config.json</code> with <code>format</code> set to <code>slack</code>.",
+        text: "Run <code>npx anotifier@latest config webhook</code> and answer the prompts: enable the webhook, paste the URL, and enter <code>slack</code> as the format. Or add the block below to <code>~/.anotifier/config.json</code> yourself.",
       },
       {
         label: "test",
