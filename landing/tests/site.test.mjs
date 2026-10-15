@@ -116,8 +116,17 @@ test("/claude-code/ compares the options, shows the hand-written hooks, and keep
   const schemaQs = ld
     .filter((d) => d["@type"] === "FAQPage")
     .flatMap((d) => d.mainEntity.map((q) => q.name));
+  // Strip tags until none are left, so a nested "<<b>script>" can't survive.
+  const stripTags = (s) => {
+    let prev;
+    do {
+      prev = s;
+      s = s.replace(/<[^>]*>/g, "");
+    } while (s !== prev);
+    return s;
+  };
   const visibleQs = [...body.matchAll(/<summary>([\s\S]*?)<\/summary>/g)].map(
-    (m) => decode(m[1].replace(/<[^>]+>/g, "")),
+    (m) => decode(stripTags(m[1])),
   );
   assert.ok(visibleQs.length > 0, "/claude-code/ shows no FAQ questions");
   for (const q of visibleQs) {
