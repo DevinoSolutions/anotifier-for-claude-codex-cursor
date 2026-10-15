@@ -167,7 +167,7 @@ const WHAT_ANOTIFIER_ADDS_CURSOR: Block[] = WHAT_ANOTIFIER_ADDS.map((block) =>
 const AGENT_GUIDES: Guide[] = [
   {
     slug: "claude-code-notifications",
-    updated: "2026-10-12",
+    updated: "2026-10-15",
     kind: "agent",
     agentSlug: "claude-code",
     name: "Claude Code",
@@ -177,7 +177,7 @@ const AGENT_GUIDES: Guide[] = [
       "Add a Stop hook for finished turns and a Notification hook for input prompts to ~/.claude/settings.json. Configs for a macOS banner, the bell and ntfy push.",
     h1: "How to get notified when Claude Code finishes or needs you",
     intro:
-      "Add two hooks to `~/.claude/settings.json`: `Stop`, which fires when Claude finishes a turn, and `Notification`, which fires when it needs your permission or input. Point each at a command that shows a banner, plays a sound, or sends a push to your phone. Or run `npx anotifier@latest setup`, which wires both for you. Below is every option, from the one-line setting to a full multi-agent setup, with configs you can paste.",
+      "Add two hooks to `~/.claude/settings.json`: `Stop`, which fires when Claude finishes a turn, and `Notification`, which fires when it needs your permission or input. Point each at a command that shows a banner, plays a sound (see the [Claude Code notification sound guide](/guides/claude-code-notification-sound/)), or sends a push to your phone. Or run `npx anotifier@latest setup`, which wires both for you. Below is every option, from the one-line setting to a full multi-agent setup, with configs you can paste.",
     sections: [
       {
         id: "built-in",
@@ -202,7 +202,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "What you get: a beep or a plain banner on the machine you are sitting at, with no project name, no message content, and nothing on your phone. Terminals without the built-in notification, such as Warp or the VS Code integrated terminal, need the bell or a hook. For the bell and custom sounds, see [Claude Code notification sounds](/guides/claude-code-notification-sound/); for what the hooks do inside the editor, see [anotifier in VS Code](/vscode/).",
+            text: "What you get: a beep or a plain banner on the machine you are sitting at, with no project name, no message content, and nothing on your phone. Terminals without the built-in notification, such as Warp or the VS Code integrated terminal, need the bell or a hook. For the bell, custom sounds, and turning them off, see the [Claude Code notification sound guide](/guides/claude-code-notification-sound/); for what the hooks do inside the editor, see [anotifier in VS Code](/vscode/).",
           },
         ],
       },

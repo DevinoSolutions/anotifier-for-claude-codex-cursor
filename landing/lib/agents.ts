@@ -70,7 +70,7 @@ const CLICK_TO_FOCUS =
 export const AGENTS: Agent[] = [
   {
     slug: "claude-code",
-    updated: "2026-10-10",
+    updated: "2026-10-15",
     name: "Claude Code",
     title: "Claude Code Notifier — Desktop, Phone & Slack Alerts",
     description:
@@ -156,7 +156,7 @@ export const AGENTS: Agent[] = [
           {
             kind: "ul",
             items: [
-              "**The ding comes from Claude Code itself.** The hook hands Claude Code a bell to print in its own terminal (Claude Code 2.1.141 or newer), so no extra process has to find the right tab.",
+              "**The ding comes from Claude Code itself.** The hook hands Claude Code a bell to print in its own terminal (Claude Code 2.1.141 or newer), so no extra process has to find the right tab. To change the sound or turn it off, see the [Claude Code notification sound guide](/guides/claude-code-notification-sound/).",
               "**Every notification type alerts.** The hook has no matcher, so types that don't need you, such as `auth_success`, also arrive as urgent. The [permission notifications guide](/guides/claude-code-permission-notifications/) shows how to filter by type in a hook you write yourself.",
               "**Needs-input alerts stand out.** They go out urgent, which raises the priority on ntfy and Linux `notify-send`, and toasts play a different sound than for a finished task.",
               CLICK_TO_FOCUS,
