@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BASE_URL, SITE_URL, findChrome, get } from "./site-helpers.mjs";
+import { BASE_URL, SITE_URL, findChrome } from "./site-helpers.mjs";
 
 const CHROME = findChrome();
 // Median mobile LCP under 4x CPU and a slow-4G-like link. Before the LCP work
