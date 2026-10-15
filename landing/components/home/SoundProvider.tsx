@@ -28,9 +28,6 @@ export function useSound(): SoundContextValue {
 export default function SoundProvider({ children }: { children: ReactNode }) {
   const [soundOn, setSoundOn] = useState(false);
   const acRef = useRef<AudioContext | null>(null);
-  const sndTimer = useRef<ReturnType<typeof setInterval> | undefined>(
-    undefined,
-  );
 
   const ensureAudio = (): AudioContext | null => {
     const AC =
@@ -67,21 +64,16 @@ export default function SoundProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  // The hero demo rings the dings itself, on the same cues that show its
+  // toasts (HeroDemo.tsx); turning sound on only plays a preview.
   const toggleSound = () => {
     const on = !soundOn;
     setSoundOn(on);
-    clearInterval(sndTimer.current);
-    if (on) {
-      playDing();
-      sndTimer.current = setInterval(() => {
-        if (!document.hidden) playDing();
-      }, 8000);
-    }
+    if (on) playDing();
   };
 
   useEffect(() => {
     return () => {
-      clearInterval(sndTimer.current);
       if (acRef.current) {
         try {
           acRef.current.close();

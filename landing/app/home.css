@@ -1,187 +1,6 @@
 /* Home page keyframes — ported verbatim from the original index.html helmet <style> block.
    Base/reset rules and the .agentRoll rotator live in globals.css and are not repeated here. */
 
-@keyframes tl1 {
-  0%,
-  1% {
-    opacity: 0;
-  }
-  3%,
-  94% {
-    opacity: 1;
-  }
-  98%,
-  100% {
-    opacity: 0;
-  }
-}
-@keyframes tl2 {
-  0%,
-  8% {
-    opacity: 0;
-  }
-  10%,
-  94% {
-    opacity: 1;
-  }
-  98%,
-  100% {
-    opacity: 0;
-  }
-}
-@keyframes tl3 {
-  0%,
-  12% {
-    opacity: 0;
-  }
-  14%,
-  94% {
-    opacity: 1;
-  }
-  98%,
-  100% {
-    opacity: 0;
-  }
-}
-@keyframes tl4 {
-  0%,
-  16% {
-    opacity: 0;
-  }
-  18%,
-  94% {
-    opacity: 1;
-  }
-  98%,
-  100% {
-    opacity: 0;
-  }
-}
-@keyframes tl5 {
-  0%,
-  20% {
-    opacity: 0;
-  }
-  22%,
-  94% {
-    opacity: 1;
-  }
-  98%,
-  100% {
-    opacity: 0;
-  }
-}
-@keyframes toastIn {
-  0%,
-  25% {
-    opacity: 0;
-    transform: translateX(28px) scale(0.94);
-  }
-  27% {
-    opacity: 1;
-    transform: translateX(-3px) scale(1.02);
-  }
-  28.5%,
-  88% {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-  94%,
-  100% {
-    opacity: 0;
-    transform: translateX(0) scale(1);
-  }
-}
-@keyframes phoneIn {
-  0%,
-  30% {
-    opacity: 0;
-    transform: translateY(16px) scale(0.92);
-  }
-  32% {
-    opacity: 1;
-    transform: translateY(-2px) scale(1.03);
-  }
-  33.5%,
-  88% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-  94%,
-  100% {
-    opacity: 0;
-    transform: translateY(0);
-  }
-}
-@keyframes cursorIn {
-  0%,
-  36% {
-    opacity: 0;
-    transform: translateX(28px) scale(0.94);
-  }
-  38% {
-    opacity: 1;
-    transform: translateX(-3px) scale(1.02);
-  }
-  39.5%,
-  88% {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-  94%,
-  100% {
-    opacity: 0;
-    transform: translateX(0) scale(1);
-  }
-}
-@keyframes webhookIn {
-  0%,
-  44% {
-    opacity: 0;
-    transform: translateX(28px) scale(0.94);
-  }
-  46% {
-    opacity: 1;
-    transform: translateX(-3px) scale(1.02);
-  }
-  47.5%,
-  88% {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-  94%,
-  100% {
-    opacity: 0;
-    transform: translateX(0) scale(1);
-  }
-}
-@keyframes doneFlash {
-  0%,
-  20% {
-    background: transparent;
-  }
-  22% {
-    background: rgba(89, 212, 153, 0.16);
-  }
-  28%,
-  100% {
-    background: transparent;
-  }
-}
-@keyframes tagIn {
-  0%,
-  26% {
-    opacity: 0;
-  }
-  29%,
-  88% {
-    opacity: 1;
-  }
-  94%,
-  100% {
-    opacity: 0;
-  }
-}
 @keyframes tagIn2 {
   0%,
   31% {
@@ -204,46 +23,6 @@
   50%,
   100% {
     opacity: 0;
-  }
-}
-@keyframes bellRing {
-  0%,
-  20% {
-    opacity: 0;
-    transform: scale(0.6);
-  }
-  23% {
-    opacity: 0.9;
-    transform: scale(1);
-  }
-  31% {
-    opacity: 0;
-    transform: scale(2.2);
-  }
-  100% {
-    opacity: 0;
-  }
-}
-@keyframes bellShake {
-  0%,
-  21% {
-    transform: rotate(0);
-  }
-  23% {
-    transform: rotate(-16deg);
-  }
-  25% {
-    transform: rotate(13deg);
-  }
-  27% {
-    transform: rotate(-9deg);
-  }
-  29% {
-    transform: rotate(5deg);
-  }
-  31%,
-  100% {
-    transform: rotate(0);
   }
 }
 @keyframes flowFill {
@@ -412,27 +191,6 @@
     left: calc(100% - 12px);
   }
 }
-@keyframes ph2In {
-  0%,
-  40% {
-    opacity: 0;
-    transform: translateY(16px) scale(0.92);
-  }
-  42% {
-    opacity: 1;
-    transform: translateY(-2px) scale(1.03);
-  }
-  43.5%,
-  88% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-  94%,
-  100% {
-    opacity: 0;
-    transform: translateY(0);
-  }
-}
 @keyframes tr1 {
   0%,
   3% {
@@ -582,30 +340,10 @@
   font-size: 14px;
 }
 
-/* The laptop + phone composition is drawn with fixed pixel offsets that only
-   resolve above ~500px of width — narrower than that the toasts clip off the
-   screen edges, the window chrome text wraps into the caption below it, and
-   the phone lands on top of the laptop. Below 520px the composition is pinned
-   to that design width and the whole thing is scaled down to fit, which keeps
-   every internal proportion intact. At >= 520px this is inert, so desktop and
-   tablet render exactly as before. The hero's demo column is the size
-   container; scaling leaves layout size alone, so the caption and platform
-   badges below it are pulled back up by the negative margin. */
+/* The hero scene (components/home/hero/hero.css) scales itself to the width of
+   its container, which is the hero's demo column. */
 .heroMock {
   container-type: inline-size;
-}
-@container (max-width: 519px) {
-  .heroMockInner {
-    /* available width / 520px design width. tan(atan2(a, b)) is the only way
-       to get a unitless ratio out of two CSS lengths. */
-    --mock-scale: tan(atan2(100cqw, 520px));
-    width: 520px;
-    transform: scale(var(--mock-scale));
-    transform-origin: top left;
-    /* scale() leaves layout size alone, so reclaim the unscaled height
-       (the composition is 387px tall at any width — its parts are fixed). */
-    margin-bottom: calc(387px * (var(--mock-scale) - 1));
-  }
 }
 
 @media (max-width: 640px) {
