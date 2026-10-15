@@ -221,6 +221,11 @@ export default function PrivacyPage() {
               The site tells Sentry not to collect user info, cookies, HTTP
               headers or HTTP bodies. Performance tracing is off.
             </li>
+            <li>
+              Sentry&apos;s session replay keeps a session id in your tab&apos;s
+              session storage, under a name starting with{" "}
+              <code>sentryReplay</code>.
+            </li>
           </ul>
         </section>
 

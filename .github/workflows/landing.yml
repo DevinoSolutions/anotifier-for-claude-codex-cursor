@@ -66,7 +66,7 @@ jobs:
 
       # Dummy analytics keys, so the build contains the PostHog, Google
       # Analytics and Sentry code and the browser tests can check that it loads
-      # after Accept (and not before). The keys are not real, and the tests
+      # on a first visit, with no prompt. The keys are not real, and the tests
       # block every tracker path (a blocklist), so nothing reaches any server.
       - name: Build (static export)
         if: ${{ !cancelled() }}

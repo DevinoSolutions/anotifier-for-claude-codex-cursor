@@ -469,7 +469,11 @@ test(
         assert.equal(loaded.posthog, "object");
         assert.equal(loaded.gtag, "function");
         assert.equal(loaded.dataLayer, "object");
-        assert.equal(loaded.sentry, "object", `${p}: Sentry did not start`);
+        assert.equal(
+          loaded.sentry,
+          "object",
+          `${p}: the Sentry SDK did not load`,
+        );
         // GA sends its hits to the nginx relay, with signals and ads off.
         const gaConfig = await b.evaluate(`JSON.stringify([...window.dataLayer]
           .map((a) => Array.from(a)).find((a) => a[0] === "config")?.[2] ?? null)`);

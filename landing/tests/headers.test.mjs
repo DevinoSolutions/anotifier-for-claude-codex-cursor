@@ -89,7 +89,10 @@ const INJECTED = [
   ["Cloudflare Web Analytics beacon", "cloudflareinsights"],
   ["edge-injected Google tag", "google_tags_first_party"],
   ["Google tag loader", 'src="/gx4t/'],
-  ["gtag bootstrap", "function gtag("],
+  // The gateway's bootstrap set this developer id. The site's own loader
+  // (components/GoogleAnalytics.tsx, mounted for every visitor) also defines
+  // gtag(), so "function gtag(" would match the site itself.
+  ["edge gtag bootstrap", "dY2E1Nz"],
 ];
 
 for (const [label, path, status] of PAGES) {
@@ -98,7 +101,9 @@ for (const [label, path, status] of PAGES) {
       // Cloudflare injects only into requests that accept HTML; fetch's
       // default */* would get a clean page even with injection on.
       headers: {
-        "user-agent": "anotifier-site-tests",
+        // The gateway injected only for browser user agents.
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36 anotifier-site-tests",
         accept: "text/html",
         "accept-encoding": "gzip",
       },

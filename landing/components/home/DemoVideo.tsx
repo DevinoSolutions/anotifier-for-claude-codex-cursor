@@ -7,7 +7,7 @@ import { track } from "@/lib/track";
     makes no request to YouTube and shows a self-hosted placeholder of the same
     16:9 size, so nothing moves when the player appears. Playing starts the
     video muted (the copy below says so). The click is also the demo_video_click
-    analytics event, which track() drops unless the visitor accepted analytics. */
+    analytics event. */
 export default function DemoVideo() {
   const [showVideo, setShowVideo] = useState(false);
 
