@@ -116,7 +116,7 @@ export function setupIsolatedHome({ prefix, dir, topic, base = os.tmpdir(), seed
 // `assertBody(msg)` is an optional HARD gate on the delivered BODY. The ntfy body
 // is deterministic — ntfy rich content is default-OFF for privacy (see
 // src/transcript.mjs), so the body is always the generic router message
-// ("<project>: Task complete"), never the assistant's words — so gating on it is
+// ("<project>: Task complete", plus " (took Ns)" when the turn was timed), never the assistant's words — so gating on it is
 // safe and not intermittent. The matched body is always LOGGED (it used to be
 // invisible: only a fixed pass string was printed, so historical runs could not
 // prove what body actually shipped).

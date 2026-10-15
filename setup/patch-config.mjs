@@ -355,12 +355,13 @@ function rebuildHooksState(toml, trustEntries) {
 }
 
 // Codex shows the statusMessage while a hook runs, and the trust hash covers
-// it, so the handler and its hash must be built from the same options.
+// it, so the handler and its hash must be built from the same options. The
+// timing hook has none (the field is optional): it runs on every prompt and
+// must not flash a message each time.
 function codexHookOpts(event) {
-  return {
-    timeout: eventTimeout(event),
-    statusMessage: TURN_START_EVENTS.has(event) ? 'Timing the turn' : 'Sending notification',
-  };
+  return TURN_START_EVENTS.has(event)
+    ? { timeout: eventTimeout(event) }
+    : { timeout: eventTimeout(event), statusMessage: 'Sending notification' };
 }
 
 export function patchCodex(codexDir, notifyPath, backupDir) {
@@ -377,7 +378,8 @@ export function patchCodex(codexDir, notifyPath, backupDir) {
   // Forward slashes avoid shell escape issues and work on all platforms.
   const safePath = notifyPath.replace(/\\/g, '/');
 
-  // Codex uses strict schema — no _managed_by, must include statusMessage.
+  // Codex uses strict schema — no _managed_by. The notifying hooks carry a
+  // statusMessage; the timing hook omits it (see codexHookOpts).
   // Timeout is in seconds. Hooks only fire in interactive TUI (not exec mode).
   // These events differ only by the --event arg, so derive them from TOOL_EVENTS.
   const hookByEvent = {};

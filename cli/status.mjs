@@ -72,6 +72,13 @@ export function contextAlertsValue(config) {
   return c.white(`${effectiveContextThreshold(config)}% of auto-compact window`);
 }
 
+// "Stop, Notification · timed": the alert events, with the turn-start hook (plumbing
+// for the "took ..." duration, not an alert) folded into a "timed" marker.
+export function wiredEventsLabel(events) {
+  const alerts = events.filter((e) => !TURN_START_EVENTS.has(e));
+  return `${alerts.join(', ')}${alerts.length < events.length ? ' · timed' : ''}`;
+}
+
 export function minDurationValue(config) {
   const seconds = minDurationSeconds(config);
   return seconds > 0 ? c.white(`skip completions under ${seconds}s`) : c.muted('off');
@@ -121,12 +128,8 @@ export async function run() {
   const toolLines = tools.map(t => {
     const icon = t.status === 'wired' ? c.success('✓') : c.muted('✗');
     const name = t.status === 'wired' ? c.white(t.label) : c.muted(t.label);
-    // The turn-start hook is plumbing for the "took ..." duration, not an alert
-    // event: it is summarised as "timed" so the line stays short.
-    const alerts = t.events.filter((e) => !TURN_START_EVENTS.has(e));
-    const timed = alerts.length < t.events.length ? ' · timed' : '';
     const events = t.status === 'wired'
-      ? c.muted(` ${alerts.join(', ')}${timed}`)
+      ? c.muted(` ${wiredEventsLabel(t.events)}`)
       : c.muted(` ${t.status}`);
     return `${icon} ${name}${events}`;
   });
