@@ -69,28 +69,58 @@ for (const [label, path, status] of CASES) {
   });
 }
 
-// Cloudflare Web Analytics is switched off for the zone (2026-10-15): its
-// auto-installed beacon (static.cloudflareinsights.com) was a third-party
-// script outside the CSP that duplicated PostHog. If someone turns it back on
-// in the dashboard, Cloudflare starts injecting it into the HTML again, and
-// the live run of this test fails.
+// Pages carry Cache-Control: public, no-transform (nginx.conf, location /) so
+// Cloudflare never rewrites the HTML. Without it, the zone's Google Tag
+// Gateway injects the GA4 tag (google_tags_first_party, /gx4t/, gtag) into
+// every page's <head>, which loads Google Analytics before the visitor
+// accepts; only components/ConsentedAnalytics.tsx may load it. The same
+// header keeps the Web Analytics beacon (static.cloudflareinsights.com) out,
+// which is also switched off for the zone. The directive stops Cloudflare
+// compressing the page, so nginx's own gzip has to reach visitors.
 const PAGES = [
   ["page", "/", 200],
   ["guide", "/guides/claude-code-notification-sound/", 200],
   ["404 page", "/no-such-page/", 404],
 ];
 
+const INJECTED = [
+  ["Cloudflare Web Analytics beacon", "cloudflareinsights"],
+  ["edge-injected Google tag", "google_tags_first_party"],
+  ["Google tag loader", 'src="/gx4t/'],
+  ["gtag bootstrap", "function gtag("],
+];
+
 for (const [label, path, status] of PAGES) {
-  test(`no Cloudflare beacon on the ${label} (${path})`, async () => {
+  test(`no edge-injected tags on the ${label} (${path})`, async () => {
     const res = await get(path, {
-      // Cloudflare injects the beacon only into requests that accept HTML;
-      // fetch's default */* would get a clean page even with the beacon on.
-      headers: { "user-agent": "anotifier-site-tests", accept: "text/html" },
+      // Cloudflare injects only into requests that accept HTML; fetch's
+      // default */* would get a clean page even with injection on.
+      headers: {
+        "user-agent": "anotifier-site-tests",
+        accept: "text/html",
+        "accept-encoding": "gzip",
+      },
     });
     assert.equal(res.status, status, `${path} returned ${res.status}`);
     assert.ok(
-      !res.body.includes("cloudflareinsights"),
-      `${path} has the Cloudflare Web Analytics beacon`,
+      (res.headers.get("cache-control") ?? "").includes("no-transform"),
+      `${path} lacks Cache-Control: no-transform`,
     );
+    assert.equal(
+      res.headers.get("content-encoding"),
+      "gzip",
+      `${path} is not gzipped by nginx`,
+    );
+    for (const [what, needle] of INJECTED) {
+      assert.ok(!res.body.includes(needle), `${path} has the ${what}`);
+    }
   });
 }
+
+test("hashed static chunks keep their own immutable Cache-Control", async () => {
+  const res = await get(chunk);
+  assert.equal(
+    res.headers.get("cache-control"),
+    "public, max-age=31536000, immutable",
+  );
+});

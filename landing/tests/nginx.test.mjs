@@ -66,3 +66,17 @@ test("nginx: every Content-Security-Policy-Report-Only allows the replay worker"
     );
   }
 });
+
+test("nginx: pages are sent no-transform on every status", () => {
+  const body = locationBody("/");
+  assert.match(
+    body,
+    /add_header Cache-Control "public, no-transform" always;/,
+    "location / must send no-transform (keeps the Cloudflare beacon out)",
+  );
+  assert.match(
+    body,
+    /add_header Content-Security-Policy-Report-Only /,
+    "location / sets add_header, so it must repeat the security headers",
+  );
+});
