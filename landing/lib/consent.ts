@@ -74,8 +74,12 @@ const STORAGE_PREFIXES = ["ph_", "__ph_", "sentryReplay"];
     declined, which includes a withdrawal: the page reloads without loading the
     tools, and this runs on that reload, so nothing is still capturing. */
 export function clearAnalyticsTraces(): void {
-  for (const store of [localStorage, sessionStorage]) {
+  // Each access sits inside its own try: with storage or cookies blocked the
+  // property read itself throws a SecurityError, and an uncaught throw in the
+  // effect that calls this would unmount the whole React tree.
+  for (const name of ["localStorage", "sessionStorage"] as const) {
     try {
+      const store = window[name];
       for (const key of Object.keys(store)) {
         if (STORAGE_PREFIXES.some((p) => key.startsWith(p))) {
           store.removeItem(key);
@@ -85,18 +89,23 @@ export function clearAnalyticsTraces(): void {
       // blocked storage: nothing to clear
     }
   }
-  // A cookie is only removed by naming the domain it was set on, and PostHog
-  // and gtag.js choose between the host and its parent domain themselves.
-  const labels = location.hostname.split(".");
-  const domains = [undefined, location.hostname];
-  for (let i = 0; i < labels.length - 1; i++) {
-    domains.push(`.${labels.slice(i).join(".")}`);
-  }
-  for (const pair of document.cookie.split(";")) {
-    const name = pair.split("=")[0].trim();
-    if (!COOKIE_PREFIXES.some((p) => name.startsWith(p))) continue;
-    for (const domain of domains) {
-      document.cookie = `${name}=; Max-Age=0; Path=/${domain ? `; Domain=${domain}` : ""}`;
+  try {
+    // A cookie is only removed by naming the domain it was set on, and
+    // PostHog and gtag.js choose between the host and its parent domain
+    // themselves.
+    const labels = location.hostname.split(".");
+    const domains = [undefined, location.hostname];
+    for (let i = 0; i < labels.length - 1; i++) {
+      domains.push(`.${labels.slice(i).join(".")}`);
     }
+    for (const pair of document.cookie.split(";")) {
+      const name = pair.split("=")[0].trim();
+      if (!COOKIE_PREFIXES.some((p) => name.startsWith(p))) continue;
+      for (const domain of domains) {
+        document.cookie = `${name}=; Max-Age=0; Path=/${domain ? `; Domain=${domain}` : ""}`;
+      }
+    }
+  } catch {
+    // blocked cookies: nothing to clear
   }
 }

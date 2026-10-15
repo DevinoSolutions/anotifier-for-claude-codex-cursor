@@ -253,3 +253,46 @@ a:focus-visible {
 .linkBtn:hover {
   color: #ffffff;
 }
+
+/* Demo video placeholder (components/home/DemoVideo.tsx): same 16:9 box as the
+   player, so pressing play changes nothing around it. */
+.demoPlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  padding: 16px;
+  background: #0d0d0d;
+  border: 0;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.demoPlay:hover .demoPlayIcon {
+  background: var(--green);
+  color: #07080a;
+}
+.demoPlayIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 9999px;
+  border: 2px solid var(--green);
+  color: var(--green);
+  font-size: 22px;
+  padding-left: 4px;
+}
+.demoPlayNote {
+  font-family: var(--font-mono-stack);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--faint);
+  text-align: center;
+}

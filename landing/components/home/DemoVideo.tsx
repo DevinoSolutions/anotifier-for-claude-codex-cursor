@@ -1,51 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { track } from "@/lib/track";
 
-/** The YouTube embed is heavy (~1MB of scripts), so it only mounts once the
-    section actually scrolls near the viewport — keeps it out of the critical
-    load path while preserving the muted-autoplay behaviour on scroll. */
+/** The demo video loads only when the visitor presses play: until then the page
+    makes no request to YouTube and shows a self-hosted placeholder of the same
+    16:9 size, so nothing moves when the player appears. Playing starts the
+    video muted (the copy below says so). The click is also the demo_video_click
+    analytics event, which track() drops unless the visitor accepted analytics. */
 export default function DemoVideo() {
-  const frameRef = useRef<HTMLDivElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [showVideo, setShowVideo] = useState(false);
-
-  useEffect(() => {
-    const el = frameRef.current;
-    if (!el) return;
-    if (!("IntersectionObserver" in window)) {
-      setShowVideo(true);
-      return;
-    }
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setShowVideo(true);
-          io.disconnect();
-        }
-      },
-      { rootMargin: "400px 0px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
-  // Clicks inside the cross-origin YouTube frame never reach this page, but
-  // the click moves focus into it: the window blurs with the iframe as the
-  // active element. That is the demo_video_click event, sent once per load.
-  useEffect(() => {
-    if (!showVideo) return;
-    // activeElement can lag the blur event, so it is read a tick later
-    const onBlur = () =>
-      setTimeout(() => {
-        if (document.activeElement !== iframeRef.current) return;
-        track("demo_video_click");
-        window.removeEventListener("blur", onBlur);
-      }, 0);
-    window.addEventListener("blur", onBlur);
-    return () => window.removeEventListener("blur", onBlur);
-  }, [showVideo]);
 
   return (
     <section
@@ -85,7 +49,6 @@ export default function DemoVideo() {
         Playing muted; unmute for the terminal bell.
       </p>
       <div
-        ref={frameRef}
         style={{
           position: "relative",
           border: "1px solid #242728",
@@ -161,7 +124,6 @@ export default function DemoVideo() {
         </div>
         {showVideo ? (
           <iframe
-            ref={iframeRef}
             src="https://www.youtube-nocookie.com/embed/QVVOIIud4-I?autoplay=1&mute=1&loop=1&playlist=QVVOIIud4-I&controls=1&modestbranding=1&rel=0&playsinline=1"
             title="anotifier demo"
             style={{
@@ -175,10 +137,22 @@ export default function DemoVideo() {
             sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
           />
         ) : (
-          <div
-            style={{ width: "100%", aspectRatio: "16/9" }}
-            aria-hidden="true"
-          />
+          <button
+            type="button"
+            className="demoPlay"
+            onClick={() => {
+              track("demo_video_click");
+              setShowVideo(true);
+            }}
+          >
+            <span className="demoPlayIcon" aria-hidden="true">
+              ▶
+            </span>
+            <span>Play the demo video</span>
+            <span className="demoPlayNote">
+              Loads from youtube-nocookie.com when you press play
+            </span>
+          </button>
         )}
       </div>
     </section>

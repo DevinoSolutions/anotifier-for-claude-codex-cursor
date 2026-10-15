@@ -184,9 +184,19 @@ const GA_EVENTS = `window.__gtag
   .filter((a) => a[0] === 'event')
   .map((a) => ({ name: a[1], ...a[2] }))`;
 
-// track() sends nothing without the visitor's consent. Setting the stored
-// choice on a loaded page does not mount the real trackers (nothing listens
-// for it), so the recorded gtag() below is the only thing that sees the events.
+// No analytics request leaves a test: everything under the tracker paths is
+// blocked (all of /_t/n4q/, which also carries config.js and the lazy
+// recorder that would otherwise pass through to the real PostHog, plus the
+// Sentry tunnel and the Google tag gateway). The browser still logs a blocked
+// request, which is what the "requested" assertions read.
+const BLOCK_TRACKERS = ["*/_t/n4q/*", "*/_t/s7e*", "*/gx4t/*"];
+const blockTrackers = (b) =>
+  b.send("Network.setBlockedURLs", { urls: BLOCK_TRACKERS });
+
+// track() sends nothing without the visitor's consent. These tests store
+// "accepted" so the recorded gtag() below sees the events. A re-render may then
+// mount the real trackers (on the live suite too), so every such test blocks
+// the tracker paths first and nothing is ever sent.
 const ACCEPT_STORED = `localStorage.setItem('anotifier:consent:v1', 'accepted')`;
 
 async function realClick(b, selector) {
@@ -219,6 +229,8 @@ test(
       });
       // Clipboard calls need a focused page, which headless never has.
       await b.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+      await b.send("Network.enable");
+      await blockTrackers(b);
       await load(b, BASE_URL + "/guides/ntfy-phone-notifications/", 2500);
       await b.evaluate(RECORD_GTAG);
       await b.evaluate(ACCEPT_STORED);
@@ -274,6 +286,8 @@ test(
   async () => {
     const b = await openBrowser(9346);
     try {
+      await b.send("Network.enable");
+      await blockTrackers(b);
       await b.send("Emulation.setDeviceMetricsOverride", {
         width: 1366,
         height: 768,
@@ -398,17 +412,6 @@ const NO_TRACKERS = `({
   sentry: typeof window.__SENTRY__,
 })`;
 const stored = `localStorage.getItem('anotifier:consent:v1')`;
-// No analytics request leaves the test: the capture endpoints are blocked
-// (the browser still logs the attempt, which is what the tests read).
-const BLOCK_CAPTURE = [
-  "*/_t/n4q/e/*",
-  "*/_t/n4q/i/*",
-  "*/_t/n4q/s/*",
-  "*/_t/n4q/flags*",
-  "*/_t/n4q/decide*",
-  "*/_t/s7e*",
-  "*/gx4t/*",
-];
 const BAR = `document.querySelector('section.consentBar')`;
 
 async function press(b, key) {
@@ -432,6 +435,7 @@ test(
     const b = await openBrowser(9347);
     try {
       await b.send("Network.enable");
+      await blockTrackers(b);
       await b.send("Emulation.setDeviceMetricsOverride", {
         width: 320,
         height: 700,
@@ -494,6 +498,7 @@ test(
     const b = await openBrowser(9348);
     try {
       await b.send("Network.enable");
+      await blockTrackers(b);
       await load(b, BASE_URL + "/guides/ntfy-phone-notifications/", 2500);
       await realClick(b, ".consentActions button:first-child");
       await sleep(300);
@@ -520,6 +525,19 @@ test(
       const none = await b.evaluate(NO_TRACKERS);
       assert.equal(none.posthog, "undefined");
       assert.equal(none.gtag, "undefined");
+
+      // ... and on another page of the site.
+      b.requests.length = 0;
+      await load(b, BASE_URL + "/docs/", 7000);
+      assert.equal(await b.evaluate(stored), "declined");
+      assert.equal(
+        await b.evaluate(BAR),
+        null,
+        "/docs/ asked a declined visitor",
+      );
+      assert.deepEqual(trackerRequests(b.requests), []);
+      assert.equal((await b.evaluate(NO_TRACKERS)).posthog, "undefined");
+      await load(b, BASE_URL + "/guides/ntfy-phone-notifications/", 2500);
 
       // The footer link brings the prompt back, with focus inside it.
       await realClick(b, "footer .linkBtn");
@@ -554,6 +572,82 @@ test(
 );
 
 test(
+  "track() is a no-op without consent",
+  { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },
+  async () => {
+    const b = await openBrowser(9350);
+    try {
+      await b.send("Browser.grantPermissions", {
+        origin: new URL(BASE_URL).origin,
+        permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"],
+      });
+      await b.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+      await b.send("Network.enable");
+      await blockTrackers(b);
+      await load(b, BASE_URL + "/guides/ntfy-phone-notifications/", 2500);
+      // Fakes stand in for the trackers; with no choice made they stay unused.
+      await b.evaluate(`${RECORD_GTAG}
+        window.__ph = [];
+        window.posthog = {
+          capture: function () { window.__ph.push(Array.from(arguments)); },
+          createPersonProfile: function () { window.__ph.push(['profile']); },
+        };`);
+      assert.equal(await b.evaluate(stored), null);
+      await realClick(b, ".codeBlock .codeCopy");
+      await sleep(400);
+      const seen = await b.evaluate(`({
+        gtag: window.__gtag.length,
+        ph: window.__ph.length,
+        label: document.querySelector('.codeBlock .codeCopy').textContent,
+      })`);
+      assert.match(seen.label, /copied/i, "the copy button did not work");
+      assert.equal(seen.gtag, 0, "gtag was called without consent");
+      assert.equal(seen.ph, 0, "posthog was called without consent");
+    } finally {
+      b.close();
+    }
+  },
+);
+
+test(
+  "declining with browser storage blocked leaves the page intact",
+  { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },
+  async () => {
+    const b = await openBrowser(9351);
+    try {
+      await b.send("Network.enable");
+      await blockTrackers(b);
+      await b.send("Page.addScriptToEvaluateOnNewDocument", {
+        source: `for (const name of ['localStorage', 'sessionStorage']) {
+          Object.defineProperty(window, name, {
+            configurable: true,
+            get() { throw new DOMException('The operation is insecure.', 'SecurityError'); },
+          });
+        }`,
+      });
+      await load(b, BASE_URL + "/docs/", 3000);
+      const before = await b.evaluate(`document.body.innerText.length`);
+      assert.ok(before > 500, "the page did not render with storage blocked");
+      await realClick(b, ".consentActions button:first-child");
+      await sleep(800);
+      const after = await b.evaluate(`({
+        len: document.body.innerText.length,
+        h1: document.querySelector('h1')?.textContent,
+        bar: !!${BAR},
+      })`);
+      assert.ok(after.h1, "the page blanked after Decline");
+      assert.ok(
+        after.len >= before * 0.9,
+        `page text shrank: ${before} -> ${after.len}`,
+      );
+      assert.equal(after.bar, false, "the prompt stays after Decline");
+    } finally {
+      b.close();
+    }
+  },
+);
+
+test(
   "accepting loads the trackers; withdrawing stops them",
   {
     skip:
@@ -565,7 +659,7 @@ test(
     const b = await openBrowser(9349);
     try {
       await b.send("Network.enable");
-      await b.send("Network.setBlockedURLs", { urls: BLOCK_CAPTURE });
+      await blockTrackers(b);
       await load(b, BASE_URL + "/guides/ntfy-phone-notifications/", 2500);
       await realClick(b, ".consentActions button:last-child");
       await sleep(7000);
