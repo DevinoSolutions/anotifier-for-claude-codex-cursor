@@ -76,6 +76,20 @@ const INFO_PRIORITY = 'default';
 const INFO_TAGS = 'information_source';
 const INFO_SOUND = 'Default';
 
+// How long a turn took, for the completion message: "45s", "4m 12s", "1h 5m".
+// Whole seconds; the seconds drop out once the turn is an hour long. Null for a
+// duration that is not a usable number.
+export function formatDuration(ms) {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return null;
+  const total = Math.round(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (m > 0) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  return `${s}s`;
+}
+
 // What a claude needs_input event means, from its notification_type. null when
 // the event carries no type (older Claude Code, every other source): that path
 // is routed exactly as it was before the field existed.
@@ -149,9 +163,15 @@ export function route(event, config) {
   if (idleReminder) ntfyTags = IDLE_REMINDER_TAGS;
   else if (info) ntfyTags = INFO_TAGS;
 
+  // Only a completion carries a duration, and only when the turn timer knew it
+  // (src/turn-timer.mjs). Unknown stays unsaid: no suffix, the message exactly
+  // as it was before durations existed.
+  const took = event.event === 'task_complete' ? formatDuration(event.durationMs) : null;
+
   return {
     title,
-    message: `${prefix}${messageTemplate}`,
+    message: `${prefix}${messageTemplate}${took ? ` (took ${took})` : ''}`,
+    ...(took ? { durationText: took } : {}),
     toastSound: info ? INFO_SOUND : (eventConfig.toastSound || 'Default'),
     priority,
     ntfyTags,

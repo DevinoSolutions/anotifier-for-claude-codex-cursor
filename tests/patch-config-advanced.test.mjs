@@ -286,13 +286,14 @@ describe('Codex config.toml hooks.state idempotency & repair', () => {
     fs.mkdirSync(codexDir, { recursive: true });
     const notify = '/home/user/.npm/anotifier/src/notify.mjs';
 
-    // A clean install produces three valid managed trust entries; the breakage
+    // A clean install produces four valid managed trust entries (stop,
+    // session_start, permission_request, user_prompt_submit); the breakage
     // below only needs the first two (stop, session_start).
     patchCodex(codexDir, notify);
     const tomlPath = path.join(codexDir, 'config.toml');
     let toml = fs.readFileSync(tomlPath, 'utf8');
     const blocks = [...toml.matchAll(/\[hooks\.state\.'([^']+)'\]\s*\r?\ntrusted_hash = "([^"]+)"/g)];
-    assert.equal(blocks.length, 3, 'expected three managed state entries after first install');
+    assert.equal(blocks.length, 4, 'expected four managed state entries after first install');
     const [b1, b2] = blocks;
 
     // Reproduce the real-world breakage seen in ~/.codex/config.toml:

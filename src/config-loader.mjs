@@ -44,6 +44,9 @@ const EVENT_OVERRIDE_TYPES = {
   // explicit user value beats the downgrade.
   idleReminderPriority: 'string',
   ntfyTags: 'string',
+  // Completion alerts only (events.task_complete): a turn shorter than this many
+  // seconds sends nothing. Absent or 0 is off. See src/turn-timer.mjs.
+  minDurationSeconds: 'number',
   toastEnabled: 'boolean',
   ntfyEnabled: 'boolean',
   terminalBellEnabled: 'boolean',
@@ -178,6 +181,14 @@ function validateUserConfig(user) {
           if (!expected) { issues.push(`unknown key "events.${eventName}.${key}"`); continue; }
           if (typeof val !== expected) {
             issues.push(`"events.${eventName}.${key}" must be a ${expected}, got ${typeof val}`);
+            delete overrides[key];
+          } else if (key === 'minDurationSeconds' && eventName !== 'task_complete') {
+            // Permission prompts and questions block the agent, so no threshold
+            // may ever apply to them. Dropped, not ignored, so it can't linger.
+            issues.push(`"events.${eventName}.${key}" only applies to "task_complete" (needs_input and other urgent alerts are never filtered)`);
+            delete overrides[key];
+          } else if (key === 'minDurationSeconds' && !(Number.isFinite(val) && val >= 0)) {
+            issues.push(`"events.${eventName}.${key}" must be a number of seconds, 0 or more, got ${JSON.stringify(val)}`);
             delete overrides[key];
           } else if (PRIORITY_KEYS.includes(key) && !PRIORITY_VALUES.includes(val)) {
             issues.push(`"events.${eventName}.${key}" must be one of ${PRIORITY_VALUES.join('|')}, got "${val}"`);

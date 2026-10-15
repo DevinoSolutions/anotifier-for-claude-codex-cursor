@@ -48,7 +48,8 @@
     "task_complete": {
       "toastSound": "IM",
       "priority": "default",
-      "ntfyTags": "white_check_mark"
+      "ntfyTags": "white_check_mark",
+      "minDurationSeconds": 0
     },
     "needs_input": {
       "toastSound": "Reminder",

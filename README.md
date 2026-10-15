@@ -70,6 +70,7 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
 - **Rich notification content** -- Claude Code toasts and webhooks show what the agent actually said or asked, not a generic line
 - **Terminal bell** -- audible ding in the terminal that launched the agent (works over SSH/tmux)
 - **Click-to-focus** -- click the toast to jump back to the terminal or VS Code window (Windows)
+- **Turn length** -- "task complete" says how long the turn took (`took 4m 12s`), and `minDurationSeconds` can skip quick turns (Claude Code, Codex, Gemini CLI)
 - **Codex approval alerts** -- get notified the instant Codex asks for permission, not just when it finishes
 - **Per-tool branded icons** -- each tool gets its own logo in the notification
 - **One unified config** -- shared `~/.anotifier/config.json` across all tools
@@ -123,7 +124,7 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
   </tr>
 </table>
 
-All five tools are wired automatically by the setup wizard. No manual config editing needed. Codex's `PermissionRequest` hook fires the same "needs your input" alert when Codex asks for approval to run a command -- verified with Codex CLI >=0.144.0.
+All five tools are wired automatically by the setup wizard. No manual config editing needed. For Claude Code, Codex and Gemini CLI setup also adds a small timing hook (`UserPromptSubmit`, `UserPromptSubmit` and `BeforeAgent`) that only records when a turn started, see [Turn length](#turn-length-and-the-minimum-duration-filter). Codex's `PermissionRequest` hook fires the same "needs your input" alert when Codex asks for approval to run a command -- verified with Codex CLI >=0.144.0.
 
 **Antigravity CLI** (Google's successor to Gemini CLI for Google AI Pro/Ultra and free Code Assist users) reads hooks from its own file, `~/.gemini/config/hooks.json`. Setup wires it when `~/.gemini/antigravity-cli` exists, adding one group named `anotifier` with a `Stop` handler and leaving your other groups alone; `anotifier uninstall` removes only that group. Google's docs say the Antigravity 2.0 app and Antigravity IDE read the same global `~/.gemini/config/hooks.json`, so a handler setup wrote should fire there too, but setup only wires Antigravity when `~/.gemini/antigravity-cli` exists and neither app has been tested. The `Stop` handler answers `{"decision":"stop"}` so it can never keep the agent running. The notification is the generic "Task complete" line, and a `Stop` caused by an error or a cancel says "Task complete" too: anotifier does not read `terminationReason` (its values are not fully documented) or `fullyIdle`, so every `Stop` alerts. Antigravity has no notification or permission event (its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`), so there is no "needs input" alert for it. What is verified: hook wiring and payload parsing are unit-tested against the format in [Google's hooks docs](https://antigravity.google/docs/hooks). What is not: there is no live Antigravity CLI lane in CI yet, so it has not been exercised against a real Antigravity CLI run.
 
@@ -232,7 +233,7 @@ Config lives at `~/.anotifier/config.json`. Abbreviated — see [config/default-
     "to": "08:00"
   },
   "events": {
-    "task_complete": { "toastSound": "IM", "priority": "default" },
+    "task_complete": { "toastSound": "IM", "priority": "default", "minDurationSeconds": 0 },
     "needs_input": { "toastSound": "Reminder", "priority": "urgent" },
     "session_start": {
       "toastSound": "Default",
@@ -441,6 +442,37 @@ Get a heads-up before Claude Code auto-compacts a long chat. anotifier sends **o
 
 It takes the same `min` / `low` / `default` / `high` / `urgent` scale as `priority`, and applies only to the idle reminder.
 
+### Turn length and the minimum duration filter
+
+A "task complete" notification says how long the turn took when anotifier knows it, for example `app: Task complete (took 4m 12s)`. With Claude Code's rich content on, the assistant's own words are shown and the same `(took ...)` is appended to them. The notification title is never changed. When the length is not known, the message is exactly what it was before this existed.
+
+`events.task_complete.minDurationSeconds` (default `0`, off) skips the "task complete" alert for a turn shorter than that many seconds, on every channel:
+
+```json
+{
+  "events": {
+    "task_complete": { "minDurationSeconds": 30 }
+  }
+}
+```
+
+- Only completions are ever filtered. Permission prompts, questions and every other `needs_input` notification are always sent, and the key is rejected (and reported by `anotifier status`) anywhere except `events.task_complete`.
+- A turn of exactly the threshold is sent; only shorter turns are skipped.
+- A turn whose length is unknown is never skipped.
+- Set it with `anotifier config events`, or by editing `~/.anotifier/config.json`. `anotifier status` shows the current value as `Min duration`.
+
+How a turn is measured depends on what each tool's hooks offer. The start time is recorded by a second, tiny hook that runs when you submit a prompt, writes `~/.anotifier/turns.json` (atomically, under a lock) and prints nothing. It never blocks the agent: it has a 5-second timeout, ignores every error, and a start that could not be saved just means that turn has no length.
+
+| Tool | Start | End | Length shown and filter applied |
+|------|-------|-----|:---:|
+| Claude Code | `UserPromptSubmit` | `Stop` | Yes |
+| Codex CLI | `UserPromptSubmit` | `Stop` (paired by `turn_id`) | Yes |
+| Gemini CLI | `BeforeAgent` | `AfterAgent` | Yes |
+| Cursor | none used | `stop` | No |
+| Antigravity CLI | none used | `Stop` | No |
+
+Cursor's `beforeSubmitPrompt` hook can block a prompt unless it answers correctly, and its docs do not promise that it and `stop` share an id, so Cursor is left untimed rather than guessed. Antigravity has no event documented as once per user turn. Neither is ever filtered and neither shows a length. Setup must be re-run once after upgrading (`npx anotifier setup`) to add the timing hook to the tools that use it; until then nothing is timed and nothing is filtered. A Stop that fires while Claude Code still has background work running is held back as before and does not end the turn.
+
 ### Error visibility
 
 Hook and channel errors never interrupt your agent -- they're appended to `~/.anotifier/errors.log` and surfaced by `npx anotifier status`, so a misconfigured toast backend or unreachable ntfy topic shows up as a logged error instead of a silent no-op. Set `sentry.enabled` to `true` (with a `sentry.dsn`) to also mirror those errors to [Sentry](https://sentry.io) through a built-in, zero-dependency envelope client: no SDK is bundled, nothing leaves your machine unless you opt in, and only error data is sent.
@@ -487,6 +519,7 @@ Each AI tool's hook system pipes event data to `notify.mjs`:
 ```
 Hook fires (stdin JSON + --source flag)
   -> parse-input.mjs   (normalize across tools)
+  -> turn-timer.mjs    (task_complete: how long was the turn, skip short ones)
   -> router.mjs        (map event to notification type)
   -> transcript.mjs    (Claude Code only: derive rich message text)
   -> platform toast    (Windows / macOS / Linux / WSL)
