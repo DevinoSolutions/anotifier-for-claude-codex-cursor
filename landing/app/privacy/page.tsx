@@ -157,13 +157,22 @@ export default function PrivacyPage() {
             </li>
             <li>
               It records page views and the same three events, with the same
-              details as above. Which automatic events Google adds is a setting
-              of the Google Analytics property, not of the site&apos;s code.
+              details as above.
             </li>
             <li>
-              Its measurements go to anotifier.io/gx4t/g/collect, and the
-              site&apos;s server passes them on to Google without forwarding
-              your IP address or cookies.
+              It also records the automatic events switched on in the Google
+              Analytics property, a setting of the property and not of the
+              site&apos;s code. Today these are scrolls, outbound link clicks,
+              file downloads, site searches, video engagement and page changes
+              within the site.
+            </li>
+            <li>
+              Its measurements go to anotifier.io/gx4t/g/collect. The
+              site&apos;s server passes them on to Google without your cookies
+              and without any request header that carries your IP address, so
+              the connection Google sees comes from the server. The page
+              address, your browser details and the identifier below are part
+              of each measurement.
             </li>
             <li>
               Google signals and ad personalisation are switched off in the

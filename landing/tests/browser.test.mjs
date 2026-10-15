@@ -190,7 +190,7 @@ const GA_EVENTS = `window.__gtag
 // No analytics request leaves a test: everything under the tracker paths is
 // blocked (all of /_t/n4q/, which also carries config.js and the lazy
 // recorder that would otherwise pass through to the real PostHog, plus the
-// Sentry tunnel and the Google tag gateway). The browser still logs a blocked
+// Sentry tunnel and the GA relay at /gx4t/). The browser still logs a blocked
 // request, which is what the "requested" assertions read.
 const BLOCK_TRACKERS = ["*/_t/n4q/*", "*/_t/s7e*", "*/gx4t/*"];
 const blockTrackers = (b) =>
@@ -690,6 +690,13 @@ test(
       assert.equal(after.posthog, "object");
       assert.equal(after.gtag, "function");
       assert.equal(after.dataLayer, "object");
+      // GA sends its hits to the nginx relay, with signals and ads off.
+      const gaConfig = await b.evaluate(`JSON.stringify([...window.dataLayer]
+        .map((a) => Array.from(a)).find((a) => a[0] === "config")?.[2] ?? null)`);
+      const ga = JSON.parse(gaConfig);
+      assert.ok(ga?.transport_url?.endsWith("/gx4t"), `transport_url: ${gaConfig}`);
+      assert.equal(ga.allow_google_signals, false);
+      assert.equal(ga.allow_ad_personalization_signals, false);
       assert.equal(after.sentry, "object", "Sentry did not start");
 
       // Withdraw from the footer: the page reloads without any of them.

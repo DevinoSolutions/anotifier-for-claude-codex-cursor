@@ -64,15 +64,27 @@ test("nginx: the GA relay serves our gtag.js and the collect endpoint only", () 
   assert.match(hits, /set \$ga www\.google-analytics\.com;/);
   assert.match(hits, /limit_except GET POST \{\s*deny all;\s*\}/);
   assert.match(hits, /client_max_body_size 64k;/);
+  assert.match(
+    hits,
+    /if \(\$arg_tid != "G-TT12DKE7H6"\) \{\s*return 404;\s*\}/,
+    "hits for other GA properties must 404",
+  );
   for (const body of [tag, hits]) {
-    assert.match(body, /proxy_set_header Cookie "";/, "cookies are forwarded");
-    assert.match(body, /proxy_hide_header Set-Cookie;/);
-    assert.match(body, /proxy_ssl_verify on;/);
-    assert.doesNotMatch(
+    // nginx passes every client header on by default, X-Forwarded-For and
+    // CF-Connecting-IP included; only these named ones may go to Google.
+    assert.match(
       body,
-      /X-Forwarded-For|X-Real-IP|remote_addr/,
-      "the visitor's IP address must not reach Google",
+      /proxy_pass_request_headers off;/,
+      "the visitor's headers (IP, cookies) would reach Google",
     );
+    const sent = [...body.matchAll(/proxy_set_header (\S+)/g)].map((m) => m[1]);
+    assert.ok(
+      sent.every((h) => ["Host", "User-Agent", "Content-Type"].includes(h)),
+      `unexpected header sent to Google: ${sent}`,
+    );
+    assert.match(body, /proxy_hide_header Set-Cookie;/);
+    assert.match(body, /proxy_hide_header Strict-Transport-Security;/);
+    assert.match(body, /proxy_ssl_verify on;/);
     assert.doesNotMatch(
       body,
       /add_header/,
