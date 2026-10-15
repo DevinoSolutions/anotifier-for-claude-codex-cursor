@@ -223,17 +223,23 @@ a:focus-visible {
   text-align: center;
 }
 
-/* Thin dark scrollbar for horizontally scrolling command and code rows. */
-.cmdScroll,
-.docBody pre,
-.tableWrap {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(205, 205, 205, 0.22) transparent;
+/* Thin dark scrollbar for horizontally scrolling command and code rows.
+   Chromium 121+ ignores every ::-webkit-scrollbar rule once scrollbar-width or
+   scrollbar-color is set, and then draws arrow buttons, so the standard
+   properties are for browsers without the webkit pseudo-elements (Firefox). */
+@supports not selector(::-webkit-scrollbar) {
+  .cmdScroll,
+  .docBody pre,
+  .tableWrap {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(205, 205, 205, 0.3) transparent;
+  }
 }
 .cmdScroll::-webkit-scrollbar,
 .docBody pre::-webkit-scrollbar,
 .tableWrap::-webkit-scrollbar {
   height: 6px;
+  width: 6px;
   background: transparent;
 }
 .cmdScroll::-webkit-scrollbar-track,
@@ -244,7 +250,7 @@ a:focus-visible {
 .cmdScroll::-webkit-scrollbar-thumb,
 .docBody pre::-webkit-scrollbar-thumb,
 .tableWrap::-webkit-scrollbar-thumb {
-  background: rgba(205, 205, 205, 0.22);
+  background: rgba(205, 205, 205, 0.3);
   border-radius: 9999px;
 }
 .cmdScroll::-webkit-scrollbar-thumb:hover,
