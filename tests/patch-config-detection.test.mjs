@@ -49,7 +49,7 @@ describe('detectManagedEvents (status detection source of truth)', () => {
     fs.mkdirSync(claudeDir, { recursive: true });
     patchClaude(claudeDir, NOTIFY);
     const settings = JSON.parse(fs.readFileSync(path.join(claudeDir, 'settings.json'), 'utf8'));
-    assert.deepEqual(detectManagedEvents(settings.hooks).sort(), ['Notification', 'Stop']);
+    assert.deepEqual(detectManagedEvents(settings.hooks).sort(), ['Notification', 'Stop', 'UserPromptSubmit']);
   });
 
   it('returns [] for an un-wired or empty hooks object', () => {

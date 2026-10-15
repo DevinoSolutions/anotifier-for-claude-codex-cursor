@@ -49,16 +49,18 @@ async function main() {
   //
   // Body assertion is HARD: gemini has no rich-content path at all (rich content
   // is claude-only — src/transcript.mjs), so an AfterAgent (task_complete) push
-  // body is always the generic "<project>: Task complete". Observed identical in
-  // every sampled macOS run (body="…: Task complete"), so gating on it is safe.
+  // body is always the generic "<project>: Task complete (took Ns)", so gating on
+  // it is safe.
   await pollForPush({
     topic,
     // Title is "<project> · Gemini" where <project> is the runner's cwd
     // basename (src/router.mjs) — anchor on the label, not the checkout name.
     match: (m) => /(^| · )Gemini$/.test(m.title || ''),
-    assertBody: (m) => typeof m.message === 'string' && m.message.endsWith('Task complete'),
+    // setup wires the BeforeAgent timing hook, so the body must carry the measured
+    // turn length: this is the live proof that the start and end hooks pair up.
+    assertBody: (m) => typeof m.message === 'string' && /: Task complete \(took \d+[hms]( \d+[ms])?\)$/.test(m.message),
     failMessage: 'FAIL: AfterAgent hook did not deliver an ntfy push within the poll window',
-    bodyFailMessage: 'FAIL: ntfy body was not the expected task_complete message ("…: Task complete")',
+    bodyFailMessage: 'FAIL: ntfy body was not the expected task_complete message ("…: Task complete (took Ns)")',
     passMessage: 'PASS (hard): AfterAgent hook delivered an ntfy push',
   });
 

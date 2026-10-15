@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+### Added
+
+- **How long the turn took.** A "task complete" notification now ends with the turn length when it is known, for example `app: Task complete (took 4m 12s)` (also on the assistant's own words when rich content is on). Titles are unchanged. Works for Claude Code, Codex CLI and Gemini CLI, which give a hook at the start of a turn; Cursor and Antigravity CLI have no reliable start signal, so they show nothing.
+- **Minimum duration filter.** New `events.task_complete.minDurationSeconds` (default `0`, off): a turn shorter than that many seconds sends no "task complete" alert. Permission prompts and every other needs-input notification are always sent, a turn of unknown length is never skipped, and the key is rejected on any event other than `task_complete`. Set it in `anotifier config events` or `~/.anotifier/config.json`; `anotifier status` shows it as `Min duration`. See the README section "Turn length and the minimum duration filter".
+- A timing hook that records when a turn started: `UserPromptSubmit` for Claude Code and Codex CLI, `BeforeAgent` for Gemini CLI. It prints only `{}`, has a 5-second timeout, ignores every error, and keeps its state in `~/.anotifier/turns.json`. Re-run `npx anotifier setup` after upgrading to add it (the Claude Code plugin gets it from `hooks/hooks.json`); `anotifier uninstall` removes the hook and deletes `turns.json` (with its lock and any leftover temp file). Until it is wired, nothing is timed and nothing is filtered.
+
 ## [1.7.1] — 2026-10-10
 
 ### Changed

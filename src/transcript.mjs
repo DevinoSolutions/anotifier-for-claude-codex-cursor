@@ -119,7 +119,10 @@ export function deriveRichViews(event, config, eventConfig, notification, readFn
   // Nothing usable derived → every channel keeps the generic notification.
   if (!richText) return views;
 
-  const richView = { ...notification, message: richText };
+  // The assistant's words replace the whole body, so the duration the generic
+  // message carried has to be put back.
+  const took = notification.durationText ? ` (took ${notification.durationText})` : '';
+  const richView = { ...notification, message: `${richText}${took}` };
   if (toastRich) views.toast = richView;
   if (ntfyRich) views.ntfy = richView;
   if (webhookRich) views.webhook = richView;

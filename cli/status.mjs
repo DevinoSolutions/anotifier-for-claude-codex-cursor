@@ -5,11 +5,12 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { loadConfigResult } from '../src/config-loader.mjs';
 import { readRecentHookErrors, getErrorLogPath } from '../src/error-log.mjs';
-import { detectManagedEvents, detectAntigravityEvents, isOurStatusline } from '../setup/patch-config.mjs';
+import { detectManagedEvents, detectAntigravityEvents, isOurStatusline, TURN_START_EVENTS } from '../setup/patch-config.mjs';
 import { checkForUpdate, isNewer } from '../src/update-check.mjs';
 import { readSnoozeUntil, quietHoursWindow, inQuietHours, formatClock } from '../src/suppress.mjs';
 import { effectiveThresholds } from '../src/usage-alert.mjs';
 import { effectiveContextThreshold } from '../src/context-alert.mjs';
+import { minDurationSeconds } from '../src/turn-timer.mjs';
 import { SUPPORT_LINE } from '../src/support.mjs';
 import { toastPlatform } from '../src/platforms/index.mjs';
 import { toastOffNoBackendLabel } from './toast-backend.mjs';
@@ -71,6 +72,18 @@ export function contextAlertsValue(config) {
   return c.white(`${effectiveContextThreshold(config)}% of auto-compact window`);
 }
 
+// "Stop, Notification · timed": the alert events, with the turn-start hook (plumbing
+// for the "took ..." duration, not an alert) folded into a "timed" marker.
+export function wiredEventsLabel(events) {
+  const alerts = events.filter((e) => !TURN_START_EVENTS.has(e));
+  return `${alerts.join(', ')}${alerts.length < events.length ? ' · timed' : ''}`;
+}
+
+export function minDurationValue(config) {
+  const seconds = minDurationSeconds(config);
+  return seconds > 0 ? c.white(`skip completions under ${seconds}s`) : c.muted('off');
+}
+
 export async function run() {
   const { config, problem } = loadConfigResult();
   if (problem) {
@@ -116,7 +129,7 @@ export async function run() {
     const icon = t.status === 'wired' ? c.success('✓') : c.muted('✗');
     const name = t.status === 'wired' ? c.white(t.label) : c.muted(t.label);
     const events = t.status === 'wired'
-      ? c.muted(` ${t.events.join(', ')}`)
+      ? c.muted(` ${wiredEventsLabel(t.events)}`)
       : c.muted(` ${t.status}`);
     return `${icon} ${name}${events}`;
   });
@@ -141,6 +154,7 @@ export async function run() {
     kv('Quiet hours', quietValue),
     kv('Usage alerts', usageAlertsValue(config, claudeStatuslineWired())),
     kv('Context alerts', contextAlertsValue(config)),
+    kv('Min duration', minDurationValue(config)),
     kv('ntfy', ''),
     `${''.padEnd(15)} ${ntfyValue}`,
     ...(config.ntfy?.enabled && config.ntfy?.topic && config.ntfy?.fallbackServer

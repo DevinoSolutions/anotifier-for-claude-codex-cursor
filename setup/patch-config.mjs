@@ -9,15 +9,27 @@ const MANAGED_TAG = 'anotifier';
 // unpatchAll cleans EXACTLY these events, so patch and unpatch can never diverge
 // (e.g. cleaning an event patch never wrote). Change an event list in one place.
 export const TOOL_EVENTS = {
-  claude: { dir: '.claude', file: 'settings.json', label: 'Claude Code', events: ['Notification', 'Stop'] },
-  codex: { dir: '.codex', file: 'hooks.json', label: 'Codex CLI', events: ['Stop', 'SessionStart', 'PermissionRequest'] },
+  claude: { dir: '.claude', file: 'settings.json', label: 'Claude Code', events: ['Notification', 'Stop', 'UserPromptSubmit'] },
+  codex: { dir: '.codex', file: 'hooks.json', label: 'Codex CLI', events: ['Stop', 'SessionStart', 'PermissionRequest', 'UserPromptSubmit'] },
   cursor: { dir: '.cursor', file: 'hooks.json', label: 'Cursor IDE', events: ['stop'] },
-  gemini: { dir: '.gemini', file: 'settings.json', label: 'Gemini CLI', events: ['AfterAgent', 'Notification'] },
+  gemini: { dir: '.gemini', file: 'settings.json', label: 'Gemini CLI', events: ['AfterAgent', 'Notification', 'BeforeAgent'] },
   // Antigravity CLI keeps hooks in named groups at the TOP LEVEL of the file
   // ({ "<group>": { "<Event>": [handlers] } }), not under a "hooks" key, so
   // layout: 'groups' routes it through the group helpers instead.
   antigravity: { dir: '.gemini', file: path.join('config', 'hooks.json'), label: 'Antigravity CLI', events: ['Stop'], layout: 'groups' },
 };
+
+// The events that only record when a turn started (src/turn-timer.mjs); they
+// never notify. They run on every prompt the user sends, so they get a short
+// timeout: a stuck one must cost the agent seconds, not the usual ten.
+export const TURN_START_EVENTS = new Set(['UserPromptSubmit', 'BeforeAgent']);
+const TURN_START_TIMEOUT_S = 5;
+
+// Hook timeout for an event, in seconds (Gemini takes milliseconds: its
+// notify timeout is 30000 and ours is 5000).
+function eventTimeout(event, notifySeconds = 10) {
+  return TURN_START_EVENTS.has(event) ? TURN_START_TIMEOUT_S : notifySeconds;
+}
 
 // The group name our hooks live under in Antigravity's hooks.json. Ours alone:
 // the user's own groups are never touched.
@@ -122,10 +134,9 @@ export function patchClaude(claudeDir, notifyPath, backupDir) {
   const settings = readJSONOrNull(settingsPath) || {};
   if (!settings.hooks) settings.hooks = {};
 
-  const hook = makeHookEntry(notifyPath, 'claude', { timeout: 10 });
-  hook.matcher = '';
-
   for (const event of TOOL_EVENTS.claude.events) {
+    const hook = makeHookEntry(notifyPath, 'claude', { timeout: eventTimeout(event) });
+    hook.matcher = '';
     settings.hooks[event] = [...removeManagedHooks(settings.hooks[event]), hook];
   }
 
@@ -343,6 +354,16 @@ function rebuildHooksState(toml, trustEntries) {
   return kept.join(eol) + eol + eol + region.join(eol) + eol;
 }
 
+// Codex shows the statusMessage while a hook runs, and the trust hash covers
+// it, so the handler and its hash must be built from the same options. The
+// timing hook has none (the field is optional): it runs on every prompt and
+// must not flash a message each time.
+function codexHookOpts(event) {
+  return TURN_START_EVENTS.has(event)
+    ? { timeout: eventTimeout(event) }
+    : { timeout: eventTimeout(event), statusMessage: 'Sending notification' };
+}
+
 export function patchCodex(codexDir, notifyPath, backupDir) {
   // TODO(audit CL-18): config.toml is patched via string surgery below; a
   // malformed-but-parseable file can be mangled. Needs a minimal TOML
@@ -357,14 +378,13 @@ export function patchCodex(codexDir, notifyPath, backupDir) {
   // Forward slashes avoid shell escape issues and work on all platforms.
   const safePath = notifyPath.replace(/\\/g, '/');
 
-  // Codex uses strict schema — no _managed_by, must include statusMessage.
+  // Codex uses strict schema — no _managed_by. The notifying hooks carry a
+  // statusMessage; the timing hook omits it (see codexHookOpts).
   // Timeout is in seconds. Hooks only fire in interactive TUI (not exec mode).
   // These events differ only by the --event arg, so derive them from TOOL_EVENTS.
   const hookByEvent = {};
   for (const event of TOOL_EVENTS.codex.events) {
-    const hook = makeHookEntry(safePath, 'codex', {
-      tag: false, timeout: 10, statusMessage: 'Sending notification', event,
-    });
+    const hook = makeHookEntry(safePath, 'codex', { tag: false, ...codexHookOpts(event), event });
     existing.hooks[event] = [...removeManagedHooks(existing.hooks[event]), hook];
     hookByEvent[event] = hook;
   }
@@ -376,12 +396,11 @@ export function patchCodex(codexDir, notifyPath, backupDir) {
   // key encodes the snake_case event and the hook's array index. Derive both the
   // key and the hash from TOOL_EVENTS so they always match what we just wrote.
   // Without matching hashes, unmanaged hooks are silently skipped.
-  const hashOpts = { timeout: 10, statusMessage: 'Sending notification' };
   const trustEntries = TOOL_EVENTS.codex.events.map((event) => {
     const segment = eventKeySegment(event);
     const cmd = hookByEvent[event].hooks[0].command;
     const idx = existing.hooks[event].length - 1;
-    return { key: `${hooksPath}:${segment}:${idx}:0`, hash: codexHookHash(segment, cmd, hashOpts) };
+    return { key: `${hooksPath}:${segment}:${idx}:0`, hash: codexHookHash(segment, cmd, codexHookOpts(event)) };
   });
 
   // Enable hooks feature flag in config.toml
@@ -444,9 +463,8 @@ export function patchGemini(geminiDir, notifyPath, backupDir) {
   if (!settings.hooks) settings.hooks = {};
 
   // Gemini timeout is in milliseconds (default 60000)
-  const hook = makeHookEntry(notifyPath, 'gemini', { timeout: 30000 });
-
   for (const event of TOOL_EVENTS.gemini.events) {
+    const hook = makeHookEntry(notifyPath, 'gemini', { timeout: eventTimeout(event, 30) * 1000 });
     settings.hooks[event] = [...removeManagedHooks(settings.hooks[event]), hook];
   }
 

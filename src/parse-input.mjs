@@ -1,20 +1,25 @@
 // src/parse-input.mjs
 
+// `turn_start` is not a notification: it only records when a turn began so the
+// matching task_complete can say how long it took (src/turn-timer.mjs).
 const EVENT_MAP = {
   claude: {
     Stop: 'task_complete',
     Notification: 'needs_input',
     SessionStart: 'session_start',
+    UserPromptSubmit: 'turn_start',
   },
   codex: {
     Stop: 'task_complete',
     PermissionRequest: 'needs_input',
     SessionStart: 'session_start',
+    UserPromptSubmit: 'turn_start',
   },
   gemini: {
     AfterAgent: 'task_complete',
     Notification: 'needs_input',
     SessionStart: 'session_start',
+    BeforeAgent: 'turn_start',
   },
   // Antigravity CLI's payload names no event, so setup passes --event Stop.
   // It has no notification/permission event (only PreToolUse, PostToolUse,
@@ -76,6 +81,9 @@ export function parseInput(raw, source, eventOverride) {
     cwd,
     projectName: cwd ? (cwd.split(/[\\/]/).filter(Boolean).pop() || '') : '',
     sessionId: raw.session_id || raw.sessionId || raw.conversationId || '',
+    // Codex names the turn on both its prompt and its Stop hook; the turn timer
+    // refuses to pair a start and a finish that disagree.
+    turnId: typeof raw.turn_id === 'string' ? raw.turn_id : '',
     // transcript_path (claude/gemini stdin) locates the session JSONL that F3's
     // rich-content reader tails; captured empty when absent. raw.message is
     // Claude's own Notification text — kept only when it's a string so a

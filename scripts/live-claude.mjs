@@ -82,7 +82,7 @@ async function main() {
   //
   // Body assertion is HARD but does NOT check `marker`: ntfy rich content is
   // default-OFF for privacy (src/transcript.mjs), so the ntfy body is the generic
-  // router message for a claude Stop (task_complete) → "<project>: Task complete",
+  // router message for a claude Stop (task_complete) → "<project>: Task complete (took Ns)",
   // never the assistant's nonce. That generic body is deterministic, so gating on
   // it is safe; the assistant's rich text is proven on the toast lane, not here.
   await pollForPush({
@@ -90,9 +90,11 @@ async function main() {
     // Title is "<project> · Claude Code" where <project> is the runner's cwd
     // basename (src/router.mjs) — anchor on the label, not the checkout name.
     match: (m) => /(^| · )Claude Code$/.test(m.title || ''),
-    assertBody: (m) => typeof m.message === 'string' && m.message.endsWith('Task complete'),
+    // setup wires the UserPromptSubmit timing hook, so the body must carry the measured
+    // turn length: this is the live proof that the start and end hooks pair up.
+    assertBody: (m) => typeof m.message === 'string' && /: Task complete \(took \d+[hms]( \d+[ms])?\)$/.test(m.message),
     failMessage: 'FAIL: Stop hook did not deliver an ntfy push within the poll window',
-    bodyFailMessage: 'FAIL: ntfy body was not the expected task_complete message ("…: Task complete")',
+    bodyFailMessage: 'FAIL: ntfy body was not the expected task_complete message ("…: Task complete (took Ns)")',
     passMessage: 'PASS (hard): Stop hook delivered an ntfy push',
   });
 

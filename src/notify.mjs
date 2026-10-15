@@ -16,6 +16,7 @@ import { enableSentryMirror, logHookError, flushErrorReporting } from './error-l
 import { maybeNotifyUpdate } from './update-check.mjs';
 import { isSuppressed } from './suppress.mjs';
 import { recordHookRun, maybeSendHookSummary } from './telemetry.mjs';
+import { recordTurnStart, finishTurn, supportsTurnTiming, isBelowMinDuration } from './turn-timer.mjs';
 
 // Some tools (Cursor) fire the same hook twice simultaneously. Exclusive file
 // creation is the atomic lock that lets only one invocation notify. The key
@@ -139,6 +140,18 @@ async function main() {
     }
 
     event = parseInput(raw, args.source, args.event);
+
+    // A prompt was just submitted: note the time and leave. This runs on every
+    // prompt the user sends, so it comes first and touches nothing else (no
+    // config, no snooze, no channels, no telemetry), and it can only ever write
+    // the plain empty-object response. recordTurnStart never throws; a start
+    // that could not be recorded just means that turn has no duration.
+    if (event.event === 'turn_start') {
+      recordTurnStart(event);
+      process.stdout.write(defaultResponseBody(event.source), () => process.exit(0));
+      return;
+    }
+
     config = loadConfig();
     enableSentryMirror(config.sentry);
 
@@ -178,6 +191,25 @@ async function main() {
       await flushErrorReporting();
       process.stdout.write(defaultResponseBody(event?.source));
       process.exit(0);
+    }
+
+    // How long the turn took, for the agents that give us both ends of it. Read
+    // here, after the held-back gate (a Stop that is not the end of the turn
+    // must not stamp its end) and before the dedup lock (a filtered run must not
+    // burn the lock the next real alert needs). Unknown stays null: it is
+    // never filtered and never shown.
+    if (event.event === 'task_complete' && supportsTurnTiming(event.source)) {
+      event.durationMs = finishTurn(event);
+      // Completions only. needs_input (permission prompts, questions) blocks
+      // the agent and never reaches this branch, whatever the threshold says.
+      if (isBelowMinDuration(event.durationMs, config)) {
+        // Counted as 'skipped' (an expected no-alert exit): a new outcome name
+        // would widen the opt-in telemetry payload the README itemizes.
+        await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
+        await flushErrorReporting();
+        process.stdout.write(defaultResponseBody(event?.source));
+        process.exit(0);
+      }
     }
 
     // Some claude Notification types are not alerts at all (auth_success, an

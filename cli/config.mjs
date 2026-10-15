@@ -42,6 +42,22 @@ async function configEvents(rl, config) {
     log(`  ${event}:`, 'cyan');
     conf.toastEnabled = await askYN(rl, '  Enable toast?', conf.toastEnabled !== false);
     conf.ntfyEnabled = await askYN(rl, '  Enable ntfy?', conf.ntfyEnabled !== false);
+    // Completion alerts only: permission prompts and questions always go out.
+    if (event === 'task_complete') await configMinDuration(rl, conf);
+  }
+}
+
+// events.task_complete.minDurationSeconds. Strict CLI: a bad answer is reported
+// and the old value kept, never rounded to something else.
+async function configMinDuration(rl, conf) {
+  log('  Turns shorter than this send no "task complete" alert (0 = always send).', 'dim');
+  log('  Needs Claude Code, Codex or Gemini CLI hooks from the latest setup; other tools are never filtered.', 'dim');
+  const answer = await ask(rl, '  Minimum turn length in seconds', String(conf.minDurationSeconds ?? 0));
+  const seconds = Number(String(answer).trim());
+  if (String(answer).trim() !== '' && Number.isFinite(seconds) && seconds >= 0) {
+    conf.minDurationSeconds = seconds;
+  } else {
+    log(`  Not a number of seconds (0 or more): kept ${conf.minDurationSeconds ?? 0}.`, 'red');
   }
 }
 
