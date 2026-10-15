@@ -2,7 +2,6 @@ import Link from "next/link";
 import LogoMark from "../LogoMark";
 import DiscordIcon from "../DiscordIcon";
 import GitHubIcon from "../GitHubIcon";
-import PrivacyChoicesButton from "../PrivacyChoicesButton";
 import {
   COMMUNITY_URL,
   DEMO_VIDEO_URL,
@@ -179,7 +178,6 @@ export default function Footer() {
               </a>
             ),
           )}
-          <PrivacyChoicesButton />
         </div>
         <div
           style={{

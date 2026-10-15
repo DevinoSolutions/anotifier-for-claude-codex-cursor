@@ -2,10 +2,6 @@ import Script from "next/script";
 
 /** PostHog product analytics (the self-hosted instance).
 
-    Mounted only after the visitor accepts analytics
-    (components/ConsentedAnalytics.tsx), so nothing here runs, and
-    window.posthog does not exist, before that.
-
     Env-gated on NEXT_PUBLIC_POSTHOG_KEY: with the variable unset or empty this
     renders nothing, so local and CI builds load no PostHog and send no event.
     The project key is public, but like every NEXT_PUBLIC_* value it is inlined
