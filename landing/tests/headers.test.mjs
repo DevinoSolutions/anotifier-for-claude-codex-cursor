@@ -68,3 +68,29 @@ for (const [label, path, status] of CASES) {
     );
   });
 }
+
+// Cloudflare Web Analytics is switched off for the zone (2026-10-15): its
+// auto-installed beacon (static.cloudflareinsights.com) was a third-party
+// script outside the CSP that duplicated PostHog. If someone turns it back on
+// in the dashboard, Cloudflare starts injecting it into the HTML again, and
+// the live run of this test fails.
+const PAGES = [
+  ["page", "/", 200],
+  ["guide", "/guides/claude-code-notification-sound/", 200],
+  ["404 page", "/no-such-page/", 404],
+];
+
+for (const [label, path, status] of PAGES) {
+  test(`no Cloudflare beacon on the ${label} (${path})`, async () => {
+    const res = await get(path, {
+      // Cloudflare injects the beacon only into requests that accept HTML;
+      // fetch's default */* would get a clean page even with the beacon on.
+      headers: { "user-agent": "anotifier-site-tests", accept: "text/html" },
+    });
+    assert.equal(res.status, status, `${path} returned ${res.status}`);
+    assert.ok(
+      !res.body.includes("cloudflareinsights"),
+      `${path} has the Cloudflare Web Analytics beacon`,
+    );
+  });
+}
