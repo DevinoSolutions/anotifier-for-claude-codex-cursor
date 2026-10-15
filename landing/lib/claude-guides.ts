@@ -15,6 +15,11 @@ const hookEntry = (command: string, matcher?: string) => ({
   hooks: [{ type: "command", command }],
 });
 
+const asyncHook = (command: string, matcher?: string) => ({
+  ...(matcher === undefined ? {} : { matcher }),
+  hooks: [{ type: "command", command, async: true }],
+});
+
 export const json = (value: unknown) => JSON.stringify(value, null, 2);
 
 export const WINDOWS_SOUND = (file: string) =>
@@ -279,17 +284,17 @@ export const CLAUDE_GUIDES: Guide[] = [
   },
   {
     slug: "claude-code-notification-sound",
-    updated: "2026-10-06",
+    updated: "2026-10-15",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code sounds",
     icon: "/assets/icons/claude.png",
-    title: "Claude Code Notification Sound: Play a Sound When Done",
+    title: "Claude Code Notification Sound: Play, Change or Mute",
     description:
-      'Set "preferredNotifChannel": "terminal_bell" in ~/.claude/settings.json, or add a Stop hook that plays a sound file with afplay, paplay or PowerShell.',
-    h1: "Make Claude Code play a sound when it finishes",
+      'Set "preferredNotifChannel": "terminal_bell" or add a Stop hook that plays a sound. Per-event sounds, Windows, WSL, Linux, no-sound fixes, and how to mute.',
+    h1: "Claude Code notification sound: play one when it finishes, change it, or turn it off",
     intro:
-      'Two ways, with nothing to install: set `"preferredNotifChannel": "terminal_bell"` in `~/.claude/settings.json` to ring the terminal bell, or add a `Stop` hook that plays a sound file, such as `afplay /System/Library/Sounds/Glass.aiff` on macOS. Give the `Notification` hook a different sound and you can tell "done" from "needs you" by ear.',
+      'Two ways, with nothing to install: set `"preferredNotifChannel": "terminal_bell"` in `~/.claude/settings.json` to ring the terminal bell, or add a `Stop` hook that plays a sound file, such as `afplay /System/Library/Sounds/Glass.aiff` on macOS. Give the `Notification` hook a different sound and you can tell "done" from "needs you" by ear. Below: [which events deserve a sound](#events), [Windows and WSL](#windows), [Linux players](#linux), [keeping a sound from blocking Claude](#async), [fixes when you hear nothing](#no-sound), and [how to turn the sound off](#mute).',
     sections: [
       {
         id: "bell",
@@ -309,7 +314,7 @@ export const CLAUDE_GUIDES: Guide[] = [
             items: [
               "The sound is your terminal's bell, so it is set, and can be muted, in the terminal's own settings.",
               'Apple Terminal: Claude Code\'s first-run terminal setup turns the audible bell off in your profile. Turn it back on under **Settings > Profiles > Advanced > "Audible bell"**.',
-              "Some integrated terminals, including VS Code's, don't sound the bell by default. There, use a hook (below); [anotifier in VS Code](/vscode/) covers the ready-made one.",
+              "VS Code's integrated terminal plays the bell sound only when its `accessibility.signals.terminalBell` setting allows it; [the fix is below](#no-sound). A hook plays no matter which terminal you use, and [anotifier in VS Code](/vscode/) covers the ready-made one.",
               "The bell travels over SSH to the terminal you are sitting at.",
             ],
           },
@@ -373,7 +378,80 @@ export const CLAUDE_GUIDES: Guide[] = [
           },
           {
             kind: "note",
-            text: "Claude Code waits for a hook to exit, so keep sounds short. On Windows the wait also includes PowerShell's start-up time. A hook runs on the machine where Claude Code runs: over SSH, `afplay` or `paplay` plays on the remote machine, not your laptop.",
+            text: "By default Claude Code waits for a hook to finish, so a sound holds Claude up until it ends. On Windows the wait also includes PowerShell's start-up time. [Run the sound in the background](#async) to avoid that. A hook runs on the machine where Claude Code runs: over SSH, `afplay` or `paplay` plays on the remote machine, not your laptop.",
+          },
+        ],
+      },
+      {
+        id: "events",
+        title: "Pick a sound per event",
+        blocks: [
+          {
+            kind: "p",
+            text: "Claude Code has more hook events than `Stop` and `Notification`. These are the ones worth a sound. Each event is its own entry in `settings.json`, so each can play its own file:",
+          },
+          {
+            kind: "table",
+            head: ["Event", "Fires when", "A macOS sound to try"],
+            rows: [
+              [
+                "`Stop`",
+                "Claude finishes responding. It fires after every response, not only at the end of a big task, and not when you interrupt",
+                "Glass",
+              ],
+              [
+                "`PermissionRequest`",
+                "Claude is about to ask you to approve a tool, with no wait. It does not run for a sandboxed command's network request",
+                "Sosumi",
+              ],
+              [
+                "`Notification` with matcher `permission_prompt`",
+                "An approval has waited about six seconds. Each keystroke in the terminal pushes the timer back",
+                "Ping",
+              ],
+              [
+                "`Notification` with matcher `idle_prompt`",
+                "Claude finished about 60 seconds ago and you haven't typed since",
+                "Tink",
+              ],
+              [
+                "`Notification` with matcher `elicitation_dialog`",
+                "An MCP server opens a form and you haven't typed for about six seconds",
+                "Ping",
+              ],
+              [
+                "`SubagentStop`",
+                "A subagent finishes. It can fire many times in one turn, so use a very quiet sound or none",
+                "Pop",
+              ],
+              ["`StopFailure`", "A turn ends because of an API error", "Basso"],
+            ],
+          },
+          {
+            kind: "p",
+            text: "To hear the moment Claude asks for permission, use `PermissionRequest`: the `permission_prompt` notification only arrives after the six-second wait. This setup plays Glass for done, Sosumi for an approval, and Tink for the idle reminder:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              hooks: {
+                Stop: [asyncHook("afplay /System/Library/Sounds/Glass.aiff")],
+                PermissionRequest: [
+                  asyncHook("afplay /System/Library/Sounds/Sosumi.aiff"),
+                ],
+                Notification: [
+                  asyncHook(
+                    "afplay /System/Library/Sounds/Tink.aiff",
+                    "idle_prompt",
+                  ),
+                ],
+              },
+            }),
+          },
+          {
+            kind: "note",
+            text: "A `Notification` hook with no matcher plays for every type, including `auth_success`. The [permission notifications guide](/guides/claude-code-permission-notifications/) lists every type and when it fires. The `async` field is explained [below](#async).",
           },
         ],
       },
@@ -384,6 +462,198 @@ export const CLAUDE_GUIDES: Guide[] = [
           {
             kind: "p",
             text: 'A hook without a matcher plays for every notification type, including ones that don\'t need you. To sound only for approvals, add `"matcher": "permission_prompt"` to the entry. The [permission notifications guide](/guides/claude-code-permission-notifications/) lists every type and when it fires.',
+          },
+        ],
+      },
+      {
+        id: "windows",
+        title: "Native Windows and WSL",
+        blocks: [
+          {
+            kind: "p",
+            text: 'On native Windows, Claude Code runs a hook command with Git Bash, or with PowerShell when Git Bash isn\'t installed. The `powershell.exe -Command` form above works under either. To skip the nested `powershell.exe` and the quote escaping, set `"shell": "powershell"` on the hook and write the PowerShell directly:',
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              hooks: {
+                Stop: [
+                  {
+                    hooks: [
+                      {
+                        type: "command",
+                        shell: "powershell",
+                        command:
+                          "(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\chimes.wav').PlaySync()",
+                        async: true,
+                      },
+                    ],
+                  },
+                ],
+              },
+            }),
+          },
+          {
+            kind: "p",
+            text: "Inside WSL, Claude Code runs the hook in Linux, so `afplay` isn't there and `paplay` needs a Linux audio setup. Call Windows PowerShell through Windows interop instead, with a Windows path, so the sound plays on the Windows side. Claude Code's hooks guide notes that `powershell.exe` must be on your `PATH` through interop. The same command works as it is:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              hooks: { Stop: [asyncHook(WINDOWS_SOUND("tada.wav"))] },
+            }),
+          },
+          {
+            kind: "ul",
+            items: [
+              "`SoundPlayer` plays `.wav` files only. Those in `C:\\Windows\\Media` are fine; an `.mp3` needs a different player.",
+              "In Windows Terminal, `preferredNotifChannel` set to `terminal_bell` makes the bell do whatever its `bellStyle` says: `audible` is the default and `none` is silent. With `all`, the sound plays only while the window has focus; otherwise only the taskbar icon flashes. `bellSound` picks the file.",
+              "[Windows and WSL notifications](/guides/windows-wsl-notifications/) covers the toast side, which takes a different road on each.",
+            ],
+          },
+        ],
+      },
+      {
+        id: "linux",
+        title: "Linux: paplay, pw-play, aplay or canberra-gtk-play",
+        blocks: [
+          {
+            kind: "p",
+            text: "Linux has no single player, so use the one your desktop has. The freedesktop sound theme in `/usr/share/sounds/freedesktop/stereo/` gives you ready-made files such as `complete.oga`, `message-new-instant.oga`, `bell.oga` and `dialog-warning.oga`:",
+          },
+          {
+            kind: "table",
+            head: ["Player", "Command", "Notes"],
+            rows: [
+              [
+                "`paplay`",
+                "`paplay /usr/share/sounds/freedesktop/stereo/complete.oga`",
+                "Plays through PulseAudio, or PipeWire's PulseAudio server. On Debian and Ubuntu it is in `pulseaudio-utils`",
+              ],
+              [
+                "`pw-play`",
+                "`pw-play /usr/share/sounds/freedesktop/stereo/complete.oga`",
+                "PipeWire's own player. It reads any format libsndfile supports. `--volume=0.5` sets the stream volume (the default is 1.0)",
+              ],
+              [
+                "`aplay`",
+                "`aplay -q /path/to/sound.wav`",
+                "ALSA, in `alsa-utils`. It plays WAV, VOC, AU and raw files, so it can't play the `.oga` theme files. `-q` keeps it quiet on the console",
+              ],
+              [
+                "`canberra-gtk-play`",
+                "`canberra-gtk-play -i complete`",
+                "Plays a sound by its sound-theme name instead of a path; `-f PATH` plays a file. On Debian it is in `gnome-session-canberra`",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "The theme files come from the `sound-theme-freedesktop` package on Debian and Ubuntu. Run `ls /usr/share/sounds/freedesktop/stereo/` to see what you have, and try a command in a terminal before you put it in `settings.json`.",
+          },
+        ],
+      },
+      {
+        id: "async",
+        title: "Don't block Claude: run the sound in the background",
+        blocks: [
+          {
+            kind: "p",
+            text: 'By default, a hook blocks Claude until it finishes. A sound has nothing to report back, so add `"async": true` to a `command` hook and Claude carries on while the sound plays:',
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              hooks: {
+                Stop: [asyncHook("afplay /System/Library/Sounds/Glass.aiff")],
+              },
+            }),
+          },
+          {
+            kind: "ul",
+            items: [
+              '`async` works on `"type": "command"` hooks only. An async hook can\'t block or steer Claude, which is fine for a sound.',
+              "Once an async hook is running in the background, Claude Code doesn't enforce its `timeout`.",
+              'Without `async`, set a `timeout` in seconds so a stuck audio device can\'t hold Claude up: the default for a command hook is 600 seconds. `"timeout": 5` is plenty for a chime.',
+              "On a `PermissionRequest` hook, a synchronous sound can hold the prompt back until it ends, so make that one async.",
+            ],
+          },
+        ],
+      },
+      {
+        id: "no-sound",
+        title: "No sound? Troubleshooting",
+        blocks: [
+          {
+            kind: "p",
+            text: "Work down this list from the top.",
+          },
+          {
+            kind: "ul",
+            items: [
+              '**Your terminal gets no desktop notification.** The default `"preferredNotifChannel": "auto"` sends one in iTerm2, Ghostty and Kitty, rings the bell in Terminal.app only when its audible bell is off, and does nothing elsewhere, so set `terminal_bell` or use a hook.',
+              "**Apple Terminal's audible bell is off.** If you accepted Claude Code's first-run terminal setup, it turned that off in your profile. Turn it back on under **Settings > Profiles > Advanced > \"Audible bell\"**.",
+              '**The VS Code terminal bell is silent.** VS Code plays the bell sound only if `accessibility.signals.terminalBell` allows it, and its default (`auto`) means only when a screen reader is attached. Set `"accessibility.signals.terminalBell": { "sound": "on" }` in VS Code\'s settings, or use a hook, which doesn\'t depend on the terminal.',
+              "**Volume and output.** A hook's player uses your current output device and volume, so check both, and that nothing is muted.",
+              "**The hook never ran.** Type `/hooks` and check the hook is listed under the right event; the menu is read-only. Run the command in your own shell first. For details, start Claude Code with `claude --debug-file /tmp/claude.log` and read the file. Plain `claude --debug` writes to `~/.claude/debug/<session-id>.txt` and prints nothing to the terminal.",
+              "**It isn't time yet.** `permission_prompt` waits about six seconds and `idle_prompt` about 60. The built-in alert is aimed at moments when you appear to be away from the terminal, so it may stay quiet while you are typing in the window. `Stop` fires after every response, but not after an interrupt.",
+              "**A player is missing.** `command not found` for `paplay` or `aplay` means the package from [the Linux table](#linux) isn't installed. `aplay` can't play `.oga` or `.mp3`.",
+              "**Windows paths in JSON.** `settings.json` is JSON, so every backslash is written twice: `C:\\\\Windows\\\\Media\\\\chimes.wav`. A single backslash is a broken escape.",
+              "**You are on SSH.** The terminal bell reaches your local terminal, but a hook plays on the remote machine, which may have no speakers.",
+              "**tmux.** The built-in desktop notification needs `set -g allow-passthrough on` in `~/.tmux.conf` to reach the outer terminal.",
+            ],
+          },
+        ],
+      },
+      {
+        id: "mute",
+        title: "Turn the sound off",
+        blocks: [
+          {
+            kind: "p",
+            text: "Which switch you need depends on where the sound comes from:",
+          },
+          {
+            kind: "table",
+            head: ["Sound source", "How to turn it off"],
+            rows: [
+              [
+                "Claude Code's built-in alert",
+                'Set `"preferredNotifChannel": "notifications_disabled"` in `~/.claude/settings.json`. The other values are `auto`, `terminal_bell`, `iterm2`, `iterm2_with_bell`, `kitty` and `ghostty`',
+              ],
+              [
+                "A hook you wrote",
+                'Delete its entry from `settings.json`. To pause every hook, set `"disableAllHooks": true`, which also turns off a custom status line. There is no way to switch off one hook and keep it configured',
+              ],
+              [
+                "The terminal's bell",
+                'Apple Terminal: turn off Audible bell in the profile. Windows Terminal: `"bellStyle": "none"`. VS Code: `"accessibility.signals.terminalBell": { "sound": "off" }`',
+              ],
+              [
+                "anotifier",
+                "Snooze, quiet hours, or switch off the bell; see the list below",
+              ],
+            ],
+          },
+          {
+            kind: "note",
+            text: "Hooks keep running when you turn the built-in alert off. Claude Code's docs say `Notification` hooks fire even when desktop notifications are off, because `preferredNotifChannel` only changes how you're alerted. Muting the bell doesn't mute a hook.",
+          },
+          {
+            kind: "p",
+            text: "With [anotifier](#anotifier), from the least to the most permanent:",
+          },
+          {
+            kind: "ul",
+            items: [
+              "`npx anotifier@latest snooze 2h` silences every channel for a while, the toast and its sound and the terminal bell included. `snooze off` cancels it, and `snooze` alone shows the current state.",
+              'Quiet hours silence every channel inside a daily window. They are off by default: set `quietHours.enabled` to `true`, and `from` and `to` as `"HH:MM"`, such as `22:00` to `08:00`.',
+              "The bell alone: `terminalBell.enabled: false` for every event, or `terminalBellEnabled: false` for one (the example in [Sounds with anotifier](#anotifier)).",
+              "`npx anotifier@latest uninstall` removes anotifier's hooks from every tool.",
+            ],
           },
         ],
       },
@@ -451,6 +721,22 @@ export const CLAUDE_GUIDES: Guide[] = [
       {
         q: "Does the sound work over SSH?",
         a: "The terminal bell and Claude Code's built-in desktop notification reach your local terminal over SSH. A hook runs on the remote machine, so a sound it plays comes out of the remote machine's speakers.",
+      },
+      {
+        q: "How do I change the Claude Code notification sound?",
+        a: "The preferredNotifChannel setting only picks the channel (bell or desktop notification), not the sound. To choose the sound, add a Stop or Notification hook that plays a file you pick: afplay with a .aiff, .mp3 or .wav on macOS, paplay, pw-play or aplay on Linux, or a PowerShell Media.SoundPlayer .wav on Windows. With anotifier, set toastSound per event.",
+      },
+      {
+        q: "Why is there no sound from Claude Code in VS Code?",
+        a: 'VS Code\'s integrated terminal plays the bell sound only if its accessibility.signals.terminalBell setting allows it, and the default, auto, means only when a screen reader is attached. Set "accessibility.signals.terminalBell": { "sound": "on" } in VS Code, or add a Stop hook that plays a file, which does not depend on the terminal.',
+      },
+      {
+        q: "How do I turn off the Claude Code sound?",
+        a: 'Set "preferredNotifChannel": "notifications_disabled" in ~/.claude/settings.json to silence the built-in alert. Hooks still run, so also delete any sound hook, or set "disableAllHooks": true to pause every hook. With anotifier, run npx anotifier@latest snooze 2h, or set terminalBell.enabled to false.',
+      },
+      {
+        q: "Can Claude Code play a different sound when it needs permission?",
+        a: 'Yes. Add a PermissionRequest hook to play it the instant Claude asks, or a Notification hook with "matcher": "permission_prompt", which fires after the prompt has waited about six seconds. Give the Stop hook another sound for done.',
       },
     ],
   },
