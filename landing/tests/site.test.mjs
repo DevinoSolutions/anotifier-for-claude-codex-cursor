@@ -93,6 +93,49 @@ test("agent pages target the product, guides the how-to, and link to each other"
   }
 });
 
+test("/claude-code/ compares the options, shows the hand-written hooks, and keeps FAQ schema in step", () => {
+  const { body } = pages.get("/claude-code/");
+  for (const id of ["options", "by-hand"]) {
+    assert.ok(body.includes(`id="${id}"`), `/claude-code/ lacks #${id}`);
+  }
+  assert.ok(
+    body.includes('<th scope="col">'),
+    "/claude-code/ comparison table has no column headers",
+  );
+
+  const decode = (t) =>
+    t
+      .replace(/&#x27;|&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, "&");
+  const ld = [
+    ...body.matchAll(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g,
+    ),
+  ].flatMap((m) => JSON.parse(m[1]));
+  const schemaQs = ld
+    .filter((d) => d["@type"] === "FAQPage")
+    .flatMap((d) => d.mainEntity.map((q) => q.name));
+  const visibleQs = [...body.matchAll(/<summary>([\s\S]*?)<\/summary>/g)].map(
+    (m) => decode(m[1].replace(/<[^>]+>/g, "")),
+  );
+  assert.ok(visibleQs.length > 0, "/claude-code/ shows no FAQ questions");
+  for (const q of visibleQs) {
+    assert.ok(schemaQs.includes(q), `FAQ "${q}" is missing from the JSON-LD`);
+  }
+
+  for (const guide of [
+    "/guides/claude-code-notifications/",
+    "/guides/claude-code-permission-notifications/",
+  ]) {
+    assert.match(
+      pages.get(guide).body,
+      /<a[^>]+href="\/claude-code\/"[^>]*>\s*Claude Code notifier\s*<\/a>/,
+      `${guide} has no "Claude Code notifier" link to /claude-code/`,
+    );
+  }
+});
+
 test("home: descriptive title and an h1 that reads as one sentence", () => {
   const home = pages.get("/");
   for (const name of ["Claude Code", "Codex", "Cursor", "Gemini"]) {

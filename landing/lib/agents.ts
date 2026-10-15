@@ -102,7 +102,7 @@ const BY_HAND_HOOKS = json({
 const BY_HAND_COMMANDS = `# macOS
 osascript -e 'display notification "Claude finished" with title "Claude Code"'
 
-# Linux (needs a notification daemon; libnotify-bin provides notify-send)
+# Linux (needs a notification daemon; on Debian/Ubuntu `libnotify-bin` provides notify-send)
 notify-send 'Claude Code' 'Claude finished'
 
 # Windows (PowerShell)
@@ -122,7 +122,7 @@ export const AGENTS: Agent[] = [
       em: "Claude Code notifier",
       post: " for desktop, phone and Slack.",
     },
-    sub: "anotifier is a free, open-source Claude Code notifier. The moment Claude Code finishes a turn, asks for permission or waits for your input, it sends a desktop toast, a phone push, or a Slack, Discord or Telegram message, on Windows, macOS, Linux and WSL, in a terminal or in VS Code. Run the command below once, then restart Claude Code.",
+    sub: "anotifier is a free, open-source Claude Code notifier. The moment Claude Code finishes a turn, asks for permission or waits for your input, it sends a desktop toast, a phone push, or a Slack, Discord or Telegram message, on Windows, macOS, Linux and WSL, in a terminal or in VS Code. Run the command below once (start Claude Code once first, so its settings file exists). Claude Code picks up the new hooks on its own; if /hooks doesn't list them, restart it.",
     hooksIntro:
       "Setup adds two hook entries to Claude Code's own `~/.claude/settings.json`, plus a `statusLine` entry that routes the statusline through anotifier (1.5.0 and later). The hooks run inside Claude Code itself, with no wrapper process.",
     hooks: [
@@ -134,7 +134,7 @@ export const AGENTS: Agent[] = [
       {
         event: "Notification",
         what: "Claude Code needs you",
-        how: "Claude's own message is the body, such as a permission request or a question, sent urgent. The idle reminder (“Claude is waiting for your input”) goes out at normal priority, because nothing is blocked.",
+        how: "Claude's own message is the body, such as a permission request or a question, sent urgent when Claude is blocked on you. The idle reminder (“Claude is waiting for your input”) goes out at normal priority, because nothing is blocked.",
       },
     ],
     extraInstall:
@@ -147,7 +147,7 @@ export const AGENTS: Agent[] = [
         blocks: [
           {
             kind: "p",
-            text: "Searching for a Claude Code notifier turns up four kinds of tool: Claude Code's own notifications, companion apps, VS Code extensions, and hooks. Each suits someone. Facts about other projects come from their own pages, linked below, and may have changed since.",
+            text: "Searching for a Claude Code notifier turns up five kinds of tool: Claude Code's own notifications, companion apps, native macOS tools, VS Code extensions, and hooks. Each suits someone. Facts about other projects come from their own pages, linked below, and may have changed since 2026-10-15.",
           },
           {
             kind: "table",
@@ -155,23 +155,23 @@ export const AGENTS: Agent[] = [
             rows: [
               [
                 "Claude Code's built-in notifications",
-                "No setup. By default Claude Code sends a desktop notification in Ghostty, Kitty and iTerm2, and `preferredNotifChannel` set to `terminal_bell` rings the bell in other terminals ([Claude Code docs](https://code.claude.com/docs/en/terminal-config#get-a-terminal-bell-or-notification)).",
-                "Terminal-side: a desktop notification or a bell on the machine running Claude Code. Not a phone or chat channel on its own.",
+                "No setup. By default Claude Code sends a desktop notification only in Ghostty, Kitty and iTerm2, and `preferredNotifChannel` set to `terminal_bell` rings the bell in other terminals ([Claude Code docs](https://code.claude.com/docs/en/terminal-config#get-a-terminal-bell-or-notification)).",
+                "A desktop notification or a bell on the machine running Claude Code. Phone push needs Remote Control and the Claude mobile app, and in the 'Push when Claude decides' mode Claude chooses when to send ([docs](https://code.claude.com/docs/en/remote-control#mobile-push-notifications)).",
               ],
               [
-                "Companion apps, such as [Claude Code Notifier](https://claudecodenotifier.com)",
+                "Companion apps, such as [Claude Code Notifier (claudecodenotifier.com)](https://claudecodenotifier.com)",
                 "A macOS menu bar app with iOS and Android apps. Its page says you can approve permission requests and reply from your phone (mobile response needs iTerm2).",
                 "The desktop app needs macOS 14 or later, and its page lists no Windows or Linux desktop app. Its mobile features are on a paid plan, per its pricing.",
               ],
               [
-                "Native macOS tools, such as [kovoor/claude-code-notifier](https://github.com/kovoor/claude-code-notifier)",
+                "Native macOS tools, such as [kovoor/claude-code-opencode-notifier](https://github.com/kovoor/claude-code-opencode-notifier)",
                 "MIT-licensed native macOS banners for Claude Code and OpenCode, showing which Ghostty tab or project raised them.",
                 "macOS only, needs `jq`, and works best in Ghostty.",
               ],
               [
-                "VS Code extensions, such as [Claude Code Notifier](https://marketplace.visualstudio.com/items?itemName=erdemgiray.claude-code-notifier)",
-                "Free. Different sounds and banners for permission, question and finished events inside the VS Code window with the project open, and it installs its own hooks on first run. Per its listing it works over SSH, WSL and containers.",
-                "Built for VS Code. Claude Code in a standalone terminal is outside its remit.",
+                "VS Code extensions, such as [Claude Code Notifier (VS Code extension by Erdem Giray)](https://marketplace.visualstudio.com/items?itemName=erdemgiray.claude-code-notifier)",
+                "Free. Different sounds and banners for permission, question and finished (off by default) events inside the VS Code window with the project open, and it installs its own hooks on first run. Per its listing it works over SSH, WSL and containers with a local companion extension.",
+                "Built for VS Code: the banners come from the extension, so VS Code needs to be running.",
               ],
               [
                 "Hooks you write yourself",
@@ -203,7 +203,7 @@ export const AGENTS: Agent[] = [
           { kind: "code", lang: "json", code: BY_HAND_HOOKS },
           {
             kind: "p",
-            text: "Swap in the command for your OS. The Windows one is the dialog box from Claude Code's own docs:",
+            text: "Swap in the command for your OS. Inside the JSON, write each double quote as \\\" (the macOS and Windows commands both contain some). The Windows one is the dialog box from Claude Code's own docs; it stays on screen until you click OK, so use it for Notification rather than Stop. On macOS, osascript notifications are attributed to Script Editor; if Script Editor is not allowed to send notifications, the command fails silently.",
           },
           { kind: "code", lang: "bash", code: BY_HAND_COMMANDS },
           {
@@ -211,7 +211,7 @@ export const AGENTS: Agent[] = [
             items: [
               "If the file already has a `hooks` key, add `Stop` and `Notification` next to the events already there rather than replacing the object. Type `/hooks` in Claude Code to check they registered.",
               'The `Notification` hook with an empty matcher runs for every notification type. To alert only for approvals, set `"matcher": "permission_prompt"`; see the [permission notifications guide](/guides/claude-code-permission-notifications/).',
-              "Claude Code's documentation names `~/.claude/settings.json` as the user settings file. If you set `CLAUDE_CONFIG_DIR`, Claude Code reads its settings from that folder instead. `~/.config/claude/settings.json`, which some summaries give, is not a path the docs list.",
+              "Claude Code's documentation names `~/.claude/settings.json` as the user settings file. If you set `CLAUDE_CONFIG_DIR`, Claude Code reads its settings from that folder instead.",
             ],
           },
           {
@@ -223,7 +223,7 @@ export const AGENTS: Agent[] = [
             items: [
               "**A useful message.** The title names the project (`my-app · Claude Code`) and the toast carries the start of Claude's last reply or its question, instead of fixed text.",
               "**Phone and chat in the same hook,** sent to every channel in parallel with a short timeout each, so a dead channel never holds Claude up.",
-              "**Priorities.** Needs-input alerts go out urgent; the idle reminder goes out at normal priority.",
+              "**Priorities.** Permission prompts and questions go out urgent; the idle reminder and informational types go out at normal priority.",
               "**No double alerts.** A repeat of the same event within 1.5 seconds is dropped.",
               "**Snooze and quiet hours,** an `uninstall` that removes only its own entries, and a backup of `settings.json` before it edits.",
               "**Usage and context warnings** through the statusline, covered below.",
@@ -294,7 +294,7 @@ export const AGENTS: Agent[] = [
             kind: "ul",
             items: [
               "**The ding comes from Claude Code itself.** The hook hands Claude Code a bell to print in its own terminal (Claude Code 2.1.141 or newer), so no extra process has to find the right tab. To change the sound or turn it off, see the [Claude Code notification sound guide](/guides/claude-code-notification-sound/).",
-              "**Every notification type alerts.** The hook has no matcher, so types that don't need you, such as `auth_success`, also arrive as urgent. The [permission notifications guide](/guides/claude-code-permission-notifications/) shows how to filter by type in a hook you write yourself.",
+              "**Only types that wait on you are urgent.** Permission prompts and questions go out urgent. Informational types such as `agent_completed` arrive at normal priority, and echoes of something you just did, such as `auth_success`, are dropped. The hook has no matcher; the [permission notifications guide](/guides/claude-code-permission-notifications/) shows how to filter by type in a hook you write yourself.",
               "**Needs-input alerts stand out.** They go out urgent, which raises the priority on ntfy and Linux `notify-send`, and toasts play a different sound than for a finished task.",
               CLICK_TO_FOCUS,
               "**Snooze and quiet hours** silence every channel, the bell included: `npx anotifier@latest snooze 2h`.",
@@ -356,7 +356,7 @@ export const AGENTS: Agent[] = [
       {
         q: "What is the best Claude Code notifier?",
         aHtml:
-          '<p>It depends on what you need to reach. On macOS only, a companion app may feel more native. In VS Code only, an extension is closest to the editor. If you want one install that works on Windows, macOS, Linux and WSL, reaches your phone or Slack, and covers Codex CLI, Cursor and Gemini CLI from one config, anotifier is built for that. And if you want no extra software, two hooks you write yourself take about ten lines. The <a href="#options">comparison above</a> lists what each option does.</p>',
+          '<p>It depends on what you need to reach. On macOS only, a companion app may feel more native. In VS Code only, an extension is closest to the editor. If you want one install that works on Windows, macOS, Linux and WSL, reaches your phone or Slack, and covers Codex CLI, Cursor and Gemini CLI from one config, anotifier is built for that. Claude Code's own Remote Control and mobile app can also push to your phone if you use them. And if you want no extra software, two hooks you write yourself take about ten lines. The <a href="#options">comparison above</a> lists what each option does.</p>',
       },
       {
         q: "Is anotifier free?",
