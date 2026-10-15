@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import "./hero/hero.css";
 import { Phone } from "./hero/Phone";
 import { Screen } from "./hero/vscode";
@@ -12,7 +12,23 @@ import { LOOP_MS, NOTICES, STATIC_AT, cues } from "./hero/timeline";
 // here; each cue is a single state change and the CSS animates it, so the
 // demo costs a handful of renders per loop. It runs only while on screen, and
 // the toast sounds fire from the same cues that show the toasts.
+const REDUCED = "(prefers-reduced-motion: reduce)";
+const subscribeReduced = (onChange: () => void) => {
+  const mq = window.matchMedia(REDUCED);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+};
+const reducedNow = () => window.matchMedia(REDUCED).matches;
+
 export default function HeroDemo() {
+  // Server and first hydration render the animated start; a visitor who asks
+  // for reduced motion gets the still frame, and a change of the setting
+  // while the page is open is followed.
+  const reduced = useSyncExternalStore(
+    subscribeReduced,
+    reducedNow,
+    () => false,
+  );
   const { soundOn, playDing } = useSound();
   const sound = useRef({ soundOn, playDing });
   sound.current = { soundOn, playDing };
@@ -23,10 +39,7 @@ export default function HeroDemo() {
   useEffect(() => {
     const el = root.current;
     if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setNow(STATIC_AT);
-      return;
-    }
+    if (reduced) return;
 
     let timers: ReturnType<typeof setTimeout>[] = [];
     let running = false;
@@ -74,7 +87,7 @@ export default function HeroDemo() {
       io.disconnect();
       document.removeEventListener("visibilitychange", sync);
     };
-  }, []);
+  }, [reduced]);
 
   return (
     <div ref={root} className="hdStage" aria-hidden="true">
@@ -82,11 +95,11 @@ export default function HeroDemo() {
         <div className="hdLaptop">
           <div className="hdLid">
             <span className="cam" />
-            <Screen now={now} />
+            <Screen now={reduced ? STATIC_AT : now} />
           </div>
           <div className="hdBase" />
         </div>
-        <Phone now={now} />
+        <Phone now={reduced ? STATIC_AT : now} />
       </div>
     </div>
   );

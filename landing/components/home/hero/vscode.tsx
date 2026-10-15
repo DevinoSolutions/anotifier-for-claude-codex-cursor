@@ -1,5 +1,5 @@
 import { ClaudeTerminal, CodexTerminal } from "./terminals";
-import { CLEAR_AT, NOTICES, T } from "./timeline";
+import { T } from "./timeline";
 import { DesktopToasts } from "./notifications";
 
 // A VS Code window (Dark Modern) with the integrated terminal open on two
@@ -101,25 +101,9 @@ function Editor({ edited }: { edited: boolean }) {
   );
 }
 
-function Bell() {
-  return (
-    <svg
-      className="hdBell"
-      width="9"
-      height="9"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-    >
-      <path d="M12 2a6 6 0 0 0-6 6v4.2L4 16v1h16v-1l-2-3.8V8a6 6 0 0 0-6-6zm-2.2 17a2.2 2.2 0 0 0 4.4 0z" />
-    </svg>
-  );
-}
-
 export function Screen({ now }: { now: number }) {
   const onCodex = now >= T.codexTab;
   const edited = now >= T.claudeEdit;
-  const claudeBell = now >= NOTICES[0].reports && now < CLEAR_AT;
-  const codexBell = now >= T.codexAsk && now < CLEAR_AT;
 
   return (
     <div className="hdScreen">
@@ -151,7 +135,6 @@ export function Screen({ now }: { now: number }) {
                     height="9"
                   />
                   claude
-                  {claudeBell && <Bell />}
                 </div>
                 <div className={`inst${onCodex ? " on" : ""}`}>
                   <img
@@ -161,7 +144,6 @@ export function Screen({ now }: { now: number }) {
                     height="9"
                   />
                   codex
-                  {codexBell && <Bell key={now >= T.codexDone ? "b" : "a"} />}
                 </div>
               </div>
               <div className="hdTermView">

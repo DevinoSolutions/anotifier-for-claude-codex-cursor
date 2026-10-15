@@ -1,278 +1,489 @@
 import type { CSSProperties, ReactNode } from "react";
 import { T } from "./timeline";
 
-// The two terminals the demo cycles between. Both are drawn from the real
-// tools' UIs (Claude Code's bordered prompt box, "✻" working line, "⏺" tool
-// bullets and numbered permission dialog; Codex's header box, "›" composer,
-// "•" bullets and "Would you like to run the following command?" modal) and
-// are a pure function of `now`.
+// The two terminals the demo cycles between, drawn from the real tools' UIs:
+// Claude Code's bordered prompt box, "✻" working line, "⏺" tool bullets and
+// "⎿" result connector; Codex's header box, "›" composer, "•" bullets and
+// "Would you like to run ...?" modal.
+//
+// A terminal is a stack of one-row lines, so it can be laid out ahead of time:
+// every line has a fixed row (15px), the scrolling is a transform on one
+// wrapper, and nothing in the layout moves when a cue fires. Transcript items
+// keep their row for good. The footer (working line, prompt, hint, or Codex's
+// approval modal) is rebuilt per phase just below the last transcript row.
 
-function Ln({ children, cls = "" }: { children?: ReactNode; cls?: string }) {
-  return <div className={`hdLn ${cls}`}>{children || " "}</div>;
-}
+const ROW = 15;
+
+type Line = { rows: number; cls?: string; node: ReactNode };
+type Item = { id: string; at: number; blank?: boolean; lines: Line[] };
+type Phase = { from: number; lines: Line[] };
+
+const L = (node: ReactNode, cls = "", rows = 1): Line => ({ rows, cls, node });
+const blank = (): Line => L(null);
+const rowsOf = (lines: Line[]) => lines.reduce((n, l) => n + l.rows, 0);
+const itemRows = (it: Item) => rowsOf(it.lines) + (it.blank ? 1 : 0);
 
 // Claude Code's own glyphs. The site's mono font has none of them, so each sits
-// in a one-column box (.hdG) and the line grid holds whatever font the OS
-// falls back to. U+FE0E keeps the record button from turning into an emoji.
+// in a one-column box (.hdG) and the grid holds whatever font the OS falls
+// back to. U+FE0E keeps the record button from turning into an emoji.
 const Dot = ({ tone = "" }: { tone?: string }) => (
   <span className={`hdG ${tone}`}>{"⏺︎"}</span>
 );
 const Elbow = () => <span className="hdG">{"⎿"}</span>;
 
-function Diff({ rows }: { rows: [string, "add" | "del", string][] }) {
-  return (
+const diff = (n: string, kind: "add" | "del", text: string): Line =>
+  L(
     <>
-      {rows.map(([n, kind, text]) => (
-        <div key={n + text} className={`hdLn hdDiff ${kind}`}>
-          <span className="n">{n}</span>
-          {kind === "add" ? "+" : "-"} {text}
-        </div>
-      ))}
-    </>
+      <span className="n">{n}</span>
+      {kind === "add" ? "+" : "-"} {text}
+    </>,
+    `hdDiff ${kind}`,
+  );
+
+function Terminal({
+  now,
+  items,
+  phases,
+  base,
+}: {
+  now: number;
+  items: Item[];
+  phases: Phase[];
+  base: number;
+}) {
+  // Transcript rows come from the list order. Both lists are in time order.
+  const tops: number[] = [];
+  let acc = 0;
+  for (const it of items) {
+    tops.push(acc);
+    acc += itemRows(it);
+  }
+  const rowsBy = (t: number) =>
+    items.reduce((n, it) => (it.at <= t ? n + itemRows(it) : n), 0);
+  const phaseAt = (t: number) => {
+    let at = 0;
+    phases.forEach((p, i) => {
+      if (p.from <= t) at = i;
+    });
+    return at;
+  };
+  // Tallest the terminal ever gets, over every instant something changes.
+  const cuts = [...items.map((i) => i.at), ...phases.map((p) => p.from)];
+  const total = Math.max(
+    ...cuts.map((t) => rowsBy(t) + rowsOf(phases[phaseAt(t)].lines)),
+  );
+
+  const pi = phaseAt(now);
+  const used = rowsBy(now);
+  const visible = used + rowsOf(phases[pi].lines);
+
+  return (
+    <div
+      className="hdScroll"
+      style={{
+        height: total * ROW,
+        transform: `translateY(${(total - visible) * ROW}px)`,
+      }}
+    >
+      {items.map((it, i) =>
+        it.at <= now ? (
+          <div
+            key={it.id}
+            className="hdItem"
+            style={{ top: tops[i] * ROW, paddingTop: it.blank ? ROW : 0 }}
+          >
+            {it.lines.map((l, j) => (
+              <div
+                key={j}
+                className={`hdLn ${l.cls}`}
+                style={{ height: l.rows * ROW }}
+              >
+                {l.node}
+              </div>
+            ))}
+          </div>
+        ) : null,
+      )}
+      <div key={pi + base} className="hdItem" style={{ top: used * ROW }}>
+        {phases[pi].lines.map((l, j) => (
+          <div
+            key={j}
+            className={`hdLn ${l.cls}`}
+            style={{ height: l.rows * ROW }}
+          >
+            {l.node}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
 // ---- Claude Code -----------------------------------------------------------
 
-export function ClaudeTerminal({ now }: { now: number }) {
-  const typing = now >= T.claudeType && now < T.claudeSend;
-  const sent = now >= T.claudeSend;
-  const done = now >= T.claudeDone;
-  const working = sent && !done;
-  const status =
-    now < T.claudeIntro
-      ? "Thinking"
-      : now < T.claudeTests
-        ? "Refactoring"
-        : "Running tests";
+const typed = (text: string) => (
+  <span className="hdTypeWrap" style={{ "--n": text.length } as CSSProperties}>
+    <span className="hdTyped">{text}</span>
+    <span className="hdCaret" />
+  </span>
+);
 
-  return (
+const claudeWork = (label: string, detail: string): Line[] => [
+  L(
     <>
-      <div className="hdLn hdBox">
-        <div>
-          <span className="claudeStar hdG">✻</span> Welcome to Claude Code!
-        </div>
-        <div className="dim">&nbsp; /help for help, /status for your setup</div>
-        <div className="dim">&nbsp; cwd: ~/code/my-app</div>
-      </div>
-      <Ln />
-      {sent && (
-        <Ln cls="hdUser">
-          <span className="dim">&gt;</span> Move session storage behind a store
-        </Ln>
-      )}
-      {now >= T.claudeIntro && (
+      <span className="claudeStar spin hdG">✻</span>
+      {label}…
+    </>,
+    "hdWork",
+  ),
+  L(<span className="dim">&nbsp;&nbsp;({detail} · esc to interrupt)</span>),
+];
+const claudePrompt = (text?: string): Line[] => [
+  L(
+    <>
+      <span className="dim">&gt;</span>{" "}
+      {text ? typed(text) : <span className="hdCaret" />}
+    </>,
+    "hdPrompt",
+    2,
+  ),
+  L("? for shortcuts", "hdHint dim"),
+];
+
+const CLAUDE_PROMPT = "Move session storage behind a store";
+
+const CLAUDE_ITEMS = (now: number): Item[] => [
+  {
+    id: "user",
+    at: T.claudeSend,
+    lines: [
+      L(
         <>
-          <Ln>
-            <Dot /> I&apos;ll start with the auth module.
-          </Ln>
-        </>
-      )}
-      {now >= T.claudeRead && (
+          <span className="dim">&gt;</span> {CLAUDE_PROMPT}
+        </>,
+        "hdUser",
+      ),
+    ],
+  },
+  {
+    id: "intro",
+    at: T.claudeIntro,
+    blank: true,
+    lines: [
+      L(
         <>
-          <Ln>
-            <Dot tone="ok" /> <b>Read</b>
-            <span className="dim">(src/auth/session.ts)</span>
-          </Ln>
-          <Ln cls="dim">
-            &nbsp; <Elbow /> Read 142 lines
-          </Ln>
-        </>
-      )}
-      {now >= T.claudeEdit && (
+          <Dot />
+          I&apos;ll start with the auth module.
+        </>,
+      ),
+    ],
+  },
+  {
+    id: "read",
+    at: T.claudeRead,
+    blank: true,
+    lines: [
+      L(
         <>
-          <Ln>
-            <Dot tone="ok" /> <b>Update</b>
-            <span className="dim">(src/auth/session.ts)</span>
-          </Ln>
-          <Ln cls="dim">
-            &nbsp; <Elbow /> Updated with 18 additions and 9 removals
-          </Ln>
-          <Diff
-            rows={[
-              ["12", "del", "const store = new Map()"],
-              ["12", "add", "const store = createStore()"],
-            ]}
-          />
-        </>
-      )}
-      {now >= T.claudeTests && (
+          <Dot tone="ok" />
+          <b>Read</b>
+          <span className="dim">(src/auth/session.ts)</span>
+        </>,
+      ),
+      L(
         <>
-          <Ln>
-            <Dot tone="ok" /> <b>Bash</b>
-            <span className="dim">(npm test)</span>
-          </Ln>
-          <Ln cls="dim">
-            &nbsp; <Elbow />{" "}
-            {now >= T.claudeTestsPass
-              ? "Tests: 14 passed, 14 total"
-              : "Running…"}
-          </Ln>
-        </>
-      )}
-      {done && (
+          &nbsp;
+          <Elbow />
+          Read 142 lines
+        </>,
+        "dim",
+      ),
+    ],
+  },
+  {
+    id: "update",
+    at: T.claudeEdit,
+    blank: true,
+    lines: [
+      L(
         <>
-          <Ln />
-          <Ln>
-            <Dot /> Done. Sessions now live in a store and all 14 tests pass.
-          </Ln>
-        </>
-      )}
-      <Ln />
-      {working && (
-        <Ln cls="hdWork">
-          <span className="claudeStar spin hdG">✻</span> {status}…{" "}
-          <span className="dim">(esc to interrupt)</span>
-        </Ln>
-      )}
-      <div className="hdLn hdPrompt">
-        <span className="dim">&gt;</span>{" "}
-        {typing ? (
-          <span
-            key="typing"
-            className="hdTyped"
-            style={{ "--n": 35 } as CSSProperties}
-          >
-            Move session storage behind a store
-          </span>
-        ) : null}
-        <span className="hdCaret" />
-      </div>
-      <div className="hdLn hdHint dim">? for shortcuts</div>
-    </>
+          <Dot tone="ok" />
+          <b>Update</b>
+          <span className="dim">(src/auth/session.ts)</span>
+        </>,
+      ),
+      L(
+        <>
+          &nbsp;
+          <Elbow />
+          Updated with 1 addition and 1 removal
+        </>,
+        "dim",
+      ),
+      diff("12", "del", "const store = new Map()"),
+      diff("12", "add", "const store = createStore()"),
+    ],
+  },
+  {
+    id: "bash",
+    at: T.claudeTests,
+    blank: true,
+    lines: [
+      L(
+        <>
+          <Dot tone="ok" />
+          <b>Bash</b>
+          <span className="dim">(npm test)</span>
+        </>,
+      ),
+      L(
+        <>
+          &nbsp;
+          <Elbow />
+          {now >= T.claudeTestsPass ? "Tests: 14 passed, 14 total" : "Running…"}
+        </>,
+        "dim",
+      ),
+    ],
+  },
+  {
+    id: "done",
+    at: T.claudeDone,
+    blank: true,
+    lines: [
+      L(
+        <>
+          <Dot />
+          Done. Sessions now live in a store
+        </>,
+      ),
+      L("  and all 14 tests pass."),
+    ],
+  },
+];
+
+const CLAUDE_PHASES: Phase[] = [
+  { from: 0, lines: [blank(), ...claudePrompt()] },
+  { from: T.claudeType, lines: [blank(), ...claudePrompt(CLAUDE_PROMPT)] },
+  {
+    from: T.claudeSend,
+    lines: [
+      blank(),
+      ...claudeWork("Thinking", "2s · ↑ 0.3k tokens"),
+      ...claudePrompt(),
+    ],
+  },
+  {
+    from: T.claudeIntro,
+    lines: [
+      blank(),
+      ...claudeWork("Refactoring", "6s · ↑ 0.9k tokens"),
+      ...claudePrompt(),
+    ],
+  },
+  {
+    from: T.claudeTests,
+    lines: [
+      blank(),
+      ...claudeWork("Running tests", "9s · ↑ 1.2k tokens"),
+      ...claudePrompt(),
+    ],
+  },
+  { from: T.claudeDone, lines: [blank(), ...claudePrompt()] },
+];
+
+export function ClaudeTerminal({ now }: { now: number }) {
+  return (
+    <Terminal
+      now={now}
+      items={CLAUDE_ITEMS(now)}
+      phases={CLAUDE_PHASES}
+      base={0}
+    />
   );
 }
 
 // ---- Codex CLI ---------------------------------------------------------------
 
-function CodexApproval() {
-  return (
-    <div className="hdLn hdAsk hdCodexAsk">
-      <div className="q">Would you like to run the following command?</div>
-      <div className="cmd">
-        <span className="dim">$</span> npm test
-      </div>
-      <div className="opt sel">
-        <b>›</b> 1. Yes, proceed <span className="dim">(y)</span>
-      </div>
-      <div className="opt">
-        2. Yes, and don&apos;t ask again for commands that start with `npm test`{" "}
-        <span className="dim">(p)</span>
-      </div>
-      <div className="opt">
-        3. No, and tell Codex what to do differently{" "}
-        <span className="dim">(esc)</span>
-      </div>
-      <div className="dim foot">Press enter to confirm or esc to cancel</div>
-    </div>
-  );
-}
+const CODEX_PROMPT = "Add retry to the API client";
 
-export function CodexTerminal({ now }: { now: number }) {
-  const typing = now >= T.codexType && now < T.codexSend;
-  const sent = now >= T.codexSend;
-  const asking = now >= T.codexAsk && now < T.codexApprove;
-  const done = now >= T.codexDone;
-  const working = sent && !asking && !done;
-
-  return (
+const codexPrompt = (text?: string): Line[] => [
+  L(
     <>
-      <div className="hdLn hdBox codex">
-        <div>
-          <b>&gt;_ OpenAI Codex</b>
-        </div>
-        <div>&nbsp;</div>
-        <div className="pre">
-          <span className="dim">model: </span> gpt-5-codex{" "}
-          <span className="dim">/model to change</span>
-        </div>
-        <div className="pre">
-          <span className="dim">directory:</span> ~/code/my-app
-        </div>
-      </div>
-      <Ln />
-      {sent && (
-        <Ln cls="hdUser codex">
-          <b>›</b> Add retry to the API client
-        </Ln>
-      )}
-      {now >= T.codexExplore && (
-        <>
-          <Ln />
-          <Ln>
-            <span className="dim">•</span> <b>Explored</b>
-          </Ln>
-          <Ln cls="dim">&nbsp; └ Read src/api/client.ts</Ln>
-        </>
-      )}
-      {now >= T.codexEdit && (
-        <>
-          <Ln />
-          <Ln>
-            <span className="dim">•</span> <b>Edited</b> src/api/client.ts{" "}
-            <span className="add">(+22</span> <span className="del">-4)</span>
-          </Ln>
-          <Diff
-            rows={[
-              ["31", "del", "return fetch(url)"],
-              ["31", "add", "return retry(() => fetch(url))"],
-            ]}
-          />
-        </>
-      )}
-      {now >= T.codexApprove && (
-        <>
-          <Ln />
-          <Ln>
-            <span className="add hdG">✔</span> You approved codex to run npm
-            test this time
-          </Ln>
-          <Ln>
-            <span className="dim">•</span> <b>Ran</b> npm test
-          </Ln>
-          <Ln cls="dim">&nbsp; └ Tests: 9 passed</Ln>
-        </>
-      )}
-      {done && (
-        <>
-          <Ln />
-          <Ln>
-            <span className="dim">•</span> Added retry with exponential backoff
-            to client.ts. All 9 tests pass.
-          </Ln>
-        </>
-      )}
-      <Ln />
-      {working && (
-        <Ln cls="hdWork codex">
-          <span className="shimmer">• Working</span>{" "}
-          <span className="dim">(esc to interrupt)</span>
-        </Ln>
-      )}
-      {asking ? (
-        <CodexApproval />
+      <b>›</b>{" "}
+      {text ? (
+        typed(text)
       ) : (
         <>
-          <div className="hdLn hdPrompt codex">
-            <b>›</b>{" "}
-            {typing ? (
-              <span
-                key="typing"
-                className="hdTyped"
-                style={{ "--n": 27 } as CSSProperties}
-              >
-                Add retry to the API client
-              </span>
-            ) : (
-              <span className="dim">Ask Codex to do anything</span>
-            )}
-            <span className="hdCaret" />
-          </div>
-          <div className="hdLn hdHint dim">
-            ? for shortcuts <span className="r">100% context left</span>
-          </div>
+          <span className="dim">Ask Codex to do anything</span>
+          <span className="hdCaret" />
         </>
       )}
-    </>
+    </>,
+    "hdPrompt codex",
+    2,
+  ),
+  L(
+    <>
+      ? for shortcuts <span className="r">100% context left</span>
+    </>,
+    "hdHint dim",
+  ),
+];
+const codexWork = (secs: number): Line =>
+  L(
+    <>
+      <span className="shimmer">• Working</span>{" "}
+      <span className="dim">({secs}s • esc to interrupt)</span>
+    </>,
+    "hdWork codex",
+  );
+
+const CODEX_ITEMS: Item[] = [
+  {
+    id: "box",
+    at: 0,
+    lines: [
+      L(
+        <>
+          <div>
+            <b>&gt;_ OpenAI Codex</b>
+          </div>
+          <div>&nbsp;</div>
+          <div>
+            <span className="dim">model:</span>&nbsp;&nbsp;&nbsp;&nbsp;gpt-5{" "}
+            <span className="dim">/model to change</span>
+          </div>
+          <div>
+            <span className="dim">directory:</span> ~/code/my-app
+          </div>
+        </>,
+        "hdBox codex",
+        5,
+      ),
+    ],
+  },
+  {
+    id: "user",
+    at: T.codexSend,
+    blank: true,
+    lines: [
+      L(
+        <>
+          <b>›</b> {CODEX_PROMPT}
+        </>,
+        "hdUser codex",
+      ),
+    ],
+  },
+  {
+    id: "explored",
+    at: T.codexExplore,
+    blank: true,
+    lines: [
+      L(
+        <>
+          <span className="dim">•</span> <b>Explored</b>
+        </>,
+      ),
+      L("  └ Read src/api/client.ts", "dim"),
+    ],
+  },
+  {
+    id: "edited",
+    at: T.codexEdit,
+    blank: true,
+    lines: [
+      L(
+        <>
+          <span className="dim">•</span> <b>Edited</b> src/api/client.ts{" "}
+          <span className="add">(+1</span> <span className="del">-1)</span>
+        </>,
+      ),
+      diff("31", "del", "return fetch(url)"),
+      diff("31", "add", "return retry(() => fetch(url))"),
+    ],
+  },
+  {
+    id: "ran",
+    at: T.codexApprove,
+    blank: true,
+    lines: [
+      L(
+        <>
+          <span className="add hdG">✔</span>You approved codex to run npm test
+        </>,
+      ),
+      L(
+        <>
+          <span className="dim">•</span> <b>Ran</b> npm test
+        </>,
+      ),
+      L("  └ Tests: 9 passed", "dim"),
+    ],
+  },
+  {
+    id: "done",
+    at: T.codexDone,
+    blank: true,
+    lines: [
+      L(
+        <>
+          <span className="dim">•</span> Added retry with backoff to client.ts.
+        </>,
+      ),
+      L("  All 9 tests pass."),
+    ],
+  },
+];
+
+const CODEX_PHASES: Phase[] = [
+  { from: 0, lines: [blank(), ...codexPrompt()] },
+  { from: T.codexType, lines: [blank(), ...codexPrompt(CODEX_PROMPT)] },
+  {
+    from: T.codexSend,
+    lines: [blank(), codexWork(2), ...codexPrompt()],
+  },
+  {
+    from: T.codexAsk,
+    lines: [
+      blank(),
+      L("Would you like to run this command?", "hdAsk q"),
+      L(
+        <>
+          <span className="dim">$</span> npm test
+        </>,
+        "hdAsk cmd",
+      ),
+      L(
+        <>
+          <b>›</b> 1. Yes, proceed <span className="dim">(y)</span>
+        </>,
+        "hdAsk opt sel",
+      ),
+      L(
+        <>
+          &nbsp;&nbsp;2. Yes, don&apos;t ask again for npm test{" "}
+          <span className="dim">(p)</span>
+        </>,
+        "hdAsk opt",
+      ),
+      L(
+        <>
+          &nbsp;&nbsp;3. No, tell Codex what to do{" "}
+          <span className="dim">(esc)</span>
+        </>,
+        "hdAsk opt",
+      ),
+      L("Press enter to confirm or esc to cancel", "hdAsk foot dim"),
+    ],
+  },
+  { from: T.codexApprove, lines: [blank(), codexWork(6), ...codexPrompt()] },
+  { from: T.codexDone, lines: [blank(), ...codexPrompt()] },
+];
+
+export function CodexTerminal({ now }: { now: number }) {
+  return (
+    <Terminal now={now} items={CODEX_ITEMS} phases={CODEX_PHASES} base={100} />
   );
 }

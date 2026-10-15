@@ -280,14 +280,6 @@
   height: 10px;
   border-radius: 2px;
 }
-.hdBell {
-  width: 9px;
-  height: 9px;
-  margin-left: auto;
-  color: #f2b83c;
-  transform-origin: 50% 10%;
-  animation: hdBellRing 0.9s ease-out;
-}
 
 .hdStatus {
   display: flex;
@@ -309,13 +301,10 @@
 /* ---- terminals --------------------------------------------------------- */
 
 .hdTermView {
-  display: flex;
+  position: relative;
   flex: 1;
-  flex-direction: column;
-  justify-content: flex-end;
   min-width: 0;
   overflow: hidden;
-  padding: 2px 8px 5px;
   font-family: var(--font-mono-stack);
   font-size: 11px;
   line-height: 15px;
@@ -324,9 +313,23 @@
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 16px);
   mask-image: linear-gradient(to bottom, transparent 0, #000 16px);
 }
+/* Rows are fixed at 15px and the stack scrolls with one transform, so nothing
+   in the layout moves when a line arrives (see terminals.tsx). */
+.hdScroll {
+  position: absolute;
+  right: 8px;
+  bottom: 5px;
+  left: 8px;
+}
+.hdItem {
+  position: absolute;
+  right: 0;
+  left: 0;
+}
 .hdLn {
-  flex: none;
-  overflow-wrap: anywhere;
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
 }
 .hdLn b {
   font-weight: 700;
@@ -335,10 +338,6 @@
 .hdLn.dim,
 .hdLn .dim {
   color: #7f7f7f;
-}
-.hdLn .pre,
-.hdLn.pre {
-  white-space: pre;
 }
 .hdG {
   display: inline-block;
@@ -352,15 +351,16 @@
   color: #3fb97a;
 }
 .hdBox {
-  align-self: flex-start;
-  max-width: 100%;
-  padding: 2px 8px;
-  border: 1px solid #d97757;
-  border-radius: 4px;
-}
-.hdBox.codex {
-  border-color: #5d5d5d;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: fit-content;
   min-width: 70%;
+  max-width: 100%;
+  padding: 0 8px;
+  border: 1px solid #5d5d5d;
+  border-radius: 4px;
+  white-space: pre;
 }
 .claudeStar {
   color: #d97757;
@@ -386,7 +386,6 @@
 }
 .hdDiff {
   padding-left: 3ch;
-  white-space: pre-wrap;
 }
 .hdDiff .n {
   margin-right: 1ch;
@@ -406,17 +405,16 @@
 }
 
 .hdPrompt {
-  margin-top: 1px;
-  padding: 2px 6px;
+  padding: 0 6px;
   border: 1px solid #8a8a8a;
   border-radius: 4px;
-  white-space: nowrap;
-  overflow: hidden;
+  line-height: 28px;
 }
 .hdPrompt.codex {
   border: 0;
   border-radius: 0;
   background: #2a2a2a;
+  line-height: 30px;
 }
 .hdHint {
   padding-left: 3px;
@@ -424,28 +422,35 @@
 .hdHint .r {
   float: right;
 }
+/* Typing: the full text is laid out from the start and revealed by a clip,
+   and the caret travels by transform, so no box changes size. */
+.hdTypeWrap {
+  position: relative;
+  display: inline-block;
+  vertical-align: top;
+}
 .hdTyped {
   display: inline-block;
-  width: 0;
-  max-width: calc(100% - 2ch);
-  overflow: hidden;
-  vertical-align: top;
-  white-space: nowrap;
-  animation: hdType 1s steps(var(--n), end) forwards;
+  clip-path: inset(0 100% 0 0);
+  animation: hdReveal 1s steps(var(--n), end) forwards;
 }
 .hdCaret {
   display: inline-block;
   width: 6px;
   height: 11px;
-  margin-left: 1px;
   vertical-align: -1px;
   background: #cccccc;
   animation: hdBlink 1.06s steps(1) infinite;
 }
-
-.hdAsk {
-  margin-top: 1px;
+.hdTypeWrap .hdCaret {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  animation:
+    hdBlink 1.06s steps(1) infinite,
+    hdCaretMove 1s steps(var(--n), end) forwards;
 }
+
 .hdAsk .q {
   color: #fff;
 }
@@ -454,15 +459,11 @@
   padding-left: 1ch;
 }
 .hdAsk .cmd {
-  margin: 2px 0 3px;
   color: #e6e6e6;
 }
 .hdAsk .opt.sel,
 .hdAsk .opt.sel b {
   color: #6bb8ff;
-}
-.hdAsk .foot {
-  margin-top: 3px;
 }
 
 /* ---- desktop toasts ---------------------------------------------------- */
@@ -547,8 +548,7 @@
   border-radius: 6px;
   object-fit: contain;
 }
-.hdToast .tx,
-.hdPushCard .tx {
+.hdToast .tx {
   flex: 1;
   min-width: 0;
 }
@@ -585,7 +585,6 @@
 
 .hdPhone {
   --pitch: 60px;
-  --shrink: 0;
   position: absolute;
   right: 0;
   bottom: 22px;
@@ -640,9 +639,6 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-}
-.hdPhone .sys svg:first-child {
-  display: none;
 }
 .hdPhone .sys svg {
   width: 13px;
@@ -722,20 +718,12 @@
     transform 0.55s cubic-bezier(0.2, 0.9, 0.25, 1.06),
     opacity 0.25s ease-out;
 }
-.hdPushCard::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: #000;
-  opacity: calc(var(--depth) * var(--shrink) * 4);
-}
 .hdPushCard[data-pos="0"],
 .hdPushCard[data-pos="1"],
 .hdPushCard[data-pos="2"],
 .hdPushCard[data-pos="gone"] {
   opacity: 1;
-  transform: translateY(calc(var(--depth) * var(--pitch)))
-    scale(calc(1 - var(--depth) * var(--shrink)));
+  transform: translateY(calc(var(--depth) * var(--pitch)));
 }
 .hdPushCard[data-pos="gone"] {
   opacity: 0;
@@ -754,17 +742,6 @@
   width: 14px;
   height: 14px;
   border-radius: 4px;
-}
-.hdPushCard .hd em {
-  font-style: normal;
-  padding: 0 4px;
-  border-radius: 3px;
-  background: rgba(255, 197, 51, 0.18);
-  color: #ffc533;
-  font-family: var(--font-mono-stack);
-  font-size: 8.5px;
-  letter-spacing: 0;
-  text-transform: none;
 }
 .hdPushCard .hd .when {
   margin-left: auto;
@@ -818,9 +795,6 @@
     font-size: 0;
     gap: 0;
   }
-  .hdTermList .hdBell {
-    display: none;
-  }
   .hdToasts {
     top: 26px;
     right: 14px;
@@ -842,9 +816,14 @@
 
 /* ---- motion ------------------------------------------------------------ */
 
-@keyframes hdType {
+@keyframes hdReveal {
   to {
-    width: calc(var(--n) * 1ch);
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes hdCaretMove {
+  to {
+    transform: translateX(calc(var(--n) * 1ch));
   }
 }
 @keyframes hdBlink {
@@ -866,28 +845,6 @@
 @keyframes hdShimmer {
   50% {
     opacity: 0.45;
-  }
-}
-@keyframes hdBellRing {
-  0% {
-    transform: rotate(0) scale(0.4);
-    opacity: 0;
-  }
-  25% {
-    transform: rotate(-18deg) scale(1.25);
-    opacity: 1;
-  }
-  45% {
-    transform: rotate(14deg) scale(1);
-  }
-  65% {
-    transform: rotate(-9deg);
-  }
-  85% {
-    transform: rotate(4deg);
-  }
-  100% {
-    transform: rotate(0);
   }
 }
 

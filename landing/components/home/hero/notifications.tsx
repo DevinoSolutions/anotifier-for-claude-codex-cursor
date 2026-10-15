@@ -56,6 +56,8 @@ export function DesktopToasts({ now }: { now: number }) {
 // task_complete -> white_check_mark, needs_input -> bell, warning.
 const TAGS = { done: "✅", ask: "🔔⚠️" } as const;
 
+// A stylised ntfy notification: the real app's layout varies by phone, but the
+// title and body are what anotifier sends (tags first, then "<project> · <label>").
 export function PhoneNotices({ now }: { now: number }) {
   return (
     <div className="hdPush">
@@ -76,7 +78,6 @@ export function PhoneNotices({ now }: { now: number }) {
             <div className="hd">
               <Icon agent={n.agent} />
               <span className="app">ntfy</span>
-              {n.urgent && <em>urgent</em>}
               <span className="when">now</span>
             </div>
             <div className="ti">
