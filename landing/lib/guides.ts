@@ -1,5 +1,5 @@
 import type { Block, DocFaq } from "./docs";
-import { CLAUDE_GUIDES } from "./claude-guides";
+import { CLAUDE_GUIDES, json } from "./claude-guides";
 import { ANTIGRAVITY_GUIDES } from "./antigravity-guides";
 import { CODEX_GUIDES } from "./codex-guides";
 import { TOPIC_GUIDES } from "./topic-guides";
@@ -40,6 +40,55 @@ export interface Guide {
   sections: GuideSection[];
   faqs: DocFaq[];
 }
+
+// The WinRT toast call from lib/wsl-guides.ts (anotifier's own WSL toast,
+// assets/windows/toast-wsl.ps1): no module, runs on Windows PowerShell 5.1.
+const CODEX_WIN_TOAST_PS1 = `param(
+  [string]$Title = 'Codex',
+  [string]$Message = 'Done'
+)
+$ErrorActionPreference = 'Stop'
+$null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
+$null = [Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime]
+$AppId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe'
+$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+$texts = $xml.GetElementsByTagName('text')
+$null = $texts.Item(0).AppendChild($xml.CreateTextNode($Title))
+$null = $texts.Item(1).AppendChild($xml.CreateTextNode($Message))
+$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($AppId).Show($toast)`;
+
+const codexWindowsToast = (message: string) =>
+  `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\\.codex\\win-toast.ps1" -Title Codex -Message "${message}"`;
+
+const CODEX_WIN_HOOKS = json({
+  hooks: {
+    Stop: [
+      {
+        hooks: [
+          {
+            type: "command",
+            command: 'notify-send "Codex" "Turn complete"',
+            commandWindows: codexWindowsToast("Turn complete"),
+            async: true,
+          },
+        ],
+      },
+    ],
+    PermissionRequest: [
+      {
+        hooks: [
+          {
+            type: "command",
+            command: 'notify-send -u critical "Codex" "Needs approval"',
+            commandWindows: codexWindowsToast("Needs approval"),
+            async: true,
+          },
+        ],
+      },
+    ],
+  },
+});
 
 const WHAT_ANOTIFIER_ADDS: Block[] = [
   {
@@ -261,17 +310,17 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "codex-cli-notifications",
-    updated: "2026-10-06",
+    updated: "2026-10-15",
     kind: "agent",
     agentSlug: "codex",
     name: "Codex CLI",
     icon: "/assets/icons/codex.png",
-    title: "Codex CLI Notifications: Get Alerted When Codex Finishes",
+    title: "Codex CLI Notifications on Windows, macOS & Linux",
     description:
-      "By default Codex CLI alerts you only in the background. Get finish and approval alerts on your desktop or phone: [tui] settings, notify, or hooks.",
+      "Codex CLI alerts only in the background; in Windows Terminal that is a bell. Add desktop or phone alerts with hooks or anotifier, or turn them off.",
     h1: "How to get notified when Codex CLI finishes or needs approval",
     intro:
-      "Codex CLI already notifies you when a turn ends or an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else. For alerts you can't miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option. To make Codex ding when it needs a response, see [Codex CLI notification sounds](/guides/codex-notification-sound/).",
+      "Codex CLI already notifies you when a turn ends or an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else, including Windows Terminal and VS Code. For alerts you can't miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option, then [Codex on Windows](#windows) and [how to turn the alerts off](#mute). To make Codex ding when it needs a response, see [Codex CLI notification sounds](/guides/codex-notification-sound/).",
     sections: [
       {
         id: "builtin",
@@ -279,7 +328,7 @@ const AGENT_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "The Codex TUI notifies you out of the box when a turn ends, when it asks to run a command or edit files, and when a Plan mode prompt or a question is waiting. In Ghostty, iTerm2, Kitty, Warp, and WezTerm it sends an OSC 9 desktop notification; in any other terminal it rings the bell. By default it does this only while the terminal is unfocused. Tune it under `[tui]` in `~/.codex/config.toml`:",
+            text: "The Codex TUI notifies you out of the box when a turn ends, when it asks to run a command or edit files, and when a Plan mode prompt or a question is waiting. In Ghostty, iTerm2, Kitty, Warp, and WezTerm it sends an OSC 9 desktop notification; in any other terminal, including Windows Terminal and the VS Code terminal, it rings the bell. By default it does this only while the terminal is unfocused. Tune it under `[tui]` in `~/.codex/config.toml`:",
           },
           {
             kind: "code",
@@ -338,20 +387,138 @@ const AGENT_GUIDES: Guide[] = [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: "The wizard detects `~/.codex`, writes `Stop`, `PermissionRequest`, and `SessionStart` hooks into `~/.codex/hooks.json`, enables the hooks feature flag, records the trust hashes, and backs up both files first. A finished turn arrives as `my-app · Codex` at default priority; an approval request arrives urgent, on your desktop and phone, so the run never sits blocked while you are in another window. The approval path is proven in CI by driving the real Codex TUI through a permission modal.",
+            text: "The wizard detects `~/.codex`, writes `Stop`, `PermissionRequest`, and `SessionStart` hooks into `~/.codex/hooks.json`, enables the hooks feature flag, records the trust hashes in `config.toml`, and backs up `hooks.json` first. A finished turn arrives as `my-app · Codex` at default priority; an approval request arrives urgent, on your desktop and phone, so the run never sits blocked while you are in another window. The approval path is proven in CI by driving the real Codex TUI through a permission modal.",
           },
           ...WHAT_ANOTIFIER_ADDS,
+        ],
+      },
+      {
+        id: "windows",
+        title: "Codex CLI notifications on Windows",
+        blocks: [
+          {
+            kind: "p",
+            text: 'Codex CLI runs natively on Windows and keeps its settings in `%USERPROFILE%\\.codex`: `CODEX_HOME` defaults to `~/.codex`. The built-in notification works as described in Option 1, with one catch. With `notification_method = "auto"`, Codex sends OSC 9 only to Ghostty, iTerm2, Kitty, Warp, and WezTerm. Windows Terminal and the VS Code terminal are not on that list, so Codex rings the bell (BEL) there and no desktop notification appears. That is Codex CLI 0.162.1, the latest release at the time of writing.',
+          },
+          {
+            kind: "ul",
+            items: [
+              "**Windows Terminal** decides what the bell does. Its `bellStyle` setting accepts `audible` (the default), `window`, `taskbar`, `all`, and `none`. Microsoft documents `all` as a sound plus a flashing taskbar icon, and says that when the terminal is not in focus only the taskbar icon flashes. Codex notifies only while the window is unfocused by default, so check what your `bellStyle` does in the background.",
+              "**The VS Code terminal** handles the bell through its `accessibility.signals.terminalBell` setting. If you hear nothing, check that setting.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "To change it for every profile, set `bellStyle` under `profiles.defaults` in Windows Terminal's `settings.json`:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: '{\n  "profiles": {\n    "defaults": { "bellStyle": "all" }\n  }\n}',
+          },
+          {
+            kind: "p",
+            text: "For a real Windows notification, use a hook. Codex hooks accept `commandWindows`, an optional Windows-only replacement for `command`, and by default Codex starts a hook through `cmd.exe /C`. This version needs no module install. It reuses the Windows PowerShell 5.1 toast from the [WSL toast guide](/guides/wsl-notify-send/). Save it as `%USERPROFILE%\\.codex\\win-toast.ps1`:",
+          },
+          { kind: "code", lang: "powershell", code: CODEX_WIN_TOAST_PS1 },
+          {
+            kind: "p",
+            text: "Then add this to `%USERPROFILE%\\.codex\\hooks.json`. The `command` entries are the Linux fallback and `commandWindows` runs on Windows; delete either one you don't need:",
+          },
+          { kind: "code", lang: "json", code: CODEX_WIN_HOOKS },
+          {
+            kind: "ul",
+            items: [
+              "Open `/hooks` in Codex and trust the two new hooks, or Codex skips them.",
+              "The toast shows under the name Windows PowerShell, with the title and message you pass and no agent icon, custom sound, or click-to-focus. If nothing appears, Do not disturb (Focus Assist) may be on.",
+              "For a sound file instead of a toast, use the `commandWindows` sound hook in the [Codex notification sound guide](/guides/codex-notification-sound/#hook).",
+            ],
+          },
+          {
+            kind: "p",
+            text: "To skip the wiring, run `npx anotifier@latest setup` in PowerShell. On Windows it writes `Stop`, `PermissionRequest`, and `SessionStart` hooks into `%USERPROFILE%\\.codex\\hooks.json`, turns on the hooks feature flag, records the trust hashes in `config.toml`, and backs up `hooks.json` first. It then checks for PowerShell 7 (`pwsh`) and installs the BurntToast module for your user with `Install-Module BurntToast -Scope CurrentUser`; if `pwsh` is missing it prints `winget install --id Microsoft.PowerShell --source winget`. Toasts then arrive as `my-app · Codex` with the Codex icon and a Windows notification sound, and clicking one brings the terminal window forward. `anotifier test toast` confirms it works. The [Windows and WSL guide](/guides/windows-wsl-notifications/) has the details.",
+          },
+          {
+            kind: "note",
+            text: "anotifier looks for Codex in `.codex` under your home folder and does not read `CODEX_HOME`. If you set `CODEX_HOME` to another folder, add the hooks there by hand.",
+          },
+          {
+            kind: "p",
+            text: "Codex running inside WSL is the Linux build: it reads `~/.codex` in the distribution, so run `npx anotifier@latest setup` inside WSL. The toast then goes through Windows interop. See [Agent notifications on Windows and WSL](/guides/windows-wsl-notifications/) and [Windows toast from WSL](/guides/wsl-notify-send/).",
+          },
+        ],
+      },
+      {
+        id: "mute",
+        title: "Turn off or mute Codex CLI notifications",
+        blocks: [
+          {
+            kind: "p",
+            text: "Codex has several independent alerts, so pick the switch that matches the one you hear. To silence Codex's built-in notifications, put this in `~/.codex/config.toml`:",
+          },
+          {
+            kind: "code",
+            lang: "toml",
+            code: "[tui]\nnotifications = false",
+          },
+          {
+            kind: "table",
+            head: ["To stop", "Do this"],
+            rows: [
+              [
+                "All built-in TUI notifications",
+                "`notifications = false` under `[tui]` in `~/.codex/config.toml`. The default is `true`, which allows every type",
+              ],
+              [
+                "Only some of them",
+                'List the types you want, such as `notifications = ["approval-requested"]`. The type names are in the [Codex notification sound guide](/guides/codex-notification-sound/#config)',
+              ],
+              [
+                "Alerts while you are looking at Codex",
+                'Leave `notification_condition` at its default, `"unfocused"`. `"always"` notifies even when the window is in front',
+              ],
+              [
+                "The bell in Windows Terminal",
+                'Set `bellStyle` to `"none"` in the profile (see the Windows section above)',
+              ],
+              [
+                "The notify command",
+                "Delete the `notify = [...]` line from `~/.codex/config.toml`",
+              ],
+              [
+                "One hook",
+                "Open `/hooks` in Codex and disable it, or delete its entry from `~/.codex/hooks.json`",
+              ],
+              [
+                "anotifier for a while",
+                "`anotifier snooze 2h` silences every channel until it expires; `anotifier snooze off` cancels it. Quiet hours (set `quietHours.enabled` to `true` in `~/.anotifier/config.json`; off by default) do the same every night",
+              ],
+              ["anotifier for good", "`npx anotifier@latest uninstall`"],
+            ],
+          },
+          {
+            kind: "note",
+            text: "`uninstall` asks for confirmation, then removes anotifier's hooks from every agent it wired, not just Codex, after backing up each file. For Codex it also removes anotifier's trust entries from `config.toml`. It leaves your own hooks, the `hooks = true` line under `[features]`, and your settings in `~/.anotifier`. On Windows it also removes the click-to-focus registry entry; the BurntToast module stays installed. Snooze and quiet hours silence anotifier only; Codex's own `[tui]` alerts keep going until you change them.",
+          },
         ],
       },
     ],
     faqs: [
       {
         q: "Does Codex CLI have built-in desktop notifications?",
-        a: "Yes. The Codex TUI notifies when a turn ends and when an approval, Plan mode prompt, or question is waiting: an OSC 9 desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, the terminal bell elsewhere, and by default only while the terminal is unfocused. It doesn't reach your phone.",
+        a: "Yes. The Codex TUI notifies when a turn ends and when an approval, Plan mode prompt, or question is waiting: an OSC 9 desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, the terminal bell elsewhere (including Windows Terminal and the VS Code terminal), and by default only while the terminal is unfocused. It doesn't reach your phone.",
+      },
+      {
+        q: "How do I get Codex CLI notifications on Windows?",
+        a: "In Windows Terminal, Codex's built-in alert is the terminal bell, because Codex only sends OSC 9 desktop notifications to Ghostty, iTerm2, Kitty, Warp and WezTerm. For a Windows toast, add Stop and PermissionRequest hooks with a commandWindows entry to %USERPROFILE%\\.codex\\hooks.json, or run npx anotifier@latest setup, which wires the hooks and installs the BurntToast module (it needs PowerShell 7).",
+      },
+      {
+        q: "How do I turn off Codex CLI notifications?",
+        a: "Set notifications = false under [tui] in ~/.codex/config.toml. That silences the built-in alerts only. To stop hook alerts, disable them with /hooks in Codex or remove them from hooks.json. To remove anotifier, run npx anotifier@latest uninstall; to pause it, run anotifier snooze 2h.",
       },
       {
         q: "How do I know when Codex is waiting for approval?",
-        a: "Codex's built-in approval-requested notification covers it on your machine. For an alert on your phone or on every channel, use the PermissionRequest hook (Codex CLI 0.144+); anotifier registers it during setup and delivers it as an urgent notification on every channel you enabled.",
+        a: "Codex's built-in approval-requested notification covers it on your machine. For an alert on your phone (ntfy), in Telegram, or on every channel, use the PermissionRequest hook (Codex CLI 0.144+); anotifier registers it during setup and delivers it as an urgent notification on every channel you enabled.",
       },
       {
         q: "Can I approve the command from the notification?",
