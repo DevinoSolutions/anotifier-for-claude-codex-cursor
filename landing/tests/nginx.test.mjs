@@ -69,6 +69,10 @@ test("nginx: the GA relay serves our gtag.js and the collect endpoint only", () 
     /if \(\$arg_tid != "G-TT12DKE7H6"\) \{\s*return 404;\s*\}/,
     "hits for other GA properties must 404",
   );
+  assert.ok(
+    hits.includes('if ($args ~ "(^|&)tid=[^&]*&(.*&)?tid=") {'),
+    "a second tid must 404 ($arg_tid only reads the first)",
+  );
   for (const body of [tag, hits]) {
     // nginx passes every client header on by default, X-Forwarded-For and
     // CF-Connecting-IP included; only these named ones may go to Google.

@@ -157,14 +157,15 @@ export default function PrivacyPage() {
             </li>
             <li>
               It records page views and the same three events, with the same
-              details as above.
+              details as above except your time zone.
             </li>
             <li>
               It also records the automatic events switched on in the Google
               Analytics property, a setting of the property and not of the
               site&apos;s code. Today these are scrolls, outbound link clicks,
-              file downloads, site searches, video engagement and page changes
-              within the site.
+              file downloads, form interactions, site searches (read from the
+              page address), video engagement and page changes within the
+              site.
             </li>
             <li>
               Its measurements go to anotifier.io/gx4t/g/collect. The
