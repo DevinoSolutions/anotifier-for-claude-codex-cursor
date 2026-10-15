@@ -39,14 +39,62 @@ test("nginx: /_t/s7e is an exact-match POST-only tunnel to project 67 only", () 
   );
 });
 
-test("nginx: only the two first-party tunnels proxy to the self-hosted hosts", () => {
+test("nginx: only the first-party tunnels proxy, each to a fixed upstream", () => {
   const upstreams = [...conf.matchAll(/proxy_pass\s+([^;]+);/g)].map(
     (m) => m[1],
   );
   assert.deepEqual(upstreams.sort(), [
+    "https://$ga/g/collect$is_args$args",
+    "https://$gtm/gtag/js?id=G-TT12DKE7H6",
     "https://$posthog",
     "https://$sentry/api/67/envelope/",
   ]);
+});
+
+test("nginx: the GA relay serves our gtag.js and the collect endpoint only", () => {
+  const tag = locationBody("= /gx4t/");
+  assert.match(tag, /set \$gtm www\.googletagmanager\.com;/);
+  assert.match(tag, /limit_except GET \{\s*deny all;\s*\}/, "not GET only");
+  assert.match(
+    tag,
+    /if \(\$arg_id != "G-TT12DKE7H6"\) \{\s*return 404;\s*\}/,
+    "other measurement ids must 404",
+  );
+  const hits = locationBody("= /gx4t/g/collect");
+  assert.match(hits, /set \$ga www\.google-analytics\.com;/);
+  assert.match(hits, /limit_except GET POST \{\s*deny all;\s*\}/);
+  assert.match(hits, /client_max_body_size 64k;/);
+  assert.match(
+    hits,
+    /if \(\$arg_tid != "G-TT12DKE7H6"\) \{\s*return 404;\s*\}/,
+    "hits for other GA properties must 404",
+  );
+  assert.ok(
+    hits.includes('if ($args ~ "(^|&)tid=[^&]*&(.*&)?tid=") {'),
+    "a second tid must 404 ($arg_tid only reads the first)",
+  );
+  for (const body of [tag, hits]) {
+    // nginx passes every client header on by default, X-Forwarded-For and
+    // CF-Connecting-IP included; only these named ones may go to Google.
+    assert.match(
+      body,
+      /proxy_pass_request_headers off;/,
+      "the visitor's headers (IP, cookies) would reach Google",
+    );
+    const sent = [...body.matchAll(/proxy_set_header (\S+)/g)].map((m) => m[1]);
+    assert.ok(
+      sent.every((h) => ["Host", "User-Agent", "Content-Type"].includes(h)),
+      `unexpected header sent to Google: ${sent}`,
+    );
+    assert.match(body, /proxy_hide_header Set-Cookie;/);
+    assert.match(body, /proxy_hide_header Strict-Transport-Security;/);
+    assert.match(body, /proxy_ssl_verify on;/);
+    assert.doesNotMatch(
+      body,
+      /add_header/,
+      "an add_header here would drop the server-level security headers",
+    );
+  }
 });
 
 test("nginx: every Content-Security-Policy-Report-Only allows the replay worker", () => {

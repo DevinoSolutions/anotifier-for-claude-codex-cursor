@@ -151,17 +151,31 @@ export default function PrivacyPage() {
           <h3>Google Analytics</h3>
           <ul>
             <li>
-              Google Analytics 4 loads through Cloudflare&apos;s Google Tag
-              Gateway, at anotifier.io/gx4t, instead of from a Google address.
+              Google Analytics 4 loads from anotifier.io/gx4t/, which the
+              site&apos;s own server fetches from Google, instead of from a
+              Google address.
             </li>
             <li>
               It records page views and the same three events, with the same
-              details as above. Which automatic events Google adds is a setting
-              of the Google Analytics property, not of the site&apos;s code.
+              details as above except your time zone.
             </li>
             <li>
-              The gateway is configured in Cloudflare to hide your original IP
-              address from Google. That is a Cloudflare setting, not part of the
+              It also records the automatic events switched on in the Google
+              Analytics property, a setting of the property and not of the
+              site&apos;s code. Today these are scrolls, outbound link clicks,
+              file downloads, form interactions, site searches (read from the
+              page address), video engagement and page changes within the site.
+            </li>
+            <li>
+              Its measurements go to anotifier.io/gx4t/g/collect. The
+              site&apos;s server passes them on to Google without your cookies
+              and without any request header that carries your IP address, so
+              the connection Google sees comes from the server. The page
+              address, your browser details and the identifier below are part of
+              each measurement.
+            </li>
+            <li>
+              Google signals and ad personalisation are switched off in the
               site&apos;s code.
             </li>
             <li>

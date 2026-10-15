@@ -144,12 +144,17 @@ test("first-party tracking: PostHog via /_t/n4q, gtag via /gx4t, no third-party 
     null,
     "the proxy passed a cookie on",
   );
-  // The Google Tag Gateway path only exists at Cloudflare's edge.
-  if (BASE_URL === SITE_URL) {
-    const tag = await get("/gx4t/?id=G-TT12DKE7H6");
-    assert.equal(tag.status, 200, `/gx4t/ returned ${tag.status}`);
-    assert.match(tag.headers.get("content-type") ?? "", /javascript/);
-  }
+  // nginx relays gtag.js from Google for our measurement id only.
+  const tag = await get("/gx4t/?id=G-TT12DKE7H6");
+  assert.equal(tag.status, 200, `/gx4t/ returned ${tag.status}`);
+  assert.match(tag.headers.get("content-type") ?? "", /javascript/);
+  assert.equal(
+    tag.headers.get("set-cookie"),
+    null,
+    "the relay passed a cookie on",
+  );
+  const other = await get("/gx4t/?id=G-XXXXXXXXXX");
+  assert.equal(other.status, 404, "/gx4t/ serves other measurement ids");
 });
 
 test("first-party Sentry tunnel: /_t/s7e is POST-only and reaches Sentry", async () => {
