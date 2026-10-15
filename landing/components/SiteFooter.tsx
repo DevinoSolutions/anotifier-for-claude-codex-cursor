@@ -1,5 +1,6 @@
 import Link from "next/link";
 import LogoMark from "@/components/LogoMark";
+import PrivacyChoicesButton from "@/components/PrivacyChoicesButton";
 import { AGENTS } from "@/lib/agents";
 import { CHANNELS } from "@/lib/channels";
 import DiscordIcon from "@/components/DiscordIcon";
@@ -53,6 +54,8 @@ export default function SiteFooter() {
             join our Discord
           </a>
           <a href={SUPPORT_URL}>♥ support</a>
+          <Link href="/privacy/">privacy</Link>
+          <PrivacyChoicesButton />
         </div>
         <nav className="siteDir" aria-label="Agents and channels">
           <span>agents:</span>

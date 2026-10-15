@@ -64,8 +64,16 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run typecheck
 
+      # Dummy analytics keys, so the build contains the PostHog, Google
+      # Analytics and Sentry code and the browser tests can check that it loads
+      # after Accept (and not before). The keys are not real, and the tests
+      # block every tracker path (a blocklist), so nothing reaches any server.
       - name: Build (static export)
         if: ${{ !cancelled() }}
+        env:
+          NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: G-CITEST0000
+          NEXT_PUBLIC_POSTHOG_KEY: phc_citest
+          NEXT_PUBLIC_SENTRY_DSN: https://citest@sentry.devino.ca/67
         run: npm run build
 
       # The same image and nginx.conf production runs, so redirects, 404s and
@@ -85,4 +93,5 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           BASE_URL: http://localhost:8080
+          KEYED_BUILD: '1'
         run: npm run test:site

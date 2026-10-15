@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import GoogleAnalytics from "@/components/GoogleAnalytics";
-import PostHog from "@/components/PostHog";
-import SentryReplay from "@/components/SentryReplay";
+import ConsentedAnalytics from "@/components/ConsentedAnalytics";
+import ConsentPrompt from "@/components/ConsentPrompt";
 import "./globals.css";
 
 const inter = localFont({
@@ -76,10 +75,9 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <ConsentPrompt />
         {children}
-        <GoogleAnalytics />
-        <PostHog />
-        <SentryReplay />
+        <ConsentedAnalytics />
       </body>
     </html>
   );

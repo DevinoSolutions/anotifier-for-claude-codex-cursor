@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BASE_URL, findChrome } from "./site-helpers.mjs";
+import { BASE_URL, SITE_URL, findChrome, get } from "./site-helpers.mjs";
 
 const CHROME = findChrome();
 // Median mobile LCP under 4x CPU and a slow-4G-like link. Before the LCP work
@@ -16,6 +16,9 @@ const CHROME = findChrome();
 const LCP_BUDGET_MS = Number(process.env.LCP_BUDGET_MS || 2000);
 // A cold hosted runner has taken more than 15 s to bring up its first Chrome.
 const CHROME_START_MS = Number(process.env.CHROME_START_MS || 45_000);
+// The live site has real keys, so a test that stores consent or accepts could
+// reach real analytics.
+const LIVE = BASE_URL === SITE_URL;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function openBrowser(port) {
@@ -75,8 +78,13 @@ async function connect(port, stop) {
   });
   let id = 0;
   const pending = new Map();
+  // URLs of every request the page makes, once Network.enable has been sent.
+  const requests = [];
   ws.addEventListener("message", (e) => {
     const m = JSON.parse(e.data);
+    if (m.method === "Network.requestWillBeSent") {
+      requests.push(m.params.request.url);
+    }
     if (pending.has(m.id)) {
       pending.get(m.id)(m);
       pending.delete(m.id);
@@ -106,7 +114,7 @@ async function connect(port, stop) {
     stop();
   };
   await send("Page.enable");
-  return { send, evaluate, close };
+  return { send, evaluate, close, requests };
 }
 
 async function load(b, url, waitMs) {
@@ -179,6 +187,21 @@ const GA_EVENTS = `window.__gtag
   .filter((a) => a[0] === 'event')
   .map((a) => ({ name: a[1], ...a[2] }))`;
 
+// No analytics request leaves a test: everything under the tracker paths is
+// blocked (all of /_t/n4q/, which also carries config.js and the lazy
+// recorder that would otherwise pass through to the real PostHog, plus the
+// Sentry tunnel and the Google tag gateway). The browser still logs a blocked
+// request, which is what the "requested" assertions read.
+const BLOCK_TRACKERS = ["*/_t/n4q/*", "*/_t/s7e*", "*/gx4t/*"];
+const blockTrackers = (b) =>
+  b.send("Network.setBlockedURLs", { urls: BLOCK_TRACKERS });
+
+// track() sends nothing without the visitor's consent. These tests store
+// "accepted" so the recorded gtag() below sees the events. A re-render may then
+// mount the real trackers (on the live suite too), so every such test blocks
+// the tracker paths first and nothing is ever sent.
+const ACCEPT_STORED = `localStorage.setItem('anotifier:consent:v1', 'accepted')`;
+
 async function realClick(b, selector) {
   const at = await b.evaluate(`(async () => {
     const el = document.querySelector(${JSON.stringify(selector)});
@@ -199,7 +222,11 @@ async function realClick(b, selector) {
 
 test(
   "copy buttons copy the code and raise GA events; star clicks too",
-  { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },
+  {
+    skip:
+      (!CHROME && "no Chrome found (set CHROME_PATH)") ||
+      (LIVE && "stores consent, which could mount the real trackers"),
+  },
   async () => {
     const b = await openBrowser(9345);
     try {
@@ -209,8 +236,11 @@ test(
       });
       // Clipboard calls need a focused page, which headless never has.
       await b.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+      await b.send("Network.enable");
+      await blockTrackers(b);
       await load(b, BASE_URL + "/guides/ntfy-phone-notifications/", 2500);
       await b.evaluate(RECORD_GTAG);
+      await b.evaluate(ACCEPT_STORED);
       // A real mouse click gives the page the user activation the clipboard
       // API asks for; element.click() would not.
       await realClick(b, ".codeBlock .codeCopy");
@@ -259,10 +289,16 @@ test(
 // one-command install without scrolling past the manual config first.
 test(
   "guides show the install command in the first screen, and copying it is tracked",
-  { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },
+  {
+    skip:
+      (!CHROME && "no Chrome found (set CHROME_PATH)") ||
+      (LIVE && "stores consent, which could mount the real trackers"),
+  },
   async () => {
     const b = await openBrowser(9346);
     try {
+      await b.send("Network.enable");
+      await blockTrackers(b);
       await b.send("Emulation.setDeviceMetricsOverride", {
         width: 1366,
         height: 768,
@@ -297,6 +333,7 @@ test(
       });
       await b.send("Emulation.setFocusEmulationEnabled", { enabled: true });
       await b.evaluate(RECORD_GTAG);
+      await b.evaluate(ACCEPT_STORED);
       await realClick(b, ".guideShortcut .install button");
       await sleep(300);
       const got = await b.evaluate(`(async () => ({
@@ -364,5 +401,313 @@ test(
       median <= LCP_BUDGET_MS,
       `median mobile LCP ${median} ms > ${LCP_BUDGET_MS} ms`,
     );
+  },
+);
+
+// ---- analytics consent ------------------------------------------------------
+// The "before a choice" and "after Decline" checks only prove something on a
+// keyed build (NEXT_PUBLIC_* set), where the trackers exist to be withheld; a
+// keyless build loads none regardless. CI builds keyed (landing.yml).
+// PostHog, Google Analytics and Sentry load only after the visitor accepts
+// (components/ConsentedAnalytics.tsx). Nothing here is mocked: the requests are
+// the ones the real page makes, read off the DevTools network log.
+
+const TRACKERS = /\/_t\/n4q|\/gx4t|\/_t\/s7e/;
+const trackerRequests = (urls) => urls.filter((u) => TRACKERS.test(u));
+// CI builds with dummy NEXT_PUBLIC_* keys and sets this, so accepting really
+// loads the trackers. A keyless build can only check that nothing loads.
+const KEYED = process.env.KEYED_BUILD === "1";
+const NO_TRACKERS = `({
+  posthog: typeof window.posthog,
+  gtag: typeof window.gtag,
+  dataLayer: typeof window.dataLayer,
+  sentry: typeof window.__SENTRY__,
+})`;
+const stored = `localStorage.getItem('anotifier:consent:v1')`;
+const BAR = `document.querySelector('section.consentBar')`;
+
+async function press(b, key) {
+  for (const type of ["keyDown", "keyUp"]) {
+    await b.send("Input.dispatchKeyEvent", { type, key, code: key });
+  }
+}
+
+test(
+  "before a choice no tracker loads, and the prompt is an accessible bar",
+  { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },
+  async () => {
+    // The prompt is drawn after hydration, never part of the static HTML.
+    const html = (await get("/")).body;
+    assert.doesNotMatch(
+      html,
+      /<section[^>]*consentBar/,
+      "the prompt is in the static HTML",
+    );
+
+    const b = await openBrowser(9347);
+    try {
+      await b.send("Network.enable");
+      await blockTrackers(b);
+      await b.send("Emulation.setDeviceMetricsOverride", {
+        width: 320,
+        height: 700,
+        deviceScaleFactor: 2,
+        mobile: true,
+      });
+      for (const p of ["/", "/docs/", "/privacy/"]) {
+        b.requests.length = 0;
+        // Past the load event, and past Sentry's 5 s idle timeout
+        await load(b, BASE_URL + p, 7000);
+        assert.deepEqual(
+          trackerRequests(b.requests),
+          [],
+          `${p} reached a tracker before any choice`,
+        );
+        assert.deepEqual(await b.evaluate(NO_TRACKERS), {
+          posthog: "undefined",
+          gtag: "undefined",
+          dataLayer: "undefined",
+          sentry: "undefined",
+        });
+        const bar = await b.evaluate(`(() => {
+          const el = ${BAR};
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return {
+            label: el.getAttribute('aria-label'),
+            position: getComputedStyle(el).position,
+            fits: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
+            overflow: document.documentElement.scrollWidth > innerWidth,
+            buttons: [...el.querySelectorAll('button')].map((x) => x.textContent),
+            privacy: el.querySelector('a')?.getAttribute('href'),
+            focusable: (() => {
+              const btn = el.querySelector('button');
+              btn.focus();
+              return document.activeElement === btn;
+            })(),
+          };
+        })()`);
+        assert.ok(bar, `${p}: no consent prompt`);
+        assert.equal(bar.position, "fixed");
+        assert.ok(bar.label, "the prompt has no accessible name");
+        assert.ok(bar.fits, `${p}: the prompt does not fit a 320px screen`);
+        assert.ok(!bar.overflow, `${p}: the prompt scrolls sideways`);
+        assert.deepEqual(bar.buttons, ["Decline", "Accept"]);
+        assert.equal(bar.privacy, "/privacy/");
+        assert.ok(bar.focusable, "the prompt's buttons cannot take focus");
+        assert.equal(await b.evaluate(stored), null);
+      }
+    } finally {
+      b.close();
+    }
+  },
+);
+
+test(
+  "declining loads nothing, persists across reloads, and the footer link reopens the prompt",
+  { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },
+  async () => {
+    const b = await openBrowser(9348);
+    try {
+      await b.send("Network.enable");
+      await blockTrackers(b);
+      await load(b, BASE_URL + "/guides/ntfy-phone-notifications/", 2500);
+      await realClick(b, ".consentActions button:first-child");
+      await sleep(300);
+      assert.equal(await b.evaluate(stored), "declined");
+      assert.equal(
+        await b.evaluate(BAR),
+        null,
+        "the prompt stays after Decline",
+      );
+
+      b.requests.length = 0;
+      await load(b, BASE_URL + "/guides/ntfy-phone-notifications/", 7000);
+      assert.equal(
+        await b.evaluate(stored),
+        "declined",
+        "the choice did not persist",
+      );
+      assert.equal(
+        await b.evaluate(BAR),
+        null,
+        "a declined visitor is asked again",
+      );
+      assert.deepEqual(trackerRequests(b.requests), []);
+      const none = await b.evaluate(NO_TRACKERS);
+      assert.equal(none.posthog, "undefined");
+      assert.equal(none.gtag, "undefined");
+
+      // ... and on another page of the site.
+      b.requests.length = 0;
+      await load(b, BASE_URL + "/docs/", 7000);
+      assert.equal(await b.evaluate(stored), "declined");
+      assert.equal(
+        await b.evaluate(BAR),
+        null,
+        "/docs/ asked a declined visitor",
+      );
+      assert.deepEqual(trackerRequests(b.requests), []);
+      assert.equal((await b.evaluate(NO_TRACKERS)).posthog, "undefined");
+      await load(b, BASE_URL + "/guides/ntfy-phone-notifications/", 2500);
+
+      // The footer link brings the prompt back, with focus inside it.
+      await realClick(b, "footer .linkBtn");
+      await sleep(300);
+      const open = await b.evaluate(`(() => ({
+        shown: !!${BAR},
+        text: ${BAR}?.textContent,
+        focusInBar: ${BAR}?.contains(document.activeElement),
+      }))()`);
+      assert.ok(open.shown, "the footer link did not reopen the prompt");
+      assert.match(open.text, /current choice: declined/);
+      assert.ok(open.focusInBar, "focus did not move into the prompt");
+
+      // Escape closes it and keeps the earlier choice.
+      await press(b, "Escape");
+      await sleep(200);
+      assert.equal(
+        await b.evaluate(BAR),
+        null,
+        "Escape did not close the prompt",
+      );
+      assert.equal(await b.evaluate(stored), "declined");
+      assert.equal(
+        await b.evaluate(`document.activeElement?.className`),
+        "linkBtn",
+        "focus did not return to the footer link",
+      );
+    } finally {
+      b.close();
+    }
+  },
+);
+
+test(
+  "track() is a no-op without consent",
+  { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },
+  async () => {
+    const b = await openBrowser(9350);
+    try {
+      await b.send("Browser.grantPermissions", {
+        origin: new URL(BASE_URL).origin,
+        permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"],
+      });
+      await b.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+      await b.send("Network.enable");
+      await blockTrackers(b);
+      await load(b, BASE_URL + "/guides/ntfy-phone-notifications/", 2500);
+      // Fakes stand in for the trackers; with no choice made they stay unused.
+      await b.evaluate(`${RECORD_GTAG}
+        window.__ph = [];
+        window.posthog = {
+          capture: function () { window.__ph.push(Array.from(arguments)); },
+          createPersonProfile: function () { window.__ph.push(['profile']); },
+        };`);
+      assert.equal(await b.evaluate(stored), null);
+      await realClick(b, ".codeBlock .codeCopy");
+      await sleep(400);
+      const seen = await b.evaluate(`({
+        gtag: window.__gtag.length,
+        ph: window.__ph.length,
+        label: document.querySelector('.codeBlock .codeCopy').textContent,
+      })`);
+      assert.match(seen.label, /copied/i, "the copy button did not work");
+      assert.equal(seen.gtag, 0, "gtag was called without consent");
+      assert.equal(seen.ph, 0, "posthog was called without consent");
+    } finally {
+      b.close();
+    }
+  },
+);
+
+test(
+  "declining with browser storage blocked leaves the page intact",
+  { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },
+  async () => {
+    const b = await openBrowser(9351);
+    try {
+      await b.send("Network.enable");
+      await blockTrackers(b);
+      await b.send("Page.addScriptToEvaluateOnNewDocument", {
+        source: `for (const name of ['localStorage', 'sessionStorage']) {
+          Object.defineProperty(window, name, {
+            configurable: true,
+            get() { throw new DOMException('The operation is insecure.', 'SecurityError'); },
+          });
+        }`,
+      });
+      await load(b, BASE_URL + "/docs/", 3000);
+      const before = await b.evaluate(`document.body.innerText.length`);
+      assert.ok(before > 500, "the page did not render with storage blocked");
+      await realClick(b, ".consentActions button:first-child");
+      await sleep(800);
+      const after = await b.evaluate(`({
+        len: document.body.innerText.length,
+        h1: document.querySelector('h1')?.textContent,
+        bar: !!${BAR},
+      })`);
+      assert.ok(after.h1, "the page blanked after Decline");
+      assert.ok(
+        after.len >= before * 0.9,
+        `page text shrank: ${before} -> ${after.len}`,
+      );
+      assert.equal(after.bar, false, "the prompt stays after Decline");
+    } finally {
+      b.close();
+    }
+  },
+);
+
+test(
+  "accepting loads the trackers; withdrawing stops them",
+  {
+    skip:
+      (!CHROME && "no Chrome found (set CHROME_PATH)") ||
+      (LIVE && "would send real analytics from the live site") ||
+      (!KEYED && "needs a build with NEXT_PUBLIC_* keys (KEYED_BUILD=1)"),
+  },
+  async () => {
+    const b = await openBrowser(9349);
+    try {
+      await b.send("Network.enable");
+      await blockTrackers(b);
+      await load(b, BASE_URL + "/guides/ntfy-phone-notifications/", 2500);
+      await realClick(b, ".consentActions button:last-child");
+      await sleep(7000);
+      assert.equal(await b.evaluate(stored), "accepted");
+      assert.equal(await b.evaluate(BAR), null);
+      const urls = trackerRequests(b.requests);
+      assert.ok(
+        urls.some((u) => u.includes("/_t/n4q/static/array.js")),
+        `PostHog did not load: ${urls}`,
+      );
+      assert.ok(
+        urls.some((u) => u.includes("/gx4t/?id=")),
+        `Google Analytics did not load: ${urls}`,
+      );
+      const after = await b.evaluate(NO_TRACKERS);
+      assert.equal(after.posthog, "object");
+      assert.equal(after.gtag, "function");
+      assert.equal(after.dataLayer, "object");
+      assert.equal(after.sentry, "object", "Sentry did not start");
+
+      // Withdraw from the footer: the page reloads without any of them.
+      await realClick(b, "footer .linkBtn");
+      await sleep(300);
+      b.requests.length = 0;
+      await realClick(b, ".consentActions button:first-child");
+      await sleep(7000);
+      assert.equal(await b.evaluate(stored), "declined");
+      assert.deepEqual(await b.evaluate(NO_TRACKERS), {
+        posthog: "undefined",
+        gtag: "undefined",
+        dataLayer: "undefined",
+        sentry: "undefined",
+      });
+      assert.deepEqual(trackerRequests(b.requests), []);
+    } finally {
+      b.close();
+    }
   },
 );

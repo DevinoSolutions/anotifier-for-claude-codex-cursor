@@ -2,6 +2,7 @@ import Link from "next/link";
 import LogoMark from "../LogoMark";
 import DiscordIcon from "../DiscordIcon";
 import GitHubIcon from "../GitHubIcon";
+import PrivacyChoicesButton from "../PrivacyChoicesButton";
 import {
   COMMUNITY_URL,
   DEMO_VIDEO_URL,
@@ -19,6 +20,7 @@ const primaryLinks = [
   { href: DEMO_VIDEO_URL, label: "demo video" },
   { href: COMMUNITY_URL, label: "join our Discord", community: true },
   { href: SUPPORT_URL, label: "♥ support", accent: true },
+  { href: "/privacy/", label: "privacy", internal: true },
 ];
 
 const seoLinks = [
@@ -177,6 +179,7 @@ export default function Footer() {
               </a>
             ),
           )}
+          <PrivacyChoicesButton />
         </div>
         <div
           style={{
