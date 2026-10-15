@@ -72,8 +72,8 @@ export default function PrivacyPage() {
             A bar at the bottom of the page asks whether to allow analytics.
             Until you press Accept, the site does not load PostHog, Google
             Analytics or Sentry. If you press Decline, none of them loads and
-            the site does not ask again in this browser, unless its storage is
-            cleared or this page's wording changes.
+            the site does not ask again in this browser unless its storage is
+            cleared.
           </p>
           <p>
             Your choice is stored in your browser&apos;s local storage under the
