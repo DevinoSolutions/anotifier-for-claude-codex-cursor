@@ -69,14 +69,16 @@ for (const [label, path, status] of CASES) {
   });
 }
 
-// Pages carry Cache-Control: public, no-transform (nginx.conf, location /) so
-// Cloudflare never rewrites the HTML. Without it, the zone's Google Tag
-// Gateway injects the GA4 tag (google_tags_first_party, /gx4t/, gtag) into
-// every page's <head>, which loads Google Analytics before the visitor
-// accepts; only components/ConsentedAnalytics.tsx may load it. The same
-// header keeps the Web Analytics beacon (static.cloudflareinsights.com) out,
-// which is also switched off for the zone. The directive stops Cloudflare
-// compressing the page, so nginx's own gzip has to reach visitors.
+// No page may reach a visitor with a tag Cloudflare added at the edge. The
+// zone's Google Tag Gateway injected the GA4 tag (google_tags_first_party,
+// /gx4t/, gtag) into every page's <head> for browser user agents, even with
+// no-transform, which loaded Google Analytics before the visitor accepted;
+// only components/ConsentedAnalytics.tsx may load it. The gateway is off and
+// nginx relays /gx4t itself. Pages carry Cache-Control: public, no-transform
+// (nginx.conf, location /), which keeps the Web Analytics beacon
+// (static.cloudflareinsights.com, also off for the zone) out. The directive
+// stops Cloudflare compressing the page, so nginx's own gzip has to reach
+// visitors.
 const PAGES = [
   ["page", "/", 200],
   ["guide", "/guides/claude-code-notification-sound/", 200],
