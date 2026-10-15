@@ -459,6 +459,7 @@ A "task complete" notification says how long the turn took when anotifier knows 
 - Only completions are ever filtered. Permission prompts, questions and every other `needs_input` notification are always sent, and the key is rejected (and reported by `anotifier status`) anywhere except `events.task_complete`.
 - A turn of exactly the threshold is sent; only shorter turns are skipped.
 - A turn whose length is unknown is never skipped.
+- A turn's clock starts at its first prompt; a prompt sent while the turn is still open does not restart it. Claude Code sends no `Stop` for a turn you interrupt with Esc, so the next prompt in that session counts from the interrupted turn's start and its length can read longer than it was. That only ever errs toward sending the alert.
 - Set it with `anotifier config events`, or by editing `~/.anotifier/config.json`. `anotifier status` shows the current value as `Min duration`.
 
 How a turn is measured depends on what each tool's hooks offer. The start time is recorded by a second, tiny hook that runs when you submit a prompt, writes `~/.anotifier/turns.json` (atomically, under a lock) and prints only `{}`. It never blocks the agent: it has a 5-second timeout, ignores every error, and a start that could not be saved just means that turn has no length (a lock that cannot be taken is logged to `errors.log`, which `anotifier status` shows). A prompt sent while a turn is still running does not restart its clock. `anotifier uninstall` removes the hook and deletes `turns.json`.
