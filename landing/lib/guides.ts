@@ -315,7 +315,7 @@ const AGENT_GUIDES: Guide[] = [
     agentSlug: "codex",
     name: "Codex CLI",
     icon: "/assets/icons/codex.png",
-    title: "Codex CLI Notifications: Get Alerted (Windows, macOS, Linux)",
+    title: "Codex CLI Notifications on Windows, macOS & Linux",
     description:
       "Codex CLI alerts only in the background; in Windows Terminal that is a bell. Add desktop or phone alerts with hooks or anotifier, or turn them off.",
     h1: "How to get notified when Codex CLI finishes or needs approval",
