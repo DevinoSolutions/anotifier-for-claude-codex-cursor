@@ -102,7 +102,7 @@ const BY_HAND_HOOKS = json({
 const BY_HAND_COMMANDS = `# macOS
 osascript -e 'display notification "Claude finished" with title "Claude Code"'
 
-# Linux (needs a notification daemon; on Debian/Ubuntu `libnotify-bin` provides notify-send)
+# Linux (needs a notification daemon; on Debian/Ubuntu libnotify-bin provides notify-send)
 notify-send 'Claude Code' 'Claude finished'
 
 # Windows (PowerShell)
@@ -356,7 +356,7 @@ export const AGENTS: Agent[] = [
       {
         q: "What is the best Claude Code notifier?",
         aHtml:
-          '<p>It depends on what you need to reach. On macOS only, a companion app may feel more native. In VS Code only, an extension is closest to the editor. If you want one install that works on Windows, macOS, Linux and WSL, reaches your phone or Slack, and covers Codex CLI, Cursor and Gemini CLI from one config, anotifier is built for that. Claude Code's own Remote Control and mobile app can also push to your phone if you use them. And if you want no extra software, two hooks you write yourself take about ten lines. The <a href="#options">comparison above</a> lists what each option does.</p>',
+          '<p>It depends on what you need to reach. On macOS only, a companion app may feel more native. In VS Code only, an extension is closest to the editor. If you want one install that works on Windows, macOS, Linux and WSL, reaches your phone or Slack, and covers Codex CLI, Cursor and Gemini CLI from one config, anotifier is built for that. The Remote Control feature in Claude Code and its mobile app can also push to your phone if you use them. And if you want no extra software, two hooks you write yourself take about ten lines. The <a href="#options">comparison above</a> lists what each option does.</p>',
       },
       {
         q: "Is anotifier free?",
