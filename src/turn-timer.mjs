@@ -22,6 +22,7 @@
 // context alerts. It is written atomically. A start that cannot be recorded
 // (lock contention, unwritable home) just means that turn has no duration: the
 // failure direction is always "notify as usual", never "swallow the alert".
+import fs from 'node:fs';
 import path from 'node:path';
 import { getConfigDir } from './config-loader.mjs';
 import { readState, writeState, withLock } from './usage-alert.mjs';
@@ -65,13 +66,16 @@ function usableTurnId(turnId) {
 }
 
 // Locked read-modify-write. Returns whatever `fn` returned, or undefined when
-// the lock could not be had after a few short tries.
+// the lock could not be had after a few short tries. That is logged (errors.log,
+// shown by `anotifier status`) and otherwise changes nothing: the caller treats
+// it as "no duration", so the alert is still sent.
 function withTurnState(statePath, fn) {
   for (let i = 0; i < LOCK_TRIES; i++) {
     const out = withLock(`${statePath}.lock`, () => ({ value: fn(readState(statePath)) }), 'turn-timer:lock');
     if (out) return out.value;
     if (i < LOCK_TRIES - 1) sleepSync(LOCK_WAIT_MS);
   }
+  logHookError('turn-timer:lock', new Error(`could not get ${statePath}.lock after ${LOCK_TRIES} tries; this turn has no duration`));
   return undefined;
 }
 
@@ -89,7 +93,16 @@ export function recordTurnStart({ source, sessionId, turnId } = {}, { statePath 
   try {
     const ok = withTurnState(statePath, (state) => {
       const next = pruned(state, now);
-      next[entryKey(source, sessionId)] = { startedAt: now, turnId: usableTurnId(turnId) };
+      const key = entryKey(source, sessionId);
+      const open = next[key];
+      // A prompt sent while the turn is still running (steering the agent, or
+      // queueing the next one) is part of the SAME turn: keep the first start,
+      // or a long turn would look short and could be filtered out. Only the
+      // turn id (codex names the latest) and the time of the last prompt move.
+      // A finished entry (endedAt set) or one past MAX_TURN_MS starts afresh.
+      next[key] = open && !Number.isFinite(open.endedAt)
+        ? { ...open, turnId: usableTurnId(turnId), lastPromptAt: now }
+        : { startedAt: now, turnId: usableTurnId(turnId) };
       writeState(statePath, next);
       return true;
     });
@@ -104,7 +117,10 @@ export function recordTurnStart({ source, sessionId, turnId } = {}, { statePath 
 // when that is not known. Null for every doubt: an unsupported agent, no
 // recorded start, a different turn id, a start in the future, an absurd length.
 // The end is stamped on first read so a double-fired Stop reports the same
-// length, while a later Stop that no prompt preceded reports nothing.
+// length, while a later Stop that no prompt preceded reports nothing. The
+// stamped length is only repeated to a Stop carrying the same turn id as the
+// one that stamped it (both empty counts as the same), so a codex turn that
+// started on its own never inherits the previous turn's duration.
 // Never throws.
 export function finishTurn({ source, sessionId, turnId } = {}, { statePath = turnStatePath(), now = Date.now() } = {}) {
   if (!supportsTurnTiming(source) || !sessionId) return null;
@@ -118,9 +134,10 @@ export function finishTurn({ source, sessionId, turnId } = {}, { statePath = tur
       let endedAt = now;
       if (Number.isFinite(entry.endedAt)) {
         if (now - entry.endedAt > REPEAT_WINDOW_MS) return null;
+        if ((entry.endedTurnId || '') !== wanted) return null;
         endedAt = entry.endedAt;
       } else {
-        writeState(statePath, { ...state, [key]: { ...entry, endedAt } });
+        writeState(statePath, { ...state, [key]: { ...entry, endedAt, endedTurnId: wanted } });
       }
       const elapsed = endedAt - entry.startedAt;
       return elapsed >= 0 && elapsed <= MAX_TURN_MS ? elapsed : null;
@@ -130,6 +147,23 @@ export function finishTurn({ source, sessionId, turnId } = {}, { statePath = tur
     logHookError('turn-timer:finish', err);
     return null;
   }
+}
+
+// Uninstall: delete the state file, its lock and any temp file a crashed write
+// left behind. Returns { removed: [names], failed: [{ name, message }] }; a file
+// that is already gone is not a failure. Never throws.
+export function removeTurnState(dir = getConfigDir()) {
+  const removed = [];
+  const failed = [];
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch { return { removed, failed }; }
+  const base = path.basename(turnStatePath());
+  const ours = (n) => n === base || n === `${base}.lock` || (n.startsWith(`${base}.`) && n.endsWith('.tmp'));
+  for (const name of names.filter(ours)) {
+    try { fs.unlinkSync(path.join(dir, name)); removed.push(name); }
+    catch (err) { if (err?.code !== 'ENOENT') failed.push({ name, message: err.message }); }
+  }
+  return { removed, failed };
 }
 
 // events.task_complete.minDurationSeconds as a number of seconds; 0 (off) for
