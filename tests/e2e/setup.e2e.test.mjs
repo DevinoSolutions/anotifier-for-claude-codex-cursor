@@ -70,18 +70,26 @@ describe('real setup subprocess wires every detected tool', () => {
   });
 
   it('uninstall removes managed hooks from ALL four tools and Codex trust state', () => {
+    // Leftovers of the turn timer (state, lock, an interrupted write).
+    const anotifierDir = path.join(home, '.anotifier');
+    for (const name of ['turns.json', 'turns.json.lock', 'turns.json.99.tmp']) fs.writeFileSync(path.join(anotifierDir, name), '{}');
     const res = runNode(['cli/index.mjs', 'uninstall'], { home, stdin: 'y\n' });
     assert.equal(res.status, 0, `uninstall exited non-zero: ${res.stderr}`);
+    for (const name of ['turns.json', 'turns.json.lock', 'turns.json.99.tmp']) {
+      assert.equal(fs.existsSync(path.join(anotifierDir, name)), false, `${name} removed`);
+    }
 
     // Claude
     const claude = readJSON(path.join(home, '.claude', 'settings.json'));
     assert.equal(claude.hooks.Stop, undefined, 'claude Stop removed');
     assert.equal(claude.hooks.Notification, undefined, 'claude Notification removed');
+    assert.equal(claude.hooks.UserPromptSubmit, undefined, 'claude UserPromptSubmit (timing hook) removed');
 
     // Codex hooks.json
     const codex = readJSON(path.join(home, '.codex', 'hooks.json'));
     assert.equal(codex.hooks.Stop, undefined, 'codex Stop removed');
     assert.equal(codex.hooks.SessionStart, undefined, 'codex SessionStart removed');
+    assert.equal(codex.hooks.UserPromptSubmit, undefined, 'codex UserPromptSubmit (timing hook) removed');
 
     // Codex config.toml — the trust hashes we wrote must be gone too. Otherwise
     // codex keeps a [hooks.state] entry for a hook that no longer exists, and
@@ -89,6 +97,7 @@ describe('real setup subprocess wires every detected tool', () => {
     const toml = fs.readFileSync(path.join(home, '.codex', 'config.toml'), 'utf8');
     assert.doesNotMatch(toml, /:stop:\d+:0'\]/, 'codex stop trust key removed');
     assert.doesNotMatch(toml, /:session_start:\d+:0'\]/, 'codex session_start trust key removed');
+    assert.doesNotMatch(toml, /:user_prompt_submit:\d+:0'\]/, 'codex user_prompt_submit trust key removed');
     assert.doesNotMatch(toml, /trusted_hash/, 'no managed trusted_hash remains');
 
     // Cursor
@@ -99,6 +108,7 @@ describe('real setup subprocess wires every detected tool', () => {
     const gemini = readJSON(path.join(home, '.gemini', 'settings.json'));
     assert.equal(gemini.hooks.AfterAgent, undefined, 'gemini AfterAgent removed');
     assert.equal(gemini.hooks.Notification, undefined, 'gemini Notification removed');
+    assert.equal(gemini.hooks.BeforeAgent, undefined, 'gemini BeforeAgent (timing hook) removed');
   });
 });
 
