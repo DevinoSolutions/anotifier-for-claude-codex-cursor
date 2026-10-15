@@ -436,7 +436,7 @@ export const DOCS: DocSection[] = [
     blocks: [
       {
         kind: "p",
-        text: "A `needs_input` notification carries Claude's own question; a `task_complete` notification carries the last assistant message. Both are collapsed to one line and trimmed to about 180 characters. Session-start notifications stay generic. anotifier reads the transcript for Claude Code only, so Codex, Cursor, and Gemini CLI always get `<project>: Task complete` style text. The project name stays in the title on every channel, so a rich body never hides which repo finished. Cursor is the exception: its `stop` event carries no working directory, so Cursor alerts are titled just `Cursor`.",
+        text: "A `needs_input` notification carries Claude's own question; a `task_complete` notification carries the last assistant message. Both are collapsed to one line and trimmed to about 180 characters. Session-start notifications stay generic. anotifier reads the transcript for Claude Code only, so Codex, Cursor, and Gemini CLI always get `<project>: Task complete` style text. The project name stays in the title on every channel, so a rich body never hides which repo finished. Cursor is the exception: anotifier doesn't read a project folder from its `stop` event, so Cursor alerts are titled just `Cursor`.",
       },
       {
         kind: "table",

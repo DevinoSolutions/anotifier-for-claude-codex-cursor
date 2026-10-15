@@ -143,7 +143,7 @@ const WHAT_ANOTIFIER_ADDS: Block[] = [
   },
 ];
 
-/** Cursor's stop event carries no working directory and anotifier hooks only
+/** anotifier reads no project folder from Cursor's stop event and hooks only
     `stop`, so three of the shared rows don't hold for Cursor. */
 const CURSOR_ROWS: Record<string, string> = {
   "Names the project": "No, the title is `Cursor`",

@@ -129,7 +129,7 @@ All five tools are wired automatically by the setup wizard. No manual config edi
 
 ### VS Code Native Support
 
-Claude Code, Codex, and Cursor all run inside VS Code. **anotifier** hooks directly into each tool's native hook system -- no VS Code extension required. The setup wizard detects installed tools and patches their configs automatically. On Windows, click a notification toast to jump straight back to your VS Code window (Cursor alerts are the exception: Cursor sends no project folder to match). More on the [VS Code page](https://anotifier.io/vscode/).
+Claude Code, Codex, and Cursor all run inside VS Code. **anotifier** hooks directly into each tool's native hook system -- no VS Code extension required. The setup wizard detects installed tools and patches their configs automatically. On Windows, click a notification toast to jump straight back to your VS Code window (Cursor alerts are the exception: anotifier doesn't read a project folder from Cursor's event). More on the [VS Code page](https://anotifier.io/vscode/).
 
 ## Installation
 
