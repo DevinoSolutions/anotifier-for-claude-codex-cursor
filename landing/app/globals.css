@@ -222,3 +222,38 @@ a:focus-visible {
   color: var(--faint);
   text-align: center;
 }
+
+/* Thin dark scrollbar for horizontally scrolling command and code rows. */
+.cmdScroll,
+.docBody pre,
+.tableWrap {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(205, 205, 205, 0.22) transparent;
+}
+.cmdScroll::-webkit-scrollbar,
+.docBody pre::-webkit-scrollbar,
+.tableWrap::-webkit-scrollbar {
+  height: 6px;
+  background: transparent;
+}
+.cmdScroll::-webkit-scrollbar-track,
+.docBody pre::-webkit-scrollbar-track,
+.tableWrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cmdScroll::-webkit-scrollbar-thumb,
+.docBody pre::-webkit-scrollbar-thumb,
+.tableWrap::-webkit-scrollbar-thumb {
+  background: rgba(205, 205, 205, 0.22);
+  border-radius: 9999px;
+}
+.cmdScroll::-webkit-scrollbar-thumb:hover,
+.docBody pre::-webkit-scrollbar-thumb:hover,
+.tableWrap::-webkit-scrollbar-thumb:hover {
+  background: rgba(205, 205, 205, 0.4);
+}
+.cmdScroll::-webkit-scrollbar-button,
+.docBody pre::-webkit-scrollbar-button,
+.tableWrap::-webkit-scrollbar-button {
+  display: none;
+}

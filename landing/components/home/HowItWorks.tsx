@@ -54,7 +54,7 @@ export default function HowItWorks() {
           padding: "clamp(22px,4vw,40px)",
         }}
       >
-        <div
+        <div className="cmdScroll"
           style={{
             fontFamily: "var(--font-mono-stack)",
             fontSize: "clamp(11px,1.5vw,13px)",

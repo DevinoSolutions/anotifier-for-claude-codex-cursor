@@ -178,7 +178,7 @@ export default function ChannelPage({ slug }: { slug: string }) {
             . Drop this in and every supported agent uses it.
           </p>
           <div className="codeBlock" style={{ margin: "18px 0 0" }}>
-            <pre
+            <pre className="cmdScroll"
               style={{
                 background: "#0d0d0d",
                 border: "1px solid #242728",

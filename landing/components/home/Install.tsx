@@ -105,7 +105,7 @@ export default function Install() {
               npm
             </span>
           </span>
-          <code style={codeStyle}>{NPX}</code>
+          <code className="cmdScroll" style={codeStyle}>{NPX}</code>
           <CopyButton text={NPX} placement="install" />
         </div>
         <div style={rowStyle}>
@@ -127,7 +127,7 @@ export default function Install() {
               plugin 1/2
             </span>
           </span>
-          <code style={codeStyle}>{PLUGIN_MARKETPLACE}</code>
+          <code className="cmdScroll" style={codeStyle}>{PLUGIN_MARKETPLACE}</code>
           <CopyButton text={PLUGIN_MARKETPLACE} placement="install" />
         </div>
         <div style={rowStyle}>
@@ -149,7 +149,7 @@ export default function Install() {
               plugin 2/2
             </span>
           </span>
-          <code style={codeStyle}>{PLUGIN_INSTALL}</code>
+          <code className="cmdScroll" style={codeStyle}>{PLUGIN_INSTALL}</code>
           <CopyButton text={PLUGIN_INSTALL} placement="install" />
         </div>
         <InstallStandaloneRow />
