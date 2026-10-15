@@ -69,11 +69,11 @@ for (const [label, path, status] of CASES) {
   });
 }
 
-// Pages carry Cache-Control: no-transform so Cloudflare leaves the HTML alone
-// and never injects its Web Analytics beacon (static.cloudflareinsights.com), a
-// third-party script that duplicates PostHog. The same directive stops
-// Cloudflare compressing the page, so nginx's own gzip has to reach visitors.
-// Cached static paths keep their own Cache-Control and stay transformable.
+// Cloudflare Web Analytics is switched off for the zone (2026-10-15): its
+// auto-installed beacon (static.cloudflareinsights.com) was a third-party
+// script outside the CSP that duplicated PostHog. If someone turns it back on
+// in the dashboard, Cloudflare starts injecting it into the HTML again, and
+// the live run of this test fails.
 const PAGES = [
   ["page", "/", 200],
   ["guide", "/guides/claude-code-notification-sound/", 200],
@@ -85,33 +85,12 @@ for (const [label, path, status] of PAGES) {
     const res = await get(path, {
       // Cloudflare injects the beacon only into requests that accept HTML;
       // fetch's default */* would get a clean page even with the beacon on.
-      headers: {
-        "user-agent": "anotifier-site-tests",
-        accept: "text/html",
-        "accept-encoding": "gzip",
-      },
+      headers: { "user-agent": "anotifier-site-tests", accept: "text/html" },
     });
     assert.equal(res.status, status, `${path} returned ${res.status}`);
-    assert.ok(
-      (res.headers.get("cache-control") ?? "").includes("no-transform"),
-      `${path} lacks Cache-Control: no-transform`,
-    );
-    assert.equal(
-      res.headers.get("content-encoding"),
-      "gzip",
-      `${path} is not gzipped by nginx`,
-    );
     assert.ok(
       !res.body.includes("cloudflareinsights"),
       `${path} has the Cloudflare Web Analytics beacon`,
     );
   });
 }
-
-test("hashed static chunks keep their own immutable Cache-Control", async () => {
-  const res = await get(chunk);
-  assert.equal(
-    res.headers.get("cache-control"),
-    "public, max-age=31536000, immutable",
-  );
-});
