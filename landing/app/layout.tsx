@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import PostHog from "@/components/PostHog";
+import SentryReplay from "@/components/SentryReplay";
 import "./globals.css";
 
 const inter = localFont({
@@ -78,6 +79,7 @@ export default function RootLayout({
         {children}
         <GoogleAnalytics />
         <PostHog />
+        <SentryReplay />
       </body>
     </html>
   );
