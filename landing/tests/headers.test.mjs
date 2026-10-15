@@ -83,8 +83,11 @@ const PAGES = [
 for (const [label, path, status] of PAGES) {
   test(`no Cloudflare beacon on the ${label} (${path})`, async () => {
     const res = await get(path, {
+      // Cloudflare injects the beacon only into requests that accept HTML;
+      // fetch's default */* would get a clean page even with the beacon on.
       headers: {
         "user-agent": "anotifier-site-tests",
+        accept: "text/html",
         "accept-encoding": "gzip",
       },
     });

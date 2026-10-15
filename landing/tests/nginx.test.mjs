@@ -71,7 +71,7 @@ test("nginx: pages are sent no-transform on every status", () => {
   const body = locationBody("/");
   assert.match(
     body,
-    /add_header Cache-Control "no-transform" always;/,
+    /add_header Cache-Control "public, no-transform" always;/,
     "location / must send no-transform (keeps the Cloudflare beacon out)",
   );
   assert.match(
