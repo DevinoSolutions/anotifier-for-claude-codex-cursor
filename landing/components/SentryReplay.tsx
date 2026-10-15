@@ -23,10 +23,11 @@ import { useEffect } from "react";
     headers and bodies.
 
     Replay records 10% of sessions and every session that hits an error, the
-    same 10% PostHog samples. Inputs are always masked, .ph-sensitive content is masked and .ph-no-capture
-    is blocked (the same two classes PostHog honours). maskAllText is off on
-    purpose: the site is public marketing copy with no user data, and masking
-    every word would make the recordings useless. */
+    same 10% PostHog samples. Inputs are always masked, .ph-sensitive content
+    is masked and .ph-no-capture is blocked (the same two classes PostHog
+    honours). maskAllText is off on purpose: the site is public marketing copy
+    with no user data, and masking every word would make the recordings
+    useless. */
 export default function SentryReplay() {
   useEffect(() => {
     // Everything lives inside this branch: with no DSN the build drops it,
