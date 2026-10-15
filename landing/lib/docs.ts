@@ -310,7 +310,7 @@ export const DOCS: DocSection[] = [
               [
                 "Windows",
                 "BurntToast (PowerShell 7+)",
-                "Per-agent icon, per-event sound (`Default`, `IM`, `Mail`, `Reminder`, `SMS`, `Alarm`), click-to-focus via a custom `agentfocus://` URI that brings the terminal or VS Code window that fired the hook to the front.",
+                "Per-agent icon, per-event sound (`Default`, `IM`, `Mail`, `Reminder`, `SMS`, `Alarm`), click-to-focus via a custom `agentfocus://` URI that brings the terminal or [VS Code](/vscode/) window that fired the hook to the front.",
               ],
               [
                 "macOS",
@@ -392,7 +392,7 @@ export const DOCS: DocSection[] = [
               [
                 "`discord`",
                 "Discord channel webhook URL",
-                "Discord webhook JSON.",
+                "`{ content }` with the title in bold and the message on the next line. See the [Discord page](/discord/).",
               ],
               [
                 "`telegram`",

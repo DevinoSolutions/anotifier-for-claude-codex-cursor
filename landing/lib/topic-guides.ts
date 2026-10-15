@@ -541,7 +541,7 @@ export const TOPIC_GUIDES: Guide[] = [
               [
                 "No bell in VS Code",
                 "The integrated terminal ignores the bell",
-                "Rely on the toast; `doctor` warns about this",
+                "Rely on the toast; `doctor` warns about this. See [anotifier in VS Code](/vscode/)",
               ],
             ],
           },

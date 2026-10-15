@@ -309,7 +309,7 @@ export const CLAUDE_GUIDES: Guide[] = [
             items: [
               "The sound is your terminal's bell, so it is set, and can be muted, in the terminal's own settings.",
               'Apple Terminal: Claude Code\'s first-run terminal setup turns the audible bell off in your profile. Turn it back on under **Settings > Profiles > Advanced > "Audible bell"**.',
-              "Some integrated terminals, including VS Code's, don't sound the bell by default. There, use a hook (below).",
+              "Some integrated terminals, including VS Code's, don't sound the bell by default. There, use a hook (below); [anotifier in VS Code](/vscode/) covers the ready-made one.",
               "The bell travels over SSH to the terminal you are sitting at.",
             ],
           },
@@ -1520,7 +1520,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
           },
           {
             kind: "p",
-            text: "Where anotifier covers different ground: Codex CLI, Cursor, Gemini CLI and Antigravity CLI alongside Claude Code; desktop toasts on Windows, macOS, Linux and WSL; phone push through ntfy; Slack, Discord, Telegram and generic webhooks; one shared config file; `anotifier doctor` to check delivery; and no npm dependencies. Which tool fits depends on what you need. If you only use Claude Code on a Mac and want a banner that opens VS Code, dazuiba's script does that with little to install.",
+            text: "Where anotifier covers different ground: Codex CLI, Cursor, Gemini CLI and Antigravity CLI alongside Claude Code; desktop toasts on Windows, macOS, Linux and WSL; phone push through ntfy; Slack, [Discord](/discord/), Telegram and generic webhooks; one shared config file; `anotifier doctor` to check delivery; and no npm dependencies. Which tool fits depends on what you need. If you only use Claude Code on a Mac and want a banner that opens VS Code, dazuiba's script does that with little to install. If you came for ccnotify's Discord hook, the [Discord page](/discord/) shows how anotifier posts there.",
           },
         ],
       },

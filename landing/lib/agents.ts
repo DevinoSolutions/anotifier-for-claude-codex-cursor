@@ -704,7 +704,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "vscode",
-    updated: "2026-10-09",
+    updated: "2026-10-15",
     name: "VS Code",
     title: "VS Code AI Agent Notifier — Claude Code & Cursor Alerts",
     description:
@@ -730,7 +730,130 @@ export const AGENTS: Agent[] = [
         how: "Run either in the integrated terminal and its hooks fire as they do anywhere else.",
       },
     ],
-    sections: [],
+    sections: [
+      {
+        id: "setup",
+        kicker: "[ WHAT SETUP WRITES ]",
+        title: "No extension: setup edits each agent's own hook file.",
+        blocks: [
+          {
+            kind: "p",
+            text: "VS Code never sees anotifier. `npx anotifier@latest setup` looks in your home folder for the agents you have installed and adds an anotifier entry to the hook file each one already reads. Nothing is installed into VS Code and nothing is added to its settings.",
+          },
+          {
+            kind: "table",
+            head: ["Agent", "Setup wires it when", "File it edits", "Events"],
+            rows: [
+              [
+                "Claude Code",
+                "`~/.claude/settings.json` exists",
+                "`~/.claude/settings.json`",
+                "`Stop`, `Notification`",
+              ],
+              [
+                "Cursor",
+                "`~/.cursor` exists",
+                "`~/.cursor/hooks.json`",
+                "`stop`",
+              ],
+              [
+                "Codex CLI",
+                "`~/.codex` exists",
+                "`~/.codex/hooks.json`, plus trust in `config.toml`",
+                "`Stop`, `PermissionRequest`, `SessionStart`",
+              ],
+              [
+                "Gemini CLI",
+                "`~/.gemini` exists and isn't only Antigravity's",
+                "`~/.gemini/settings.json`",
+                "`AfterAgent`, `Notification`",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "Open each agent once before you run setup, so its folder exists. Setup copies every file it changes to `~/.anotifier/backups/` first, and `npx anotifier@latest uninstall` removes only the entries it added.",
+          },
+        ],
+      },
+      {
+        id: "alerts",
+        kicker: "[ WHAT YOU GET ]",
+        title: "What each alert says.",
+        blocks: [
+          {
+            kind: "p",
+            text: "The title is the project and the agent, such as `my-app · Claude Code`. The project is the name of the folder the agent was started in, so two VS Code windows on different folders read differently at a glance. For Claude Code the body is the start of Claude's last reply, up to 180 characters, or its own message when it needs you; phone push says `my-app: Task complete` instead. Codex CLI and Gemini CLI send `my-app: Task complete` or `my-app: Needs your input`. Cursor sends no project folder, so its alert is just `Cursor` and `Task complete`.",
+          },
+          {
+            kind: "p",
+            text: "Every alert goes to each channel you have on: the desktop toast, [phone push](/phone/) through ntfy, a [Slack](/slack/), [Discord](/discord/) or [Telegram](/telegram/) webhook, and the terminal bell. Only Claude Code can quote its reply; the other agents always send the generic line.",
+          },
+        ],
+      },
+      {
+        id: "focus",
+        kicker: "[ CLICK TO FOCUS ]",
+        title: "On Windows, a click brings the right window forward.",
+        blocks: [
+          {
+            kind: "p",
+            text: "The first Windows toast registers an `agentfocus://` link handler in your user registry hive, and each toast carries one. A click opens it and a small script looks for a window to raise, in this order:",
+          },
+          {
+            kind: "ol",
+            items: [
+              "A terminal window whose title contains the project folder name: Windows Terminal, PowerShell, cmd, Warp, WezTerm, Alacritty, Hyper, ConEmu or tmux.",
+              "A window titled `Visual Studio Code` that contains the folder name. VS Code puts the open folder in its window title, which is why this works.",
+              "A window titled `Cursor` that contains the folder name.",
+              "Any other window whose title contains the folder name.",
+              "If none match, the nearest window owned by a parent process of the hook, looked up when the toast fired.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "Cursor alerts carry no folder, so their toasts have no click action at all, and neither do macOS, Linux and WSL toasts. To turn it off on Windows, set `toast.clickToFocus` to `false` in `~/.anotifier/config.json`.",
+          },
+        ],
+      },
+      {
+        id: "troubleshooting",
+        kicker: "[ IF NOTHING ARRIVES ]",
+        title: "Checks when an agent in VS Code stays quiet.",
+        blocks: [
+          {
+            kind: "table",
+            head: ["What you see", "Likely cause", "What to do"],
+            rows: [
+              [
+                "No alert from any agent",
+                "The agent's folder didn't exist when setup ran, so its hooks were never written.",
+                "Run `npx anotifier@latest status`. It lists each tool as wired or not installed. Start the agent once, then run setup again.",
+              ],
+              [
+                "`test` works but the agent is silent",
+                "The hook is running into an error.",
+                "`status` prints recent hook errors from `~/.anotifier/errors.log`.",
+              ],
+              [
+                "No toast on Windows",
+                "Toasts need PowerShell 7 (`pwsh`) and the BurntToast module.",
+                "Setup checks both. If `pwsh` is missing, run `winget install --id Microsoft.PowerShell --source winget`, then setup again.",
+              ],
+              [
+                "Clicking the toast does nothing useful",
+                "No window title contains the project folder, or the alert is from Cursor, macOS, Linux or WSL.",
+                "Open the folder itself in VS Code so its name appears in the title. See the order above.",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "The [notifications not working guide](/guides/notifications-not-working/) walks through every channel in the same way.",
+          },
+        ],
+      },
+    ],
     faqs: [
       {
         q: "Do I need to install a VS Code extension?",
@@ -751,6 +874,21 @@ export const AGENTS: Agent[] = [
         q: "Will I hear the terminal bell in VS Code?",
         aHtml:
           "<p>Not always. VS Code can swallow the terminal bell; run <code>anotifier doctor</code> in its terminal and it warns you about that. The toast and phone push don't depend on the bell.</p>",
+      },
+      {
+        q: "How do I get a notification when Claude Code finishes in VS Code?",
+        aHtml:
+          "<p>Open Claude Code once, then run <code>npx anotifier@latest setup</code>. It adds <code>Stop</code> and <code>Notification</code> hooks to <code>~/.claude/settings.json</code>, and they fire for the VS Code extension and the integrated terminal alike. Run <code>npx anotifier@latest test</code> to see a sample alert.</p>",
+      },
+      {
+        q: "Does it work with GitHub Copilot's agent mode in VS Code?",
+        aHtml:
+          "<p>No. anotifier only registers hooks for Claude Code, Codex CLI, Cursor, Gemini CLI and Antigravity CLI. It writes nothing for Copilot, so Copilot's agent finishes without an alert.</p>",
+      },
+      {
+        q: "Does it work over Remote-SSH, WSL or a dev container?",
+        aHtml:
+          '<p>The hook runs on the machine where the agent runs. When anotifier runs inside WSL, toasts go out through Windows PowerShell; the <a href="/guides/windows-wsl-notifications/">Windows and WSL guide</a> covers the setup. Over Remote-SSH or in a dev container the toast would appear on the remote machine, so use <a href="/phone/">phone push</a> or a <a href="/discord/">Discord</a> or Slack webhook there.</p>',
       },
     ],
     icon: "/assets/icons/vscode.png",

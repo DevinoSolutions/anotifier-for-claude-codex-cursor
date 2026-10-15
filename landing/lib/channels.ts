@@ -1,3 +1,6 @@
+import type { Block } from "./docs";
+import { COMMUNITY_URL } from "./site";
+
 interface ChannelH1 {
   pre: string;
   em: string;
@@ -9,6 +12,13 @@ interface ChannelStep {
   label: string;
   /** Inner HTML of the step description (simple inline tags: <b>, <code>). */
   text: string;
+}
+
+interface ChannelSection {
+  id: string;
+  kicker: string;
+  title: string;
+  blocks: Block[];
 }
 
 interface ChannelFaq {
@@ -39,13 +49,16 @@ export interface Channel {
   steps: ChannelStep[];
   /** Verbatim config JSON snippet, rendered in a <pre> block. */
   config: string;
+  /** Extra sections after the config block: what the channel posts,
+      troubleshooting. Same shape as an agent page's sections. */
+  sections?: ChannelSection[];
   faqs: ChannelFaq[];
 }
 
 export const CHANNELS: Channel[] = [
   {
     slug: "slack",
-    updated: "2026-09-25",
+    updated: "2026-10-15",
     name: "Slack",
     icon: "/assets/icons/slack.svg",
     kind: "webhook",
@@ -63,7 +76,7 @@ export const CHANNELS: Channel[] = [
       },
       {
         label: "config",
-        text: "Run <code>npx anotifier@latest setup</code>, or drop the block below into <code>~/.anotifier/config.json</code> with <code>format</code> set to <code>slack</code>.",
+        text: "Run <code>npx anotifier@latest config webhook</code> and answer the prompts: enable the webhook, paste the URL, and enter <code>slack</code> as the format. Or add the block below to <code>~/.anotifier/config.json</code> yourself.",
       },
       {
         label: "test",
@@ -102,7 +115,7 @@ export const CHANNELS: Channel[] = [
   },
   {
     slug: "discord",
-    updated: "2026-09-25",
+    updated: "2026-10-15",
     name: "Discord",
     kind: "webhook",
     title: "Discord Notifications for Claude Code & AI Agents",
@@ -118,16 +131,20 @@ export const CHANNELS: Channel[] = [
       "Discord's built-in webhooks are all you need — no bot token, no gateway connection. Create one on a channel and hand anotifier the URL.",
     steps: [
       {
+        label: "agents",
+        text: "Run <code>npx anotifier@latest setup</code> once to wire your agents. It asks about phone push (ntfy) but not about webhooks, so Discord is added in the steps below.",
+      },
+      {
         label: "Discord",
-        text: "Open <b>Server Settings → Integrations → Webhooks → New Webhook</b>, pick a channel, and copy the webhook URL.",
+        text: "Open <b>Server Settings → Integrations → Webhooks → New Webhook</b>, pick a channel, and copy the webhook URL. You need the Manage Webhooks permission on the server.",
       },
       {
         label: "config",
-        text: "Run <code>npx anotifier@latest setup</code> or add the block below to <code>~/.anotifier/config.json</code> with <code>format</code> set to <code>discord</code>.",
+        text: "Run <code>npx anotifier@latest config webhook</code> and answer the prompts: enable the webhook, paste the URL, and enter <code>discord</code> as the format. Or add the block below to <code>~/.anotifier/config.json</code> yourself.",
       },
       {
         label: "test",
-        text: "Run <code>anotifier test webhook</code> to post a sample message to the channel.",
+        text: "Run <code>npx anotifier@latest test webhook</code>. It posts <b>anotifier</b> and <i>Test notification — if you see this, it works!</i> to the channel.",
       },
     ],
     config: `{
@@ -137,11 +154,152 @@ export const CHANNELS: Channel[] = [
     "format": "discord"
   }
 }`,
+    sections: [
+      {
+        id: "message",
+        kicker: "[ WHAT IT POSTS ]",
+        title: "A bold title line, then the message.",
+        blocks: [
+          {
+            kind: "p",
+            text: "Each alert is one POST to the webhook with a JSON body that has a single field, `content`. The title comes first in bold, and the message follows on the next line:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: `{
+  "content": "**my-app · Claude Code**\\nmy-app: Task complete"
+}`,
+          },
+          {
+            kind: "p",
+            text: "anotifier sets no embeds, mentions, username or avatar, so Discord shows the post under the name and picture you gave the webhook. `my-app` is the name of the folder the agent was started in. What the message says depends on the agent:",
+          },
+          {
+            kind: "table",
+            head: ["Alert", "Title", "Message"],
+            rows: [
+              [
+                "Claude Code finished a turn",
+                "`my-app · Claude Code`",
+                "The start of Claude's last reply, up to 180 characters. If no reply text can be read, `my-app: Task complete`.",
+              ],
+              [
+                "Claude Code needs you",
+                "`my-app · Claude Code`",
+                "Claude's own notification text, such as a permission request or a question, up to 180 characters. Without text, a line such as `my-app: Needs your input`.",
+              ],
+              [
+                "Codex CLI finished or wants approval",
+                "`my-app · Codex`",
+                "`my-app: Task complete` or `my-app: Needs your input`. The command awaiting approval is not included.",
+              ],
+              [
+                "Gemini CLI or Antigravity CLI",
+                "`my-app · Gemini` or `my-app · Antigravity`",
+                "`my-app: Task complete`, and for Gemini CLI `my-app: Needs your input`.",
+              ],
+              [
+                "Cursor finished",
+                "`Cursor`",
+                "`Task complete`. Cursor sends no project folder, so there is no project name.",
+              ],
+              [
+                "Usage-limit and context warnings, update notice",
+                "Set by the warning",
+                "Posted to the webhook as well when it is enabled.",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "A new agent session no longer posts `Session started` from 1.7.1 on; earlier versions did, and you can turn it back on with `events.session_start.webhookEnabled`.",
+          },
+          {
+            kind: "ul",
+            items: [
+              "**Claude's words are on by default.** `webhook.richContent` defaults to `true`, which is why the post carries what Claude said. Set it to `false` and every post is the generic line. Only Claude Code has reply text to send; the other agents are always generic.",
+            ],
+          },
+        ],
+      },
+      {
+        id: "quiet",
+        kicker: "[ KEEP IT QUIET ]",
+        title: "Mute one event, or everything for a while.",
+        blocks: [
+          {
+            kind: "ul",
+            items: [
+              '**One event off.** `"events": { "task_complete": { "webhookEnabled": false } }` keeps input requests and mutes completion posts. The `anotifier config` prompts have no per-event webhook setting, so edit `config.json` for this.',
+              "**Snooze.** `npx anotifier@latest snooze 2h` silences every channel, the webhook included. `snooze off` ends it early.",
+              '**Quiet hours.** `"quietHours": { "enabled": true, "from": "22:00", "to": "08:00" }` does the same every day on a schedule.',
+            ],
+          },
+        ],
+      },
+      {
+        id: "troubleshooting",
+        kicker: "[ IF NOTHING ARRIVES ]",
+        title: "What each failure means, and the fix.",
+        blocks: [
+          {
+            kind: "p",
+            text: "A webhook failure never reaches the agent. It is appended to `~/.anotifier/errors.log` with the URL's origin only, and `npx anotifier@latest status` prints the latest ones. Start with `npx anotifier@latest test webhook`: it exits with an error if Discord doesn't answer with a 2xx status.",
+          },
+          {
+            kind: "table",
+            head: ["What you see", "Cause", "Fix"],
+            rows: [
+              [
+                "`test` prints `webhook not configured`",
+                "`webhook.enabled` is off or `url` is empty.",
+                "Run `npx anotifier@latest config webhook`.",
+              ],
+              [
+                "`webhook url is not a valid URL` in the log, or `webhook enabled but URL invalid` from `doctor`",
+                "The URL was pasted with a typo, a missing `https://` or stray quotes.",
+                "Copy the URL from Discord again.",
+              ],
+              [
+                "`webhook endpoint responded 404` or `401`",
+                "Discord no longer accepts that URL: the webhook was deleted or its token changed.",
+                "Create a new webhook in Server Settings and update `webhook.url`.",
+              ],
+              [
+                "`webhook endpoint responded 429`",
+                "Discord is rate-limiting the webhook. anotifier doesn't retry, so that post is lost.",
+                "Mute an event or snooze to cut the volume. The next alert posts normally.",
+              ],
+              [
+                "`webhook request timed out after 5000ms`",
+                "Discord didn't answer within 5 seconds: a network, proxy or captive-portal problem.",
+                "Check that this machine can reach discord.com. The next alert tries again.",
+              ],
+              [
+                "`test` works but agent alerts don't arrive",
+                "A snooze or quiet-hours window is active, the event has `webhookEnabled: false`, or the agent isn't wired.",
+                "`status` shows Snooze, Quiet hours and which tools are wired.",
+              ],
+              [
+                "Claude Code finished but nothing posted",
+                "Its Stop hook fired while background subagents or shells were still running, so anotifier waited.",
+                "Nothing is wrong. The post arrives when the background work ends.",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: `Still stuck? Ask in the [anotifier Discord](${COMMUNITY_URL}).`,
+          },
+        ],
+      },
+    ],
     faqs: [
       {
         q: "How do I get a Discord notification when Claude Code finishes?",
         aHtml:
-          '<p>Create a Discord webhook under <b>Server Settings → Integrations → Webhooks</b>, then put its URL in <code>~/.anotifier/config.json</code> with <code>format: "discord"</code>. anotifier posts to that channel every time an agent finishes or needs you.</p>',
+          '<p>Create a Discord webhook under <b>Server Settings → Integrations → Webhooks</b>, then run <code>npx anotifier@latest config webhook</code> and enter its URL with the format <code>discord</code>. You can also set <code>webhook.url</code> and <code>format: "discord"</code> in <code>~/.anotifier/config.json</code> yourself. anotifier posts to that channel every time an agent finishes or needs you.</p>',
       },
       {
         q: "Does anotifier expose my Discord webhook URL?",
@@ -157,6 +315,21 @@ export const CHANNELS: Channel[] = [
         q: "How do I turn Discord alerts off for one event?",
         aHtml:
           '<p>Add an <code>events</code> override to your config — for example <code>{ "events": { "task_complete": { "webhookEnabled": false } } }</code> — to keep input requests but mute completion posts.</p>',
+      },
+      {
+        q: "Does Discord see my code or conversation?",
+        aHtml:
+          "<p>Only the notification text. For Claude Code that is the first 180 characters of its last reply, because <code>webhook.richContent</code> defaults to <code>true</code>. Set it to <code>false</code> and Discord only receives lines like <code>my-app: Task complete</code>. Other agents are always generic.</p>",
+      },
+      {
+        q: "Does anotifier retry if Discord is down or rate-limits the webhook?",
+        aHtml:
+          "<p>No. Each alert is one request with a 5-second timeout. An error status, a timeout or a network failure is logged to <code>~/.anotifier/errors.log</code> and that post is dropped. Nothing is queued, and the next alert tries again.</p>",
+      },
+      {
+        q: "Can I post to more than one Discord channel?",
+        aHtml:
+          "<p>Not with one config. The <code>webhook</code> block holds a single URL, and every agent posts to it. Snooze, quiet hours and the per-event switches decide what reaches that channel.</p>",
       },
     ],
   },
