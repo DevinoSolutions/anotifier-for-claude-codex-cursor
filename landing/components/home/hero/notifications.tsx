@@ -73,18 +73,16 @@ export function PhoneNotices({ now }: { now: number }) {
               } as CSSProperties
             }
           >
-            <Icon agent={n.agent} />
-            <div className="tx">
-              <div className="hd">
-                <span className="app">ntfy</span>
-                {n.urgent && <em>urgent</em>}
-                <span className="when">now</span>
-              </div>
-              <div className="ti">
-                {n.urgent ? TAGS.ask : TAGS.done} {titleOf(n.agent)}
-              </div>
-              <div className="bd">{n.phoneBody}</div>
+            <div className="hd">
+              <Icon agent={n.agent} />
+              <span className="app">ntfy</span>
+              {n.urgent && <em>urgent</em>}
+              <span className="when">now</span>
             </div>
+            <div className="ti">
+              {n.urgent ? TAGS.ask : TAGS.done} {titleOf(n.agent)}
+            </div>
+            <div className="bd">{n.phoneBody}</div>
           </div>
         );
       })}

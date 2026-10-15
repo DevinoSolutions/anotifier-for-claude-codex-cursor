@@ -5,13 +5,12 @@
    unitless ratio out of two CSS lengths.
 
    Wide container: laptop first, phone beside it, touching its right bezel
-   (614 x 380). Terminal text is 11 design px, about 11.5px at 1440.
-   Narrow container: the phone sits under the laptop's base, overlapping it a
-   little, and the editor folds away so the terminal keeps its size
-   (360 x 482). */
+   (600 x 380). Terminal text is 11 design px, about 11.5px at 1440.
+   Narrow container: the phone sits under the laptop, overlapping its base, and the editor folds away so the terminal keeps its size
+   (360 x 572). */
 
 .hdStage {
-  --hd-w: 614px;
+  --hd-w: 600px;
   --hd-h: 380px;
   --hd-cap: 1.15;
   --hd-s: min(tan(atan2(100cqw, var(--hd-w))), var(--hd-cap));
@@ -37,7 +36,7 @@
   position: absolute;
   left: 0;
   bottom: 22px;
-  width: 424px;
+  width: 434px;
 }
 .hdLid {
   position: relative;
@@ -585,14 +584,14 @@
 /* ---- phone ------------------------------------------------------------- */
 
 .hdPhone {
-  --pitch: 49px;
+  --pitch: 60px;
   --shrink: 0;
   position: absolute;
   right: 0;
   bottom: 22px;
   z-index: 4;
-  width: 196px;
-  height: 276px;
+  width: 172px;
+  height: 350px;
   padding: 6px;
   background: #0b0c0f;
   border: 2px solid #3a3d42;
@@ -633,7 +632,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px 0;
+  padding: 10px 16px 0;
   font-size: 11px;
   font-weight: 600;
 }
@@ -699,7 +698,7 @@
 }
 .hdPush {
   position: absolute;
-  top: 104px;
+  top: 108px;
   left: 7px;
   right: 7px;
 }
@@ -708,14 +707,11 @@
   top: 0;
   left: 0;
   right: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  height: 46px;
-  padding: 6px 7px;
+  height: 54px;
+  padding: 6px 8px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 15px;
+  border-radius: 14px;
   background: #3a3e48;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
   transform-origin: 50% 0;
@@ -744,20 +740,20 @@
 .hdPushCard[data-pos="gone"] {
   opacity: 0;
 }
-.hdPushCard .ico {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-}
 .hdPushCard .hd {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 7px;
-  line-height: 9px;
+  gap: 4px;
+  height: 14px;
+  font-size: 8.5px;
   letter-spacing: 0.4px;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.62);
+}
+.hdPushCard .ico {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
 }
 .hdPushCard .hd em {
   font-style: normal;
@@ -766,7 +762,7 @@
   background: rgba(255, 197, 51, 0.18);
   color: #ffc533;
   font-family: var(--font-mono-stack);
-  font-size: 7px;
+  font-size: 8.5px;
   letter-spacing: 0;
   text-transform: none;
 }
@@ -778,7 +774,7 @@
 .hdPushCard .ti {
   overflow: hidden;
   margin-top: 1px;
-  font-size: 9.5px;
+  font-size: 10px;
   line-height: 13px;
   font-weight: 600;
   color: #fff;
@@ -787,8 +783,8 @@
 }
 .hdPushCard .bd {
   overflow: hidden;
-  font-size: 9px;
-  line-height: 12px;
+  font-size: 10px;
+  line-height: 13px;
   color: rgba(255, 255, 255, 0.82);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -799,7 +795,7 @@
 @container (max-width: 499px) {
   .hdStage {
     --hd-w: 360px;
-    --hd-h: 482px;
+    --hd-h: 572px;
     --hd-cap: 1.3;
   }
   .hdLaptop {
@@ -831,29 +827,16 @@
     width: 238px;
   }
   .hdPhone {
-    --pitch: 10px;
-    --shrink: 0.05;
     right: auto;
     bottom: 6px;
     left: 50%;
-    margin-left: -98px;
-    height: 238px;
+    width: 168px;
+    height: 320px;
+    margin-left: -84px;
   }
-  .hdPushCard[data-pos="1"] > *,
-  .hdPushCard[data-pos="2"] > * {
-    opacity: 0;
-  }
-  .hdPhone .btn {
-    top: 54px;
-  }
-  .hdPhone .btn.l2 {
-    top: 88px;
-  }
-  .hdPhone .btn.l1 {
-    top: 54px;
-  }
-  .hdPhone .btn.r {
-    top: 74px;
+  .hdPushCard .ti,
+  .hdPushCard .bd {
+    font-size: 9.5px;
   }
 }
 
