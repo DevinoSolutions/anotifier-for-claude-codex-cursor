@@ -577,7 +577,7 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "I get notifications, but only a generic message. Why?",
-        a: "anotifier shows what the agent said for Claude Code only, and only on the toast and webhook by default. ntfy stays generic unless you turn on ntfy.richContent, and Codex, Cursor and Gemini CLI always send generic text such as my-app: Task complete.",
+        a: "anotifier shows what the agent said for Claude Code only, and only on the toast and webhook by default. ntfy stays generic unless you turn on ntfy.richContent, and Codex, Cursor and Gemini CLI always send generic text: my-app: Task complete for Codex and Gemini CLI, and just Task complete for Cursor, whose alerts carry no project name.",
       },
     ],
   },
