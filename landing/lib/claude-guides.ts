@@ -38,7 +38,7 @@ export const CLAUDE_GUIDES: Guide[] = [
       "Add a Notification hook with the permission_prompt matcher to ~/.claude/settings.json; idle_prompt covers waiting for input. The JSON, timing and phone push.",
     h1: "Get notified when Claude Code needs your permission or input",
     intro:
-      "Add a `Notification` hook with the matcher `permission_prompt` to `~/.claude/settings.json`. Claude Code runs it when a tool approval has waited about six seconds. The `idle_prompt` matcher covers the other case: Claude finished about a minute ago and you haven't typed since. Below are the exact config, every notification type Claude Code sends, the timing rules, and how to get the alert on your phone.",
+      "Add a `Notification` hook with the matcher `permission_prompt` to `~/.claude/settings.json`. Claude Code runs it when a tool approval has waited about six seconds. The `idle_prompt` matcher covers the other case: Claude finished about a minute ago and you haven't typed since. Below are the exact config, every notification type Claude Code sends, the timing rules, and how to get the alert on your phone. The [Claude Code notifier](/claude-code/) wires these hooks for you.",
     sections: [
       {
         id: "config",

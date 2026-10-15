@@ -160,7 +160,9 @@ export default async function GuidePage({
           {guide.agentSlug && (
             <>
               the{" "}
-              <Link href={`/${guide.agentSlug}/`}>{agentName} overview</Link>{" "}
+              <Link href={`/${guide.agentSlug}/`}>
+                {getAgent(guide.agentSlug)?.linkText ?? `${agentName} overview`}
+              </Link>{" "}
               and{" "}
             </>
           )}
