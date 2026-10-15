@@ -22,13 +22,12 @@ import { useEffect } from "react";
     sentry.devino.ca. No tracing, and `dataCollection` turns off user info, cookies,
     headers and bodies.
 
-    Replay records 5% of sessions and every session that hits an error. Keep it
-    at 5% until the self-hosted Sentry relay takes more than 5 envelopes/s:
-    above that, bursts get rejected and the error reports in them are lost.
-    Inputs are always masked, .ph-sensitive content is masked and .ph-no-capture
-    is blocked (the same two classes PostHog honours). maskAllText is off on
-    purpose: the site is public marketing copy with no user data, and masking
-    every word would make the recordings useless. */
+    Replay records 10% of sessions and every session that hits an error, the
+    same 10% PostHog samples. Inputs are always masked, .ph-sensitive content
+    is masked and .ph-no-capture is blocked (the same two classes PostHog
+    honours). maskAllText is off on purpose: the site is public marketing copy
+    with no user data, and masking every word would make the recordings
+    useless. */
 export default function SentryReplay() {
   useEffect(() => {
     // Everything lives inside this branch: with no DSN the build drops it,
@@ -57,7 +56,7 @@ export default function SentryReplay() {
                 httpBodies: [],
               },
               tracesSampleRate: 0,
-              replaysSessionSampleRate: 0.05,
+              replaysSessionSampleRate: 0.1,
               replaysOnErrorSampleRate: 1.0,
               integrations: [
                 replayIntegration({
