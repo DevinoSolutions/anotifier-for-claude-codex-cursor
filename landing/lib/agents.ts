@@ -295,7 +295,7 @@ export const AGENTS: Agent[] = [
         blocks: [
           {
             kind: "p",
-            text: "Setup wires Codex when a `~/.codex` folder exists. It backs up both files to `~/.anotifier/backups/`, then adds one entry per event to `~/.codex/hooks.json`. This is the `Stop` one:",
+            text: "Setup wires Codex when a `~/.codex` folder exists. It backs up `hooks.json` to `~/.anotifier/backups/`, then adds one entry per event to `~/.codex/hooks.json`. This is the `Stop` one:",
           },
           {
             kind: "code",

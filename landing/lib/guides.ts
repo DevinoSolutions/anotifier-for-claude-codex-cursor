@@ -387,7 +387,7 @@ const AGENT_GUIDES: Guide[] = [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: "The wizard detects `~/.codex`, writes `Stop`, `PermissionRequest`, and `SessionStart` hooks into `~/.codex/hooks.json`, enables the hooks feature flag, records the trust hashes, and backs up both files first. A finished turn arrives as `my-app · Codex` at default priority; an approval request arrives urgent, on your desktop and phone, so the run never sits blocked while you are in another window. The approval path is proven in CI by driving the real Codex TUI through a permission modal.",
+            text: "The wizard detects `~/.codex`, writes `Stop`, `PermissionRequest`, and `SessionStart` hooks into `~/.codex/hooks.json`, enables the hooks feature flag, records the trust hashes in `config.toml`, and backs up `hooks.json` first. A finished turn arrives as `my-app · Codex` at default priority; an approval request arrives urgent, on your desktop and phone, so the run never sits blocked while you are in another window. The approval path is proven in CI by driving the real Codex TUI through a permission modal.",
           },
           ...WHAT_ANOTIFIER_ADDS,
         ],
@@ -436,7 +436,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "To skip the wiring, run `npx anotifier@latest setup` in PowerShell. On Windows it writes `Stop`, `PermissionRequest`, and `SessionStart` hooks into `%USERPROFILE%\\.codex\\hooks.json`, turns on the hooks feature flag, records the trust hashes, and backs up both files first. It then checks for PowerShell 7 (`pwsh`) and installs the BurntToast module for your user with `Install-Module BurntToast -Scope CurrentUser`; if `pwsh` is missing it prints `winget install --id Microsoft.PowerShell --source winget`. Toasts then arrive as `my-app · Codex` with the Codex icon and a Windows notification sound, and clicking one brings the terminal window forward. `anotifier test toast` confirms it works. The [Windows and WSL guide](/guides/windows-wsl-notifications/) has the details.",
+            text: "To skip the wiring, run `npx anotifier@latest setup` in PowerShell. On Windows it writes `Stop`, `PermissionRequest`, and `SessionStart` hooks into `%USERPROFILE%\\.codex\\hooks.json`, turns on the hooks feature flag, records the trust hashes in `config.toml`, and backs up `hooks.json` first. It then checks for PowerShell 7 (`pwsh`) and installs the BurntToast module for your user with `Install-Module BurntToast -Scope CurrentUser`; if `pwsh` is missing it prints `winget install --id Microsoft.PowerShell --source winget`. Toasts then arrive as `my-app · Codex` with the Codex icon and a Windows notification sound, and clicking one brings the terminal window forward. `anotifier test toast` confirms it works. The [Windows and WSL guide](/guides/windows-wsl-notifications/) has the details.",
           },
           {
             kind: "note",
@@ -491,14 +491,14 @@ const AGENT_GUIDES: Guide[] = [
               ],
               [
                 "anotifier for a while",
-                "`anotifier snooze 2h` silences every channel until it expires; `anotifier snooze off` cancels it. Quiet hours (`quietHours` in `~/.anotifier/config.json`) do the same every night",
+                "`anotifier snooze 2h` silences every channel until it expires; `anotifier snooze off` cancels it. Quiet hours (set `quietHours.enabled` to `true` in `~/.anotifier/config.json`; off by default) do the same every night",
               ],
               ["anotifier for good", "`npx anotifier@latest uninstall`"],
             ],
           },
           {
             kind: "note",
-            text: "`uninstall` asks for confirmation, then removes anotifier's hooks from every agent it wired, not just Codex, after backing up each file. For Codex it also removes anotifier's trust entries from `config.toml`. It leaves your own hooks, the `hooks = true` line under `[features]`, and your settings in `~/.anotifier`. Snooze and quiet hours silence anotifier only; Codex's own `[tui]` alerts keep going until you change them.",
+            text: "`uninstall` asks for confirmation, then removes anotifier's hooks from every agent it wired, not just Codex, after backing up each file. For Codex it also removes anotifier's trust entries from `config.toml`. It leaves your own hooks, the `hooks = true` line under `[features]`, and your settings in `~/.anotifier`. On Windows it also removes the click-to-focus registry entry; the BurntToast module stays installed. Snooze and quiet hours silence anotifier only; Codex's own `[tui]` alerts keep going until you change them.",
           },
         ],
       },
