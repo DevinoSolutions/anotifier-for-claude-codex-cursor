@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { T } from "./timeline";
 
 // The two terminals the demo cycles between. Both are drawn from the real
-// tools' UIs (Claude Code's bordered prompt box, "✻" working line, "●" tool
+// tools' UIs (Claude Code's bordered prompt box, "✻" working line, "⏺" tool
 // bullets and numbered permission dialog; Codex's header box, "›" composer,
 // "•" bullets and "Would you like to run the following command?" modal) and
 // are a pure function of `now`.
@@ -11,13 +11,13 @@ function Ln({ children, cls = "" }: { children?: ReactNode; cls?: string }) {
   return <div className={`hdLn ${cls}`}>{children || " "}</div>;
 }
 
-// Bullets and the result elbow are drawn, not typed: the glyphs ("●", "⎿") are
-// missing from the site's mono font and fall back to a different system font
-// on every OS, which blurs the column grid.
+// Claude Code's own glyphs. The site's mono font has none of them, so each sits
+// in a one-column box (.hdG) and the line grid holds whatever font the OS
+// falls back to. U+FE0E keeps the record button from turning into an emoji.
 const Dot = ({ tone = "" }: { tone?: string }) => (
-  <span className={`hdDot ${tone}`} />
+  <span className={`hdG ${tone}`}>{"⏺︎"}</span>
 );
-const Elbow = () => <span className="hdElbow" />;
+const Elbow = () => <span className="hdG">{"⎿"}</span>;
 
 function Diff({ rows }: { rows: [string, "add" | "del", string][] }) {
   return (
@@ -50,7 +50,7 @@ export function ClaudeTerminal({ now }: { now: number }) {
     <>
       <div className="hdLn hdBox">
         <div>
-          <span className="claudeStar">✻</span> Welcome to Claude Code!
+          <span className="claudeStar hdG">✻</span> Welcome to Claude Code!
         </div>
         <div className="dim">&nbsp; /help for help, /status for your setup</div>
         <div className="dim">&nbsp; cwd: ~/code/my-app</div>
@@ -63,7 +63,6 @@ export function ClaudeTerminal({ now }: { now: number }) {
       )}
       {now >= T.claudeIntro && (
         <>
-          <Ln />
           <Ln>
             <Dot /> I&apos;ll start with the auth module.
           </Ln>
@@ -71,7 +70,6 @@ export function ClaudeTerminal({ now }: { now: number }) {
       )}
       {now >= T.claudeRead && (
         <>
-          <Ln />
           <Ln>
             <Dot tone="ok" /> <b>Read</b>
             <span className="dim">(src/auth/session.ts)</span>
@@ -83,7 +81,6 @@ export function ClaudeTerminal({ now }: { now: number }) {
       )}
       {now >= T.claudeEdit && (
         <>
-          <Ln />
           <Ln>
             <Dot tone="ok" /> <b>Update</b>
             <span className="dim">(src/auth/session.ts)</span>
@@ -94,14 +91,13 @@ export function ClaudeTerminal({ now }: { now: number }) {
           <Diff
             rows={[
               ["12", "del", "const store = new Map()"],
-              ["12", "add", "const store = createSessionStore()"],
+              ["12", "add", "const store = createStore()"],
             ]}
           />
         </>
       )}
       {now >= T.claudeTests && (
         <>
-          <Ln />
           <Ln>
             <Dot tone="ok" /> <b>Bash</b>
             <span className="dim">(npm test)</span>
@@ -118,15 +114,14 @@ export function ClaudeTerminal({ now }: { now: number }) {
         <>
           <Ln />
           <Ln>
-            <Dot /> Done. Session storage now lives in createSessionStore() and
-            all 14 tests pass.
+            <Dot /> Done. Sessions now live in a store and all 14 tests pass.
           </Ln>
         </>
       )}
       <Ln />
       {working && (
         <Ln cls="hdWork">
-          <span className="claudeStar spin">✻</span> {status}…{" "}
+          <span className="claudeStar spin hdG">✻</span> {status}…{" "}
           <span className="dim">(esc to interrupt)</span>
         </Ln>
       )}
@@ -229,8 +224,8 @@ export function CodexTerminal({ now }: { now: number }) {
         <>
           <Ln />
           <Ln>
-            <span className="add">✔</span> You approved codex to run npm test
-            this time
+            <span className="add hdG">✔</span> You approved codex to run npm
+            test this time
           </Ln>
           <Ln>
             <span className="dim">•</span> <b>Ran</b> npm test

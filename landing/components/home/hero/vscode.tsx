@@ -47,25 +47,6 @@ function ActivityBar() {
   );
 }
 
-function Explorer({ edited }: { edited: boolean }) {
-  return (
-    <div className="hdExplorer">
-      <div className="cap">EXPLORER</div>
-      <div className="row root">⌄ MY-APP</div>
-      <div className="row l1">⌄ src</div>
-      <div className="row l2">⌄ auth</div>
-      <div className="row l3 sel">
-        session.ts
-        {edited && <span className="mod">M</span>}
-      </div>
-      <div className="row l3">tokens.ts</div>
-      <div className="row l2">› api</div>
-      <div className="row l1">› tests</div>
-      <div className="row l1">package.json</div>
-    </div>
-  );
-}
-
 function Editor({ edited }: { edited: boolean }) {
   return (
     <div className="hdEditor">
@@ -100,7 +81,7 @@ function Editor({ edited }: { edited: boolean }) {
         {"  "}
         <span className="k">const</span> <span className="v">store</span> ={" "}
         {edited ? (
-          <span className="f">createSessionStore</span>
+          <span className="f">createStore</span>
         ) : (
           <>
             <span className="k">new</span> <span className="t">Map</span>
@@ -152,7 +133,6 @@ export function Screen({ now }: { now: number }) {
       </div>
       <div className="hdBody">
         <ActivityBar />
-        <Explorer edited={edited} />
         <div className="hdMain">
           <Editor edited={edited} />
           <div className="hdPanel">

@@ -89,7 +89,7 @@ export const NOTICES: Notice[] = [
     "claude",
     false,
     T.claudeDone,
-    "Done. Session storage now lives in createSessionStore() and all 14 tests pass.",
+    "Done. Sessions now live in a store and all 14 tests pass.",
     "Task complete",
   ),
   notice(

@@ -66,7 +66,12 @@ export function PhoneNotices({ now }: { now: number }) {
             key={n.id}
             className="hdPushCard"
             data-pos={posOf(depth, now)}
-            style={{ "--depth": depth ?? 0 } as CSSProperties}
+            style={
+              {
+                "--depth": depth ?? 0,
+                "--z": NOTICES.indexOf(n) + 1,
+              } as CSSProperties
+            }
           >
             <Icon agent={n.agent} />
             <div className="tx">

@@ -4,13 +4,15 @@
    proportion survives any width. tan(atan2(a, b)) is the only way to get a
    unitless ratio out of two CSS lengths.
 
-   Wide container: laptop and phone side by side (608 x 440).
-   Narrow container: the phone sits below the laptop, so the phone's text stays
-   readable on a 320px screen (360 x 690). */
+   Wide container: laptop first, phone beside it, touching its right bezel
+   (614 x 380). Terminal text is 11 design px, about 11.5px at 1440.
+   Narrow container: the phone sits under the laptop's base, overlapping it a
+   little, and the editor folds away so the terminal keeps its size
+   (360 x 482). */
 
 .hdStage {
-  --hd-w: 608px;
-  --hd-h: 440px;
+  --hd-w: 614px;
+  --hd-h: 380px;
   --hd-cap: 1.15;
   --hd-s: min(tan(atan2(100cqw, var(--hd-w))), var(--hd-cap));
   position: relative;
@@ -35,7 +37,7 @@
   position: absolute;
   left: 0;
   bottom: 22px;
-  width: 408px;
+  width: 424px;
 }
 .hdLid {
   position: relative;
@@ -81,12 +83,12 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 300px;
+  height: 312px;
   overflow: hidden;
   border-radius: 5px;
   background: #1f1f1f;
   font-family: var(--font-body);
-  font-size: 8px;
+  font-size: 9px;
   color: #cccccc;
   --edge: #2b2b2b;
 }
@@ -95,7 +97,7 @@
   display: flex;
   align-items: center;
   flex: none;
-  height: 18px;
+  height: 19px;
   padding: 0 8px;
   background: #181818;
   border-bottom: 1px solid var(--edge);
@@ -115,7 +117,7 @@
   left: 0;
   right: 0;
   text-align: center;
-  font-size: 7.5px;
+  font-size: 8.5px;
 }
 .hdBody {
   display: flex;
@@ -127,61 +129,19 @@
   flex: none;
   flex-direction: column;
   align-items: center;
-  gap: 9px;
-  width: 21px;
-  padding-top: 8px;
+  gap: 11px;
+  width: 24px;
+  padding-top: 9px;
   background: #181818;
   border-right: 1px solid var(--edge);
   color: #858585;
 }
+.hdActivity svg {
+  width: 13px;
+  height: 13px;
+}
 .hdActivity svg.on {
   color: #fff;
-}
-.hdExplorer {
-  flex: none;
-  width: 64px;
-  padding-top: 5px;
-  background: #181818;
-  border-right: 1px solid var(--edge);
-  font-size: 7px;
-  color: #cccccc;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.hdExplorer .cap {
-  padding: 0 6px 4px;
-  font-size: 6px;
-  letter-spacing: 0.3px;
-  color: #9d9d9d;
-}
-.hdExplorer .row {
-  position: relative;
-  height: 10px;
-  line-height: 10px;
-}
-.hdExplorer .root {
-  padding-left: 4px;
-  font-weight: 600;
-  font-size: 6.5px;
-}
-.hdExplorer .l1 {
-  padding-left: 8px;
-}
-.hdExplorer .l2 {
-  padding-left: 13px;
-}
-.hdExplorer .l3 {
-  padding-left: 18px;
-}
-.hdExplorer .sel {
-  background: #04395e;
-  color: #fff;
-}
-.hdExplorer .mod {
-  position: absolute;
-  right: 4px;
-  color: #e2c08d;
-  font-size: 6px;
 }
 .hdMain {
   display: flex;
@@ -192,22 +152,22 @@
 
 .hdEditor {
   flex: none;
-  height: 76px;
+  height: 80px;
   background: #1f1f1f;
 }
 .hdTabs {
   display: flex;
-  height: 15px;
+  height: 16px;
   background: #181818;
   border-bottom: 1px solid var(--edge);
-  font-size: 7px;
+  font-size: 8.5px;
   color: #9d9d9d;
 }
 .hdTabs .tab {
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding: 0 7px;
+  gap: 4px;
+  padding: 0 9px;
   border-right: 1px solid var(--edge);
   white-space: nowrap;
 }
@@ -219,32 +179,32 @@
 .hdTabs .ts {
   font-style: normal;
   font-weight: 700;
-  font-size: 5.5px;
+  font-size: 6.5px;
   color: #3b9ee5;
 }
 .hdTabs b {
   margin-left: 3px;
   font-weight: 400;
-  font-size: 7px;
+  font-size: 9px;
 }
 .hdTabs b.dot {
-  font-size: 5px;
+  font-size: 6px;
   color: #fff;
 }
 .hdCode {
   margin: 0;
   padding: 3px 0 0 3px;
   font-family: var(--font-mono-stack);
-  font-size: 7.2px;
-  line-height: 10px;
+  font-size: 9px;
+  line-height: 13px;
   color: #cccccc;
   white-space: pre;
   overflow: hidden;
 }
 .hdCode .ln {
   display: inline-block;
-  width: 12px;
-  margin-right: 5px;
+  width: 14px;
+  margin-right: 6px;
   text-align: right;
   color: #6e7681;
 }
@@ -276,10 +236,10 @@
   display: flex;
   flex: none;
   align-items: stretch;
-  gap: 10px;
-  height: 14px;
-  padding: 0 8px;
-  font-size: 6px;
+  gap: 11px;
+  height: 16px;
+  padding: 0 9px;
+  font-size: 7.5px;
   letter-spacing: 0.25px;
   color: #9d9d9d;
 }
@@ -298,18 +258,18 @@
 }
 .hdTermList {
   flex: none;
-  width: 48px;
+  width: 54px;
   padding-top: 2px;
   border-right: 1px solid var(--edge);
-  font-size: 6.8px;
+  font-size: 8.5px;
   color: #cccccc;
 }
 .hdTermList .inst {
   display: flex;
   align-items: center;
-  gap: 3px;
-  height: 13px;
-  padding: 0 4px;
+  gap: 4px;
+  height: 15px;
+  padding: 0 5px;
   color: #9d9d9d;
 }
 .hdTermList .inst.on {
@@ -317,9 +277,13 @@
   color: #fff;
 }
 .hdTermList img {
+  width: 10px;
+  height: 10px;
   border-radius: 2px;
 }
 .hdBell {
+  width: 9px;
+  height: 9px;
   margin-left: auto;
   color: #f2b83c;
   transform-origin: 50% 10%;
@@ -330,12 +294,12 @@
   display: flex;
   flex: none;
   align-items: center;
-  gap: 9px;
-  height: 12px;
-  padding: 0 7px;
+  gap: 10px;
+  height: 14px;
+  padding: 0 8px;
   background: #181818;
   border-top: 1px solid var(--edge);
-  font-size: 6.5px;
+  font-size: 8px;
   color: #9d9d9d;
   white-space: nowrap;
 }
@@ -352,11 +316,14 @@
   justify-content: flex-end;
   min-width: 0;
   overflow: hidden;
-  padding: 2px 7px 4px;
+  padding: 2px 8px 5px;
   font-family: var(--font-mono-stack);
-  font-size: 7.4px;
-  line-height: 10px;
+  font-size: 11px;
+  line-height: 15px;
   color: #cccccc;
+  /* a line that has scrolled off the top fades instead of being cut in half */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 16px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 16px);
 }
 .hdLn {
   flex: none;
@@ -374,22 +341,35 @@
 .hdLn.pre {
   white-space: pre;
 }
+.hdG {
+  display: inline-block;
+  width: 1ch;
+  margin-right: 1ch;
+  text-align: center;
+  overflow: visible;
+  white-space: nowrap;
+}
+.hdG.ok {
+  color: #3fb97a;
+}
 .hdBox {
   align-self: flex-start;
   max-width: 100%;
-  padding: 2px 6px;
+  padding: 2px 8px;
   border: 1px solid #d97757;
   border-radius: 4px;
 }
 .hdBox.codex {
   border-color: #5d5d5d;
-  min-width: 62%;
+  min-width: 70%;
 }
 .claudeStar {
   color: #d97757;
 }
+.claudeStar.hdG {
+  margin-right: 0.6ch;
+}
 .claudeStar.spin {
-  display: inline-block;
   animation: hdSpin 1.4s linear infinite;
 }
 .hdWork .shimmer {
@@ -401,38 +381,16 @@
 .hdWork.codex {
   color: #cccccc;
 }
-
-.hdDot {
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  margin: 0 4px 0 1px;
-  vertical-align: 0.5px;
-  border-radius: 9999px;
-  background: #e6e6e6;
-}
-.hdDot.ok {
-  background: #3fb97a;
-}
-.hdElbow {
-  display: inline-block;
-  width: 4px;
-  height: 4px;
-  margin: 0 3px 0 1px;
-  vertical-align: 2px;
-  border-left: 1px solid #7f7f7f;
-  border-bottom: 1px solid #7f7f7f;
-}
 .hdUser {
-  padding: 0 3px;
+  padding: 0 4px;
   background: #2a2a2a;
 }
 .hdDiff {
-  padding-left: 14px;
+  padding-left: 3ch;
   white-space: pre-wrap;
 }
 .hdDiff .n {
-  margin-right: 5px;
+  margin-right: 1ch;
   color: #7f7f7f;
 }
 .hdDiff.add {
@@ -450,7 +408,7 @@
 
 .hdPrompt {
   margin-top: 1px;
-  padding: 1px 5px;
+  padding: 2px 6px;
   border: 1px solid #8a8a8a;
   border-radius: 4px;
   white-space: nowrap;
@@ -460,7 +418,6 @@
   border: 0;
   border-radius: 0;
   background: #2a2a2a;
-  padding: 2px 5px;
 }
 .hdHint {
   padding-left: 3px;
@@ -471,7 +428,7 @@
 .hdTyped {
   display: inline-block;
   width: 0;
-  max-width: calc(100% - 14px);
+  max-width: calc(100% - 2ch);
   overflow: hidden;
   vertical-align: top;
   white-space: nowrap;
@@ -479,8 +436,8 @@
 }
 .hdCaret {
   display: inline-block;
-  width: 4px;
-  height: 8px;
+  width: 6px;
+  height: 11px;
   margin-left: 1px;
   vertical-align: -1px;
   background: #cccccc;
@@ -495,15 +452,13 @@
 }
 .hdAsk .cmd,
 .hdAsk .opt {
-  padding-left: 5px;
+  padding-left: 1ch;
 }
 .hdAsk .cmd {
   margin: 2px 0 3px;
   color: #e6e6e6;
 }
-.hdAsk .opt.sel {
-  color: #6bb8ff;
-}
+.hdAsk .opt.sel,
 .hdAsk .opt.sel b {
   color: #6bb8ff;
 }
@@ -515,10 +470,10 @@
 
 .hdToasts {
   position: absolute;
-  top: 24px;
-  right: 56px;
-  width: 232px;
-  height: 56px;
+  top: 26px;
+  right: 24px;
+  width: 258px;
+  height: 64px;
   pointer-events: none;
 }
 .hdToast {
@@ -526,10 +481,10 @@
   inset: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px 0 9px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 12px;
+  gap: 9px;
+  padding: 0 11px 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 13px;
   background: #2b2c30;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55);
   font-family: var(--font-body);
@@ -557,20 +512,20 @@
 }
 .hdToast[data-pos="1"] {
   opacity: 1;
-  transform: translateY(12px) scale(0.95);
+  transform: translateY(16px) scale(0.96);
 }
 .hdToast[data-pos="1"]::after {
-  opacity: 0.2;
+  opacity: 0.12;
 }
 .hdToast[data-pos="2"] {
   opacity: 1;
-  transform: translateY(23px) scale(0.9);
+  transform: translateY(30px) scale(0.92);
 }
 .hdToast[data-pos="2"]::after {
-  opacity: 0.4;
+  opacity: 0.26;
 }
 .hdToast[data-pos="gone"] {
-  transform: translateY(28px) scale(0.85);
+  transform: translateY(40px) scale(0.88);
 }
 .hdToast[data-pos="away"] {
   transition-duration: 0.45s;
@@ -581,14 +536,16 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
   background: #f4f4f6;
 }
 .hdToast .ico img,
 .hdPushCard .ico img {
-  border-radius: 5px;
+  width: 82%;
+  height: 82%;
+  border-radius: 6px;
   object-fit: contain;
 }
 .hdToast .tx,
@@ -600,7 +557,7 @@
   display: flex;
   justify-content: space-between;
   gap: 6px;
-  font-size: 9.5px;
+  font-size: 11px;
   color: #f4f4f6;
 }
 .hdToast .hd b {
@@ -611,14 +568,14 @@
 }
 .hdToast .hd span {
   flex: none;
-  font-size: 8px;
+  font-size: 9px;
   color: #8b9097;
 }
 .hdToast .bd {
   display: -webkit-box;
   overflow: hidden;
   margin-top: 1px;
-  font-size: 9px;
+  font-size: 10.5px;
   line-height: 1.3;
   color: #cdcdcd;
   -webkit-box-orient: vertical;
@@ -628,16 +585,18 @@
 /* ---- phone ------------------------------------------------------------- */
 
 .hdPhone {
+  --pitch: 49px;
+  --shrink: 0;
   position: absolute;
   right: 0;
   bottom: 22px;
   z-index: 4;
-  width: 252px;
-  height: 410px;
-  padding: 7px;
+  width: 196px;
+  height: 276px;
+  padding: 6px;
   background: #0b0c0f;
   border: 2px solid #3a3d42;
-  border-radius: 40px;
+  border-radius: 36px;
   box-shadow: 0 28px 60px rgba(0, 0, 0, 0.65);
 }
 .hdPhone .btn {
@@ -648,24 +607,24 @@
 }
 .hdPhone .btn.r {
   right: -5px;
-  top: 100px;
-  height: 58px;
+  top: 90px;
+  height: 52px;
 }
 .hdPhone .btn.l1 {
   left: -5px;
-  top: 78px;
-  height: 26px;
+  top: 70px;
+  height: 24px;
 }
 .hdPhone .btn.l2 {
   left: -5px;
-  top: 116px;
-  height: 44px;
+  top: 104px;
+  height: 40px;
 }
 .hdPhoneScreen {
   position: relative;
   height: 100%;
   overflow: hidden;
-  border-radius: 32px;
+  border-radius: 30px;
   background: linear-gradient(165deg, #1c2a3a 0%, #0e1723 52%, #0a0b0e 100%);
   font-family: var(--font-body);
   color: #f4f4f6;
@@ -674,19 +633,26 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 11px 24px 0;
-  font-size: 12px;
+  padding: 10px 20px 0;
+  font-size: 11px;
   font-weight: 600;
 }
 .hdPhone .sys {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
+}
+.hdPhone .sys svg:first-child {
+  display: none;
+}
+.hdPhone .sys svg {
+  width: 13px;
+  height: 9px;
 }
 .hdPhone .batt {
   display: inline-flex;
-  width: 19px;
-  height: 10px;
+  width: 17px;
+  height: 9px;
   padding: 1.5px;
   border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 3px;
@@ -698,24 +664,24 @@
 }
 .hdPhone .island {
   position: absolute;
-  top: 9px;
+  top: 8px;
   left: 50%;
-  width: 78px;
-  height: 22px;
-  margin-left: -39px;
+  width: 48px;
+  height: 16px;
+  margin-left: -24px;
   border-radius: 9999px;
   background: #000;
 }
 .hdPhone .date {
-  margin-top: 22px;
+  margin-top: 12px;
   text-align: center;
-  font-size: 12px;
+  font-size: 10.5px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.72);
 }
 .hdPhone .clock {
   text-align: center;
-  font-size: 56px;
+  font-size: 42px;
   font-weight: 300;
   line-height: 1.02;
   letter-spacing: -1.5px;
@@ -723,19 +689,19 @@
 }
 .hdPhone .home {
   position: absolute;
-  bottom: 8px;
+  bottom: 7px;
   left: 50%;
-  width: 84px;
+  width: 60px;
   height: 4px;
-  margin-left: -42px;
+  margin-left: -30px;
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.55);
 }
 .hdPush {
   position: absolute;
-  top: 148px;
-  left: 9px;
-  right: 9px;
+  top: 104px;
+  left: 7px;
+  right: 7px;
 }
 .hdPushCard {
   position: absolute;
@@ -744,51 +710,63 @@
   right: 0;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  height: 68px;
-  padding: 9px 11px;
+  gap: 6px;
+  height: 46px;
+  padding: 6px 7px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 18px;
-  background: rgba(58, 62, 72, 0.96);
+  border-radius: 15px;
+  background: #3a3e48;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  transform-origin: 50% 0;
+  z-index: var(--z);
   opacity: 0;
-  transform: translateY(-14px) scale(0.94);
+  transform: translateY(-12px) scale(0.94);
   transition:
     transform 0.55s cubic-bezier(0.2, 0.9, 0.25, 1.06),
-    opacity 0.35s ease-out;
+    opacity 0.25s ease-out;
+}
+.hdPushCard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: calc(var(--depth) * var(--shrink) * 4);
 }
 .hdPushCard[data-pos="0"],
 .hdPushCard[data-pos="1"],
-.hdPushCard[data-pos="2"] {
+.hdPushCard[data-pos="2"],
+.hdPushCard[data-pos="gone"] {
   opacity: 1;
-  transform: translateY(calc(var(--depth) * 76px));
+  transform: translateY(calc(var(--depth) * var(--pitch)))
+    scale(calc(1 - var(--depth) * var(--shrink)));
 }
 .hdPushCard[data-pos="gone"] {
-  transform: translateY(calc(var(--depth) * 76px));
+  opacity: 0;
 }
 .hdPushCard .ico {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
 }
 .hdPushCard .hd {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 8.5px;
+  gap: 5px;
+  font-size: 7px;
+  line-height: 9px;
   letter-spacing: 0.4px;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.62);
 }
 .hdPushCard .hd em {
   font-style: normal;
-  padding: 0 5px;
-  border-radius: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
   background: rgba(255, 197, 51, 0.18);
   color: #ffc533;
   font-family: var(--font-mono-stack);
-  font-size: 8px;
+  font-size: 7px;
   letter-spacing: 0;
   text-transform: none;
 }
@@ -799,8 +777,9 @@
 }
 .hdPushCard .ti {
   overflow: hidden;
-  margin-top: 2px;
-  font-size: 11.5px;
+  margin-top: 1px;
+  font-size: 9.5px;
+  line-height: 13px;
   font-weight: 600;
   color: #fff;
   text-overflow: ellipsis;
@@ -808,7 +787,8 @@
 }
 .hdPushCard .bd {
   overflow: hidden;
-  font-size: 11px;
+  font-size: 9px;
+  line-height: 12px;
   color: rgba(255, 255, 255, 0.82);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -819,7 +799,7 @@
 @container (max-width: 499px) {
   .hdStage {
     --hd-w: 360px;
-    --hd-h: 690px;
+    --hd-h: 482px;
     --hd-cap: 1.3;
   }
   .hdLaptop {
@@ -828,34 +808,52 @@
     width: 360px;
   }
   .hdScreen {
-    height: 252px;
-  }
-  .hdExplorer {
-    display: none;
+    height: 232px;
   }
   .hdEditor {
-    height: 62px;
+    display: none;
+  }
+  .hdTermList {
+    width: 26px;
+  }
+  .hdTermList .inst {
+    justify-content: center;
+    padding: 0;
+    font-size: 0;
+    gap: 0;
+  }
+  .hdTermList .hdBell {
+    display: none;
   }
   .hdToasts {
-    top: 24px;
-    right: 10px;
+    top: 26px;
+    right: 14px;
+    width: 238px;
   }
   .hdPhone {
+    --pitch: 10px;
+    --shrink: 0.05;
     right: auto;
-    bottom: 22px;
+    bottom: 6px;
     left: 50%;
-    margin-left: -126px;
+    margin-left: -98px;
+    height: 238px;
   }
-}
-
-/* ---- wide container: keep text out from under the phone ---------------- */
-
-@container (min-width: 500px) {
-  .hdTermView {
-    padding-right: 50px;
+  .hdPushCard[data-pos="1"] > *,
+  .hdPushCard[data-pos="2"] > * {
+    opacity: 0;
   }
-  .hdStatus {
-    padding-right: 54px;
+  .hdPhone .btn {
+    top: 54px;
+  }
+  .hdPhone .btn.l2 {
+    top: 88px;
+  }
+  .hdPhone .btn.l1 {
+    top: 54px;
+  }
+  .hdPhone .btn.r {
+    top: 74px;
   }
 }
 

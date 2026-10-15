@@ -52,7 +52,7 @@ export default function Hero() {
         alignItems: "center",
       }}
     >
-      <div style={{ flex: "1 1 380px", minWidth: "300px" }}>
+      <div style={{ flex: "1 1 340px", minWidth: "300px" }}>
         <div
           style={{
             fontFamily: "var(--font-mono-stack)",
@@ -215,7 +215,7 @@ export default function Hero() {
 
       <div
         className="heroMock"
-        style={{ flex: "1.3 1 520px", minWidth: "300px" }}
+        style={{ flex: "1.7 1 520px", minWidth: "300px" }}
       >
         <HeroDemo />
         <div
