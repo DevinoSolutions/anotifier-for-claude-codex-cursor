@@ -119,8 +119,7 @@ test("home: no render-blocking stylesheet and no early gtag.js preload", () => {
 
 test("first-party tracking: PostHog via /_t/n4q, gtag via /gx4t, no third-party hosts", async () => {
   const { body } = pages.get("/");
-  // No page carries a tracker (they mount after consent); this checks the
-  // proxy and that nothing points at a third-party host.
+  // This checks the proxy and that nothing points at a third-party host.
   assert.doesNotMatch(
     body,
     /googletagmanager\.com\/gtag/,
@@ -180,19 +179,18 @@ test("first-party Sentry tunnel: /_t/s7e is POST-only and reaches Sentry", async
   assert.equal(res.headers.get("set-cookie"), null, "the tunnel set a cookie");
 });
 
-test("no tracker is in the static HTML: analytics mount only after the visitor accepts", () => {
-  // The three tools are mounted by components/ConsentedAnalytics.tsx once the
-  // visitor accepts, so even a build with every key set serves pages without
-  // them (the browser tests check what loads after Accept).
+test("no page carries a consent prompt, and none loads a tracker from a third-party host", () => {
+  // The trackers are mounted for every visitor by app/layout.tsx, with no
+  // prompt (the browser tests check what loads in a real page).
   for (const [p, { body }] of pages) {
-    assert.doesNotMatch(body, /\/gx4t\/\?id=/, `${p} loads gtag.js up front`);
-    assert.doesNotMatch(body, /googletagmanager\.com\/gtag/, p);
-    assert.doesNotMatch(body, /posthog\.init|\\"id\\":\\"posthog\\"/, p);
+    assert.doesNotMatch(body, /consentBar|consentActions/, `${p} has a prompt`);
     assert.doesNotMatch(
       body,
-      /replaysSessionSampleRate/,
-      `${p} sets up Sentry`,
+      /anotifier:consent/,
+      `${p} mentions a stored choice`,
     );
+    assert.doesNotMatch(body, /googletagmanager\.com\/gtag/, p);
+    assert.doesNotMatch(body, /api_host[^,]*posthog\.devino\.ca/, p);
   }
 });
 
@@ -216,11 +214,7 @@ test("/privacy/ is in the sitemap, linked from every footer, and names the tools
       body.includes('href="/privacy/"'),
       `${p} does not link /privacy/`,
     );
-    assert.match(
-      body,
-      /<button[^>]*class="linkBtn"[^>]*>privacy choices</,
-      `${p} has no "privacy choices" control`,
-    );
+    assert.doesNotMatch(body, /privacy choices/i, `${p} has a choices control`);
   }
 });
 

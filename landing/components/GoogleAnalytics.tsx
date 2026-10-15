@@ -2,10 +2,6 @@ import Script from "next/script";
 
 /** Google Analytics 4 (gtag.js).
 
-    Mounted only after the visitor accepts analytics
-    (components/ConsentedAnalytics.tsx): before that there is no /gx4t request,
-    no dataLayer and no gtag.
-
     Env-gated on NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: with the variable unset or
     empty this renders nothing, so local and CI builds ship no gtag.js and send
     no hit. The measurement id is public, but it is inlined at build time —
@@ -26,7 +22,7 @@ import Script from "next/script";
     both to Google without the visitor's IP address or cookies, so Google sees
     the server, not the visitor. Google signals and ad personalisation are off.
     Cloudflare's Google Tag Gateway did this before, but it also injected the
-    tag into every page ahead of consent, so it is switched off. */
+    tag into every page's HTML itself, so it is switched off. */
 export default function GoogleAnalytics() {
   const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
   if (!gaId) {

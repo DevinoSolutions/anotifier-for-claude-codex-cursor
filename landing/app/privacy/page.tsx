@@ -27,9 +27,9 @@ export const metadata: Metadata = {
 };
 
 /* A plain description of what the site does, written from the code. Each
-   sentence matches a component or a config: components/ConsentPrompt.tsx,
-   ConsentedAnalytics.tsx, PostHog.tsx, GoogleAnalytics.tsx, SentryReplay.tsx,
-   lib/consent.ts, lib/track.ts, StarButton.tsx, home/DemoVideo.tsx, nginx.conf.
+   sentence matches a component or a config: app/layout.tsx, components/PostHog.tsx,
+   GoogleAnalytics.tsx, SentryReplay.tsx, lib/track.ts, StarButton.tsx,
+   home/DemoVideo.tsx, nginx.conf.
    Change one of those and this page together. It is not legal text. */
 export default function PrivacyPage() {
   return (
@@ -66,33 +66,18 @@ export default function PrivacyPage() {
           </p>
         </section>
 
-        <section id="choice">
-          <h2>Your choice</h2>
+        <section id="loaded">
+          <h2>What loads on every visit</h2>
           <p>
-            A bar at the bottom of the page asks whether to allow analytics.
-            Until you press Accept, the site does not load PostHog, Google
-            Analytics or Sentry. If you press Decline, none of them loads and
-            the site does not ask again in this browser unless its storage is
-            cleared.
-          </p>
-          <p>
-            Your choice is stored in your browser&apos;s local storage under the
-            name <code>anotifier:consent:v1</code>. The site does not send it
-            anywhere. If your browser blocks local storage, the choice only
-            lasts for the page you are on.
-          </p>
-          <p>
-            To change your mind, use &quot;privacy choices&quot; in the footer
-            of any page. If you withdraw after accepting, the page reloads
-            without the three tools, and the site removes the cookies and
-            storage entries they normally create (names starting with{" "}
-            <code>ph_</code>, <code>__ph_</code>, <code>_ga</code>,{" "}
-            <code>_gcl_</code> or <code>sentryReplay</code>).
+            The site loads PostHog (analytics and session replay), Google
+            Analytics and Sentry (session replay and error monitoring) for every
+            visitor. It does not ask first, and it has no setting to turn them
+            off. The sections below describe what each one does.
           </p>
         </section>
 
         <section id="analytics">
-          <h2>Analytics, after you accept</h2>
+          <h2>Analytics</h2>
           <h3>PostHog</h3>
           <ul>
             <li>PostHog is hosted by Devino itself, at posthog.devino.ca.</li>
@@ -185,7 +170,7 @@ export default function PrivacyPage() {
         </section>
 
         <section id="replay">
-          <h2>Session replay, after you accept</h2>
+          <h2>Session replay</h2>
           <ul>
             <li>
               PostHog records a sample of visits as session recordings. The
@@ -218,7 +203,7 @@ export default function PrivacyPage() {
         </section>
 
         <section id="errors">
-          <h2>Error monitoring, after you accept</h2>
+          <h2>Error monitoring</h2>
           <ul>
             <li>
               Sentry is hosted by Devino itself, at sentry.devino.ca. Your
@@ -240,7 +225,7 @@ export default function PrivacyPage() {
         </section>
 
         <section id="other">
-          <h2>Other requests, whatever you choose</h2>
+          <h2>Other requests</h2>
           <ul>
             <li>
               Each page tells your browser to open a connection to
@@ -261,8 +246,7 @@ export default function PrivacyPage() {
               report-only mode. If a page breaks that policy, your browser can
               send a short violation report, with the page address and your
               browser details, directly to Devino&apos;s Sentry at
-              sentry.devino.ca. This happens whether or not you accepted
-              analytics.
+              sentry.devino.ca.
             </li>
           </ul>
         </section>

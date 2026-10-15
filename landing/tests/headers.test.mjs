@@ -72,9 +72,9 @@ for (const [label, path, status] of CASES) {
 // No page may reach a visitor with a tag Cloudflare added at the edge. The
 // zone's Google Tag Gateway injected the GA4 tag (google_tags_first_party,
 // /gx4t/, gtag) into every page's <head> for browser user agents, even with
-// no-transform, which loaded Google Analytics before the visitor accepted;
-// only components/ConsentedAnalytics.tsx may load it. The gateway is off and
-// nginx relays /gx4t itself. Pages carry Cache-Control: public, no-transform
+// no-transform, so Google Analytics loaded from the edge instead of the site's
+// own component; only components/GoogleAnalytics.tsx may load it. The gateway
+// is off and nginx relays /gx4t itself. Pages carry Cache-Control: public, no-transform
 // (nginx.conf, location /), which keeps the Web Analytics beacon
 // (static.cloudflareinsights.com, also off for the zone) out. The directive
 // stops Cloudflare compressing the page, so nginx's own gzip has to reach
