@@ -179,7 +179,10 @@ export default function SupportedTools() {
           </Link>
         ))}
       </div>
-      <div className="cmdScroll" style={{ marginTop: "32px", overflowX: "auto" }}>
+      <div
+        className="cmdScroll"
+        style={{ marginTop: "32px", overflowX: "auto" }}
+      >
         <div
           style={{
             minWidth: "640px",
