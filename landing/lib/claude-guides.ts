@@ -411,7 +411,7 @@ export const CLAUDE_GUIDES: Guide[] = [
               ],
               [
                 "`Notification` with matcher `idle_prompt`",
-                "Claude finished about 60 seconds ago and you haven't typed since",
+                "Claude finished about 60 seconds ago, you haven't typed since, and no background agent is still running. It isn't sent while Claude waits for a usage limit to reset",
                 "Tink",
               ],
               [
@@ -421,7 +421,7 @@ export const CLAUDE_GUIDES: Guide[] = [
               ],
               [
                 "`SubagentStop`",
-                "A subagent finishes. It can fire many times in one turn, so use a very quiet sound or none",
+                "A subagent finishes. A turn with several subagents plays it several times, so use a very quiet sound or none",
                 "Pop",
               ],
               ["`StopFailure`", "A turn ends because of an API error", "Basso"],
@@ -578,7 +578,7 @@ export const CLAUDE_GUIDES: Guide[] = [
               '`async` works on `"type": "command"` hooks only. An async hook can\'t block or steer Claude, which is fine for a sound.',
               "Once an async hook is running in the background, Claude Code doesn't enforce its `timeout`.",
               'Without `async`, set a `timeout` in seconds so a stuck audio device can\'t hold Claude up: the default for a command hook is 600 seconds. `"timeout": 5` is plenty for a chime.',
-              "On a `PermissionRequest` hook, a synchronous sound can hold the prompt back until it ends, so make that one async.",
+              "Because a hook blocks until it finishes, a `PermissionRequest` sound without `async` can delay the prompt, so make that one async.",
             ],
           },
         ],
@@ -595,10 +595,10 @@ export const CLAUDE_GUIDES: Guide[] = [
             kind: "ul",
             items: [
               '**Your terminal gets no desktop notification.** The default `"preferredNotifChannel": "auto"` sends one in iTerm2, Ghostty and Kitty, rings the bell in Terminal.app only when its audible bell is off, and does nothing elsewhere, so set `terminal_bell` or use a hook.',
-              "**Apple Terminal's audible bell is off.** If you accepted Claude Code's first-run terminal setup, it turned that off in your profile. Turn it back on under **Settings > Profiles > Advanced > \"Audible bell\"**.",
+              '**Apple Terminal\'s audible bell is off.** If you accepted Claude Code\'s first-run terminal setup, it turned that off in your profile. With the default `auto`, Claude Code then rings the bell in Terminal.app only because the audible bell is off, and you hear nothing. For a sound, set `"preferredNotifChannel": "terminal_bell"` and turn the bell back on under **Settings > Profiles > Advanced > "Audible bell"**, or use a hook.',
               '**The VS Code terminal bell is silent.** VS Code plays the bell sound only if `accessibility.signals.terminalBell` allows it, and its default (`auto`) means only when a screen reader is attached. Set `"accessibility.signals.terminalBell": { "sound": "on" }` in VS Code\'s settings, or use a hook, which doesn\'t depend on the terminal.',
               "**Volume and output.** A hook's player uses your current output device and volume, so check both, and that nothing is muted.",
-              "**The hook never ran.** Type `/hooks` and check the hook is listed under the right event; the menu is read-only. Run the command in your own shell first. For details, start Claude Code with `claude --debug-file /tmp/claude.log` and read the file. Plain `claude --debug` writes to `~/.claude/debug/<session-id>.txt` and prints nothing to the terminal.",
+              "**The hook never ran.** In an interactive session, Claude Code holds back hooks from every settings file, including your own `~/.claude/settings.json`, until you accept the workspace trust dialog for the folder. Then type `/hooks` and check the hook is listed under the right event; the menu is read-only. Run the command in your own shell first. For details, start Claude Code with `claude --debug-file claude-debug.log` (any path works) and read the file. Plain `claude --debug` writes to `~/.claude/debug/<session-id>.txt` and prints nothing to the terminal.",
               "**It isn't time yet.** `permission_prompt` waits about six seconds and `idle_prompt` about 60. The built-in alert is aimed at moments when you appear to be away from the terminal, so it may stay quiet while you are typing in the window. `Stop` fires after every response, but not after an interrupt.",
               "**A player is missing.** `command not found` for `paplay` or `aplay` means the package from [the Linux table](#linux) isn't installed. `aplay` can't play `.oga` or `.mp3`.",
               "**Windows paths in JSON.** `settings.json` is JSON, so every backslash is written twice: `C:\\\\Windows\\\\Media\\\\chimes.wav`. A single backslash is a broken escape.",
@@ -626,7 +626,7 @@ export const CLAUDE_GUIDES: Guide[] = [
               ],
               [
                 "A hook you wrote",
-                'Delete its entry from `settings.json`. To pause every hook, set `"disableAllHooks": true`, which also turns off a custom status line. There is no way to switch off one hook and keep it configured',
+                'Delete its entry from `settings.json`. To pause your own hooks, set `"disableAllHooks": true`, which also turns off a custom status line. Managed hooks keep running unless it is set in managed settings. There is no way to switch off one hook and keep it configured',
               ],
               [
                 "The terminal's bell",
@@ -634,7 +634,7 @@ export const CLAUDE_GUIDES: Guide[] = [
               ],
               [
                 "anotifier",
-                "Snooze, quiet hours, or switch off the bell; see the list below",
+                "Snooze, quiet hours, or turn the toast off; the bell setting alone doesn't silence the toast's sound. See the list below",
               ],
             ],
           },
@@ -651,8 +651,8 @@ export const CLAUDE_GUIDES: Guide[] = [
             items: [
               "`npx anotifier@latest snooze 2h` silences every channel for a while, the toast and its sound and the terminal bell included. `snooze off` cancels it, and `snooze` alone shows the current state.",
               'Quiet hours silence every channel inside a daily window. They are off by default: set `quietHours.enabled` to `true`, and `from` and `to` as `"HH:MM"`, such as `22:00` to `08:00`.',
-              "The bell alone: `terminalBell.enabled: false` for every event, or `terminalBellEnabled: false` for one (the example in [Sounds with anotifier](#anotifier)).",
-              "`npx anotifier@latest uninstall` removes anotifier's hooks from every tool.",
+              "The toast and its sound: `toast.enabled: false` in `~/.anotifier/config.json` for every event, or `toastEnabled: false` under one event in `events`. The terminal bell is a separate switch (`terminalBell.enabled: false`, or `terminalBellEnabled: false` for one event, as in [Sounds with anotifier](#anotifier)), and turning it off leaves the toast's sound on.",
+              "`npx anotifier@latest uninstall` asks `(y/N)` first, backs up the files it edits to `~/.anotifier/backups/`, and removes anotifier's hooks from the tools it wired. It keeps `~/.anotifier/`, and it doesn't touch Claude Code's `preferredNotifChannel` or hooks you wrote yourself, so a sound from either keeps playing.",
             ],
           },
         ],
@@ -664,7 +664,7 @@ export const CLAUDE_GUIDES: Guide[] = [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: "anotifier plays a sound with each desktop toast and rings the terminal bell, with different defaults for finished and needs-you events. Set the sound per event with `toastSound`:",
+            text: "anotifier plays a sound with each desktop toast and rings the terminal bell, with different defaults for finished and needs-you events. Set the sound per event with `toastSound` in `~/.anotifier/config.json`. This example uses macOS names:",
           },
           {
             kind: "table",
@@ -695,7 +695,7 @@ export const CLAUDE_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "The terminal bell is on by default. With Claude Code 2.1.141 and newer, it rings through Claude Code's own terminal output, which also works inside tmux and GNU screen. Turn it off for one event with `terminalBellEnabled`, or for all of them with `terminalBell.enabled`:",
+            text: "The terminal bell is on by default, and it is separate from the toast's sound. With Claude Code 2.1.141 and newer, it rings through Claude Code's own terminal output, which also works inside tmux and GNU screen. Turn it off for one event with `terminalBellEnabled`, or for all of them with `terminalBell.enabled`:",
           },
           {
             kind: "code",
@@ -724,15 +724,15 @@ export const CLAUDE_GUIDES: Guide[] = [
       },
       {
         q: "How do I change the Claude Code notification sound?",
-        a: "The preferredNotifChannel setting only picks the channel (bell or desktop notification), not the sound. To choose the sound, add a Stop or Notification hook that plays a file you pick: afplay with a .aiff, .mp3 or .wav on macOS, paplay, pw-play or aplay on Linux, or a PowerShell Media.SoundPlayer .wav on Windows. With anotifier, set toastSound per event.",
+        a: "The preferredNotifChannel setting only picks the channel (bell or desktop notification), not the sound. To choose the sound, add a Stop or Notification hook that plays a file you pick: afplay with a .aiff, .mp3 or .wav on macOS, paplay, pw-play or aplay on Linux, or a PowerShell Media.SoundPlayer .wav on Windows. With anotifier, set toastSound per event in ~/.anotifier/config.json.",
       },
       {
-        q: "Why is there no sound from Claude Code in VS Code?",
+        q: "Why is there no sound from Claude Code in the VS Code terminal?",
         a: 'VS Code\'s integrated terminal plays the bell sound only if its accessibility.signals.terminalBell setting allows it, and the default, auto, means only when a screen reader is attached. Set "accessibility.signals.terminalBell": { "sound": "on" } in VS Code, or add a Stop hook that plays a file, which does not depend on the terminal.',
       },
       {
         q: "How do I turn off the Claude Code sound?",
-        a: 'Set "preferredNotifChannel": "notifications_disabled" in ~/.claude/settings.json to silence the built-in alert. Hooks still run, so also delete any sound hook, or set "disableAllHooks": true to pause every hook. With anotifier, run npx anotifier@latest snooze 2h, or set terminalBell.enabled to false.',
+        a: 'Set "preferredNotifChannel": "notifications_disabled" in ~/.claude/settings.json to silence the built-in alert. Hooks still run, so also delete any sound hook, or set "disableAllHooks": true to pause your own hooks (managed hooks keep running unless it is set in managed settings). anotifier\'s toast has its own sound, so turning its terminal bell off is not enough: run npx anotifier@latest snooze 2h, or set toast.enabled to false in ~/.anotifier/config.json.',
       },
       {
         q: "Can Claude Code play a different sound when it needs permission?",
