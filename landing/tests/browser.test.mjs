@@ -694,7 +694,10 @@ test(
       const gaConfig = await b.evaluate(`JSON.stringify([...window.dataLayer]
         .map((a) => Array.from(a)).find((a) => a[0] === "config")?.[2] ?? null)`);
       const ga = JSON.parse(gaConfig);
-      assert.ok(ga?.transport_url?.endsWith("/gx4t"), `transport_url: ${gaConfig}`);
+      assert.ok(
+        ga?.transport_url?.endsWith("/gx4t"),
+        `transport_url: ${gaConfig}`,
+      );
       assert.equal(ga.allow_google_signals, false);
       assert.equal(ga.allow_ad_personalization_signals, false);
       assert.equal(after.sentry, "object", "Sentry did not start");
