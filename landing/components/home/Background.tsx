@@ -1,3 +1,16 @@
+// Orbs sit at a percentage of the page height. Placing them with top:N% moves
+// them as the page grows while it loads (layout shift), so each lane is a
+// full-height box pinned at top:0 and offset with a transform, which does not
+// count as a shift.
+const orbLane = (offset: string): React.CSSProperties => ({
+  position: "absolute",
+  top: 0,
+  left: 0,
+  width: "100%",
+  height: "100%",
+  transform: `translateY(${offset})`,
+});
+
 export default function Background() {
   return (
     <div
@@ -13,53 +26,66 @@ export default function Background() {
       <div
         style={{
           position: "absolute",
-          inset: "-15%",
+          // Same box as inset:-15% (130% of the parent, shifted back by 15% of
+          // it), but placed with a transform: the parent grows while the page
+          // loads and a percentage top/left edge would count as layout shift.
+          top: 0,
+          left: 0,
+          width: "130%",
+          height: "130%",
+          transform: "translate(-11.5385%, -11.5385%)",
           background:
             "radial-gradient(60% 50% at 22% 14%, rgba(89,212,153,0.09), transparent 60%), radial-gradient(55% 45% at 82% 42%, rgba(87,193,255,0.07), transparent 60%)",
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          left: "12%",
-          top: "12%",
-          width: "360px",
-          height: "360px",
-          borderRadius: "9999px",
-          background:
-            "radial-gradient(circle, rgba(89,212,153,0.20), transparent 68%)",
-          filter: "blur(46px)",
-          animation: "orbFloat1 20s ease-in-out infinite",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          right: "8%",
-          top: "44%",
-          width: "320px",
-          height: "320px",
-          borderRadius: "9999px",
-          background:
-            "radial-gradient(circle, rgba(87,193,255,0.15), transparent 68%)",
-          filter: "blur(52px)",
-          animation: "orbFloat2 26s ease-in-out infinite",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          left: "40%",
-          top: "74%",
-          width: "280px",
-          height: "280px",
-          borderRadius: "9999px",
-          background:
-            "radial-gradient(circle, rgba(89,212,153,0.12), transparent 70%)",
-          filter: "blur(54px)",
-          animation: "orbFloat3 30s ease-in-out infinite",
-        }}
-      />
+      <div style={orbLane("12%")}>
+        <div
+          style={{
+            position: "absolute",
+            left: "12%",
+            top: 0,
+            width: "360px",
+            height: "360px",
+            borderRadius: "9999px",
+            background:
+              "radial-gradient(circle, rgba(89,212,153,0.20), transparent 68%)",
+            filter: "blur(46px)",
+            animation: "orbFloat1 20s ease-in-out infinite",
+          }}
+        />
+      </div>
+      <div style={orbLane("44%")}>
+        <div
+          style={{
+            position: "absolute",
+            right: "8%",
+            top: 0,
+            width: "320px",
+            height: "320px",
+            borderRadius: "9999px",
+            background:
+              "radial-gradient(circle, rgba(87,193,255,0.15), transparent 68%)",
+            filter: "blur(52px)",
+            animation: "orbFloat2 26s ease-in-out infinite",
+          }}
+        />
+      </div>
+      <div style={orbLane("74%")}>
+        <div
+          style={{
+            position: "absolute",
+            left: "40%",
+            top: 0,
+            width: "280px",
+            height: "280px",
+            borderRadius: "9999px",
+            background:
+              "radial-gradient(circle, rgba(89,212,153,0.12), transparent 70%)",
+            filter: "blur(54px)",
+            animation: "orbFloat3 30s ease-in-out infinite",
+          }}
+        />
+      </div>
       <div
         style={{
           position: "absolute",

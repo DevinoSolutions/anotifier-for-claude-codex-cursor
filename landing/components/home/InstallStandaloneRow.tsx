@@ -73,12 +73,16 @@ export default function InstallStandaloneRow() {
       </select>
       {isWin ? (
         <>
-          <code style={codeStyle}>{IRM}</code>
+          <code className="cmdScroll" style={codeStyle}>
+            {IRM}
+          </code>
           <CopyButton text={IRM} placement="install" />
         </>
       ) : (
         <>
-          <code style={codeStyle}>{CURL}</code>
+          <code className="cmdScroll" style={codeStyle}>
+            {CURL}
+          </code>
           <CopyButton text={CURL} placement="install" />
         </>
       )}

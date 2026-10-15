@@ -55,6 +55,7 @@ export default function HowItWorks() {
         }}
       >
         <div
+          className="cmdScroll"
           style={{
             fontFamily: "var(--font-mono-stack)",
             fontSize: "clamp(11px,1.5vw,13px)",
