@@ -11,13 +11,17 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { useFakeHome } from './fake-home.mjs';
 import {
-  recordTurnStart, finishTurn, minDurationSeconds, isBelowMinDuration, supportsTurnTiming,
+  recordTurnStart, finishTurn, minDurationSeconds, isBelowMinDuration, supportsTurnTiming, removeTurnState,
 } from '../src/turn-timer.mjs';
 import { route, formatDuration } from '../src/router.mjs';
 import { parseInput } from '../src/parse-input.mjs';
 import { deriveRichViews } from '../src/transcript.mjs';
 import { loadConfigResult } from '../src/config-loader.mjs';
-import { patchClaude, patchCodex, patchGemini, patchCursor, patchAntigravity, unpatchAll, TOOL_EVENTS } from '../setup/patch-config.mjs';
+import {
+  patchClaude, patchCodex, patchGemini, patchCursor, patchAntigravity, unpatchAll, TOOL_EVENTS, codexHookHash,
+} from '../setup/patch-config.mjs';
+import { wiredEventsLabel, minDurationValue } from '../cli/status.mjs';
+import { readErrorLog } from './turn-duration-helpers.mjs';
 
 useFakeHome();
 
@@ -98,6 +102,42 @@ describe('turn timer', () => {
     assert.equal(finishTurn({ source: 'claude', sessionId: 's' }, { statePath, now: 1_200_000 }), null);
   });
 
+  it('a prompt sent mid-turn does not restart the clock', () => {
+    const MIN = 60 * SEC;
+    recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 1_000_000 });
+    recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 1_000_000 + 24 * MIN });
+    const entry = JSON.parse(fs.readFileSync(statePath, 'utf8'))['claude:s'];
+    assert.equal(entry.startedAt, 1_000_000, 'the first start is kept');
+    assert.equal(entry.lastPromptAt, 1_000_000 + 24 * MIN);
+    const ms = finishTurn({ source: 'claude', sessionId: 's' }, { statePath, now: 1_000_000 + 25 * MIN });
+    assert.equal(ms, 25 * MIN);
+    assert.equal(isBelowMinDuration(ms, { events: { task_complete: { minDurationSeconds: 120 } } }), false);
+    assert.equal(formatDuration(ms), '25m');
+  });
+
+  it('a mid-turn prompt moves the codex turn id along with it', () => {
+    recordTurnStart({ source: 'codex', sessionId: 's', turnId: 't1' }, { statePath, now: 1_000_000 });
+    recordTurnStart({ source: 'codex', sessionId: 's', turnId: 't2' }, { statePath, now: 1_030_000 });
+    assert.equal(finishTurn({ source: 'codex', sessionId: 's', turnId: 't2' }, { statePath, now: 1_090_000 }), 90 * SEC);
+  });
+
+  it('an entry past a day old is replaced, not extended', () => {
+    recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 1_000 });
+    recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 1_000 + 25 * 3600 * SEC });
+    assert.equal(JSON.parse(fs.readFileSync(statePath, 'utf8'))['claude:s'].startedAt, 1_000 + 25 * 3600 * SEC);
+  });
+
+  it('a self-started codex turn does not inherit the previous turn duration', () => {
+    recordTurnStart({ source: 'codex', sessionId: 's', turnId: 't1' }, { statePath, now: 1_000_000 });
+    assert.equal(finishTurn({ source: 'codex', sessionId: 's', turnId: 't1' }, { statePath, now: 1_300_000 }), 300 * SEC);
+    // The same turn double-fired inside the window: same answer.
+    assert.equal(finishTurn({ source: 'codex', sessionId: 's', turnId: 't1' }, { statePath, now: 1_301_000 }), 300 * SEC);
+    // A different turn's Stop, with no prompt hook recorded for it, 2 s later.
+    assert.equal(finishTurn({ source: 'codex', sessionId: 's', turnId: 't2' }, { statePath, now: 1_302_000 }), null);
+    // And one with no turn id at all.
+    assert.equal(finishTurn({ source: 'codex', sessionId: 's', turnId: '' }, { statePath, now: 1_302_500 }), null);
+  });
+
   it('a new prompt starts a fresh clock', () => {
     recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 1_000_000 });
     finishTurn({ source: 'claude', sessionId: 's' }, { statePath, now: 1_020_000 });
@@ -122,6 +162,27 @@ describe('turn timer', () => {
     fs.writeFileSync(statePath, '{ not json');
     assert.equal(finishTurn({ source: 'claude', sessionId: 's' }, { statePath, now: 10 }), null);
     assert.equal(recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 10 }), true);
+  });
+
+  it('logs a lock it cannot take to errors.log, and still returns no duration', () => {
+    fs.writeFileSync(`${statePath}.lock`, String(process.pid)); // a fresh lock held by "someone else"
+    const before = readErrorLog().length;
+    assert.equal(finishTurn({ source: 'claude', sessionId: 's' }, { statePath, now: 10 }), null);
+    assert.equal(recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 10 }), false);
+    const added = readErrorLog().slice(before);
+    assert.ok(added.some((l) => /turn-timer:lock/.test(l) && /no duration/.test(l)), added.join('\n'));
+  });
+
+  it('removeTurnState deletes the state, its lock and leftover temp files, and nothing else', () => {
+    for (const name of ['turns.json', 'turns.json.lock', 'turns.json.123.tmp', 'config.json', 'turns.json.bak', '.telemetry.json']) {
+      fs.writeFileSync(path.join(dir, name), '{}');
+    }
+    const { removed, failed } = removeTurnState(dir);
+    assert.deepEqual(removed.sort(), ['turns.json', 'turns.json.123.tmp', 'turns.json.lock']);
+    assert.deepEqual(failed, []);
+    assert.deepEqual(fs.readdirSync(dir).sort(), ['.telemetry.json', 'config.json', 'turns.json.bak']);
+    assert.deepEqual(removeTurnState(dir), { removed: [], failed: [] }, 'idempotent');
+    assert.deepEqual(removeTurnState(path.join(dir, 'missing')), { removed: [], failed: [] });
   });
 
   it('never throws when the state path is unusable', () => {
@@ -277,6 +338,38 @@ describe('hook wiring', () => {
     assert.doesNotMatch(fs.readFileSync(path.join(home, '.codex', 'config.toml'), 'utf8'), /user_prompt_submit/);
   });
 
+  it('the codex trust hash for the timing hook matches the handler written to hooks.json', () => {
+    const home = tmpDir();
+    fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
+    patchCodex(path.join(home, '.codex'), notifyPath);
+    const hooksPath = path.join(home, '.codex', 'hooks.json');
+    const hooks = read(hooksPath).hooks;
+    const handler = hooks.UserPromptSubmit[0].hooks[0];
+    assert.equal('statusMessage' in handler, false, 'the timing hook shows no status message');
+    assert.equal(hooks.Stop[0].hooks[0].statusMessage, 'Sending notification', 'the notifying hooks keep theirs');
+    const toml = fs.readFileSync(path.join(home, '.codex', 'config.toml'), 'utf8');
+    const hashFor = (segment) => {
+      const key = `${hooksPath}:${segment}:0:0`;
+      const at = toml.indexOf(`[hooks.state.'${key}']`);
+      assert.ok(at >= 0, `trust entry for ${segment}`);
+      return /trusted_hash = "([^"]+)"/.exec(toml.slice(at))[1];
+    };
+    assert.equal(hashFor('user_prompt_submit'), codexHookHash('user_prompt_submit', handler.command, { timeout: 5 }));
+    assert.equal(
+      hashFor('stop'),
+      codexHookHash('stop', hooks.Stop[0].hooks[0].command, { timeout: 10, statusMessage: 'Sending notification' }),
+    );
+  });
+
+  it('status folds the timing hook into a "timed" marker and shows the threshold', () => {
+    const strip = (x) => x.replace(/\u001b\[[0-9;]*m/g, '');
+    assert.equal(wiredEventsLabel(['Notification', 'Stop', 'UserPromptSubmit']), 'Notification, Stop · timed');
+    assert.equal(wiredEventsLabel(['AfterAgent', 'Notification', 'BeforeAgent']), 'AfterAgent, Notification · timed');
+    assert.equal(wiredEventsLabel(['stop']), 'stop');
+    assert.equal(strip(minDurationValue({})), 'off');
+    assert.equal(strip(minDurationValue({ events: { task_complete: { minDurationSeconds: 45 } } })), 'skip completions under 45s');
+  });
+
   it('the plugin hooks.json carries the same turn-start hook', () => {
     const hooks = read(path.join(repoRoot, 'hooks', 'hooks.json')).hooks;
     assert.match(hooks.UserPromptSubmit[0].hooks[0].command, /notify\.mjs" --source claude$/);
@@ -321,8 +414,8 @@ describe('notify.mjs end to end (real subprocess, real local HTTP server)', () =
     return { home, cfgDir, statePath: path.join(cfgDir, 'turns.json') };
   }
 
-  function runHook(home, payload, { source = 'claude', event } = {}) {
-    const env = { ...process.env, HOME: home, USERPROFILE: home };
+  function runHook(home, payload, { source = 'claude', event, env: extraEnv = {} } = {}) {
+    const env = { ...process.env, HOME: home, USERPROFILE: home, ...extraEnv };
     for (const k of ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'CURSOR_API_KEY', 'NTFY_TOKEN']) delete env[k];
     const args = [NOTIFY, '--source', source, ...(event ? ['--event', event] : [])];
     return new Promise((resolve, reject) => {
@@ -375,6 +468,18 @@ describe('notify.mjs end to end (real subprocess, real local HTTP server)', () =
     await runHook(home, stop);
     assert.equal(received.length, 1);
     assert.match(webhookMessages()[0], /Task complete \(took 1m \d+s\)/);
+  });
+
+  it('a filtered run is counted as the skipped telemetry outcome', async () => {
+    const { home, cfgDir } = setupHome({ ...baseConfig(600), telemetry: { enabled: true, asked: true } });
+    const env = { ANOTIFIER_TELEMETRY: '1', ANOTIFIER_TELEMETRY_URL: `${base}/telemetry`, DO_NOT_TRACK: '' };
+    await runHook(home, prompt, { env });
+    const res = await runHook(home, stop, { env });
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(received.filter((r) => r.url === '/hook').length, 0, 'nothing was sent to the webhook');
+    const state = JSON.parse(fs.readFileSync(path.join(cfgDir, '.telemetry.json'), 'utf8'));
+    assert.equal(state.counters.outcomes.skipped, 1);
+    assert.equal(state.counters.outcomes.dispatched, undefined);
   });
 
   it('an unknown duration is never filtered and has no suffix', async () => {
