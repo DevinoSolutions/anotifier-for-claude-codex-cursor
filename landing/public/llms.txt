@@ -65,4 +65,5 @@
 - [npm](https://www.npmjs.com/package/anotifier): package (`npm i -g anotifier`)
 - [Demo video](https://www.youtube.com/watch?v=QVVOIIud4-I)
 - [Discord community](https://discord.gg/CWDxfEJGcS): questions, help, feature requests
+- [Privacy](https://anotifier.io/privacy/): what the website collects; analytics and session replay load only after you accept
 - [Support the project](https://github.com/sponsors/DevinoSolutions)

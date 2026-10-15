@@ -119,8 +119,8 @@ test("home: no render-blocking stylesheet and no early gtag.js preload", () => {
 
 test("first-party tracking: PostHog via /_t/n4q, gtag via /gx4t, no third-party hosts", async () => {
   const { body } = pages.get("/");
-  // Keyed builds point both trackers at anotifier.io paths. Keyless builds
-  // (local, CI) ship neither tracker, so there only the proxy is checked.
+  // No page carries a tracker (they mount after consent); this checks the
+  // proxy and that nothing points at a third-party host.
   assert.doesNotMatch(
     body,
     /googletagmanager\.com\/gtag/,
@@ -131,13 +131,6 @@ test("first-party tracking: PostHog via /_t/n4q, gtag via /gx4t, no third-party 
     /api_host[^,]*posthog\.devino\.ca/,
     "PostHog api_host is third-party",
   );
-  if (body.includes('\\"id\\":\\"posthog\\"')) {
-    assert.match(
-      body,
-      /api_host[^,]*\/_t\/n4q/,
-      "PostHog api_host is not /_t/n4q",
-    );
-  }
   // nginx forwards /_t/n4q/ to the self-hosted PostHog (CI and production).
   const res = await get("/_t/n4q/static/array.js");
   assert.equal(
@@ -182,16 +175,48 @@ test("first-party Sentry tunnel: /_t/s7e is POST-only and reaches Sentry", async
   assert.equal(res.headers.get("set-cookie"), null, "the tunnel set a cookie");
 });
 
-test("home: PostHog, when the build has a key, loads only after the load event", () => {
-  const { body } = pages.get("/");
-  // Keyless builds (local, CI) ship no PostHog script at all. The live suite
-  // runs against the keyed production build, where the loader must stay
-  // lazyOnload: next/script serialises it into the RSC payload as below.
-  if (!body.includes('\\"id\\":\\"posthog\\"')) return;
-  assert.ok(
-    body.includes('\\"id\\":\\"posthog\\",\\"strategy\\":\\"lazyOnload\\"'),
-    "the PostHog loader is not lazyOnload",
-  );
+test("no tracker is in the static HTML: analytics mount only after the visitor accepts", () => {
+  // The three tools are mounted by components/ConsentedAnalytics.tsx once the
+  // visitor accepts, so even a build with every key set serves pages without
+  // them (the browser tests check what loads after Accept).
+  for (const [p, { body }] of pages) {
+    assert.doesNotMatch(body, /\/gx4t\/\?id=/, `${p} loads gtag.js up front`);
+    assert.doesNotMatch(body, /googletagmanager\.com\/gtag/, p);
+    assert.doesNotMatch(body, /posthog\.init|\\"id\\":\\"posthog\\"/, p);
+    assert.doesNotMatch(
+      body,
+      /replaysSessionSampleRate/,
+      `${p} sets up Sentry`,
+    );
+  }
+});
+
+test("/privacy/ is in the sitemap, linked from every footer, and names the tools", () => {
+  assert.ok(paths.includes("/privacy/"), "/privacy/ missing from sitemap");
+  const privacy = pages.get("/privacy/");
+  for (const needle of [
+    "PostHog",
+    "Google Analytics",
+    "Sentry",
+    "hello@devino.ca",
+  ]) {
+    assert.ok(
+      privacy.body.includes(needle),
+      `/privacy/ never mentions ${needle}`,
+    );
+  }
+  assert.doesNotMatch(privacy.body, /Cloudflare Web Analytics/);
+  for (const [p, { body }] of pages) {
+    assert.ok(
+      body.includes('href="/privacy/"'),
+      `${p} does not link /privacy/`,
+    );
+    assert.match(
+      body,
+      /<button[^>]*class="linkBtn"[^>]*>privacy choices</,
+      `${p} has no "privacy choices" control`,
+    );
+  }
 });
 
 test("one URL per page: slashless and index.html paths 301 to the canonical", async () => {

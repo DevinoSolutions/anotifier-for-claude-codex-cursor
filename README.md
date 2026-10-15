@@ -650,7 +650,7 @@ CI goes further than "the call returned 0." On **Linux** it reads the payload ba
 
 ## Website
 
-The source of [anotifier.io](https://anotifier.io) ([docs](https://anotifier.io/docs/), [guides](https://anotifier.io/guides/), [comparison page](https://anotifier.io/compare/), [`llms.txt`](https://anotifier.io/llms.txt)) lives in [`landing/`](landing/) — a static Next.js export, so a fix to the site is a normal PR here. It is not part of the npm package.
+The source of [anotifier.io](https://anotifier.io) ([docs](https://anotifier.io/docs/), [guides](https://anotifier.io/guides/), [comparison page](https://anotifier.io/compare/), [`llms.txt`](https://anotifier.io/llms.txt)) lives in [`landing/`](landing/) — a static Next.js export, so a fix to the site is a normal PR here. The site asks before it loads any analytics: PostHog, Google Analytics and Sentry load only after a visitor accepts, and [anotifier.io/privacy](https://anotifier.io/privacy/) describes what they collect. It is not part of the npm package.
 
 ```bash
 cd landing && npm ci

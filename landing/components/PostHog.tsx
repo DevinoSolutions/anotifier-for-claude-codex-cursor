@@ -2,6 +2,10 @@ import Script from "next/script";
 
 /** PostHog product analytics (the self-hosted instance).
 
+    Mounted only after the visitor accepts analytics
+    (components/ConsentedAnalytics.tsx), so nothing here runs, and
+    window.posthog does not exist, before that.
+
     Env-gated on NEXT_PUBLIC_POSTHOG_KEY: with the variable unset or empty this
     renders nothing, so local and CI builds load no PostHog and send no event.
     The project key is public, but like every NEXT_PUBLIC_* value it is inlined
@@ -31,7 +35,8 @@ import Script from "next/script";
     .ph-no-capture is blocked from the recording. The rest of the page is
     public marketing copy with no user data. Sentry replay
     (components/SentryReplay.tsx) records the same way, sampled separately.
-    Revisit once anotifier.io has a privacy page. */
+    app/privacy/page.tsx describes all of this in plain words; change the two
+    together. */
 export default function PostHog() {
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
   if (!key) {

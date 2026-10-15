@@ -4,6 +4,10 @@ import { useEffect } from "react";
 
 /** Sentry session replay (the self-hosted instance, project 67).
 
+    Mounted only after the visitor accepts analytics
+    (components/ConsentedAnalytics.tsx); error capture is part of that, so
+    before it nothing is loaded and no error is reported.
+
     Env-gated on NEXT_PUBLIC_SENTRY_DSN: with the variable unset or empty this
     renders nothing and the SDK is not even bundled (the whole loader sits
     inside a build-time-constant branch), so local and CI builds ship no
@@ -27,13 +31,15 @@ import { useEffect } from "react";
     is masked and .ph-no-capture is blocked (the same two classes PostHog
     honours). maskAllText is off on purpose: the site is public marketing copy
     with no user data, and masking every word would make the recordings
-    useless. */
+    useless. app/privacy/page.tsx describes this in plain words; change the
+    two together. */
 export default function SentryReplay() {
   useEffect(() => {
     // Everything lives inside this branch: with no DSN the build drops it,
     // dynamic import() included, so no Sentry chunk is emitted at all.
     if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
       let cancelled = false;
+      let started = false;
       let idle: number | undefined;
       let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -43,6 +49,7 @@ export default function SentryReplay() {
             if (cancelled || getClient()) {
               return;
             }
+            started = true;
             init({
               dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
               tunnel: "/_t/s7e",
@@ -93,6 +100,13 @@ export default function SentryReplay() {
           window.cancelIdleCallback(idle);
         }
         clearTimeout(timer);
+        // Unmounting means the visitor withdrew consent: stop the client so
+        // the replay it still buffers is not flushed as the page reloads.
+        if (started) {
+          void import("@sentry/browser").then(({ getClient }) => {
+            void getClient()?.close(0);
+          });
+        }
       };
     }
     return undefined;

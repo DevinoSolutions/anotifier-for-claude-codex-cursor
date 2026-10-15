@@ -22,5 +22,6 @@ export const PAGE_UPDATED = {
   home: "2026-10-09",
   docs: "2026-10-10",
   compare: "2026-10-09",
+  privacy: "2026-10-15",
 } as const;
 export const INSTALL_CMD = "npx anotifier@latest setup";

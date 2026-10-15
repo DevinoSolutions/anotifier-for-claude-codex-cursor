@@ -2,6 +2,10 @@ import Script from "next/script";
 
 /** Google Analytics 4 (gtag.js).
 
+    Mounted only after the visitor accepts analytics
+    (components/ConsentedAnalytics.tsx): before that there is no /gx4t request,
+    no dataLayer and no gtag.
+
     Env-gated on NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: with the variable unset or
     empty this renders nothing, so local and CI builds ship no gtag.js and send
     no hit. The measurement id is public, but it is inlined at build time —

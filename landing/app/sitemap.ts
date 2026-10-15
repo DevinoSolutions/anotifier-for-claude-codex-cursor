@@ -29,6 +29,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     entry("/guides/", newest(GUIDES.map((g) => g.updated)), 0.8),
     ...GUIDES.map((g) => entry(`/guides/${g.slug}/`, g.updated, 0.8)),
     entry("/compare/", PAGE_UPDATED.compare, 0.8, "monthly"),
+    entry("/privacy/", PAGE_UPDATED.privacy, 0.3, "monthly"),
     ...AGENTS.map((agent) => entry(`/${agent.slug}/`, agent.updated, 0.8)),
     ...CHANNELS.map((channel) =>
       entry(`/${channel.slug}/`, channel.updated, 0.7),
