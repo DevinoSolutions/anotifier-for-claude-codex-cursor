@@ -82,9 +82,9 @@ export default function ConsentPrompt() {
 
   return (
     <section ref={bar} className="consentBar" aria-label="Analytics choice">
-      <p>
-        PostHog, Google Analytics and Sentry (errors and session replay) load
-        only if you accept.
+      <p aria-live="polite">
+        PostHog, Google Analytics and Sentry (errors and session replay) are not
+        loaded unless you accept.
         {consent && ` Your current choice: ${consent}.`}{" "}
         <Link href="/privacy/">What they collect</Link>
       </p>

@@ -16,6 +16,9 @@ const CHROME = findChrome();
 const LCP_BUDGET_MS = Number(process.env.LCP_BUDGET_MS || 2000);
 // A cold hosted runner has taken more than 15 s to bring up its first Chrome.
 const CHROME_START_MS = Number(process.env.CHROME_START_MS || 45_000);
+// The live site has real keys, so a test that stores consent or accepts could
+// reach real analytics.
+const LIVE = BASE_URL === SITE_URL;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function openBrowser(port) {
@@ -219,7 +222,11 @@ async function realClick(b, selector) {
 
 test(
   "copy buttons copy the code and raise GA events; star clicks too",
-  { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },
+  {
+    skip:
+      (!CHROME && "no Chrome found (set CHROME_PATH)") ||
+      (LIVE && "stores consent, which could mount the real trackers"),
+  },
   async () => {
     const b = await openBrowser(9345);
     try {
@@ -282,7 +289,11 @@ test(
 // one-command install without scrolling past the manual config first.
 test(
   "guides show the install command in the first screen, and copying it is tracked",
-  { skip: !CHROME && "no Chrome found (set CHROME_PATH)" },
+  {
+    skip:
+      (!CHROME && "no Chrome found (set CHROME_PATH)") ||
+      (LIVE && "stores consent, which could mount the real trackers"),
+  },
   async () => {
     const b = await openBrowser(9346);
     try {
@@ -394,14 +405,15 @@ test(
 );
 
 // ---- analytics consent ------------------------------------------------------
+// The "before a choice" and "after Decline" checks only prove something on a
+// keyed build (NEXT_PUBLIC_* set), where the trackers exist to be withheld; a
+// keyless build loads none regardless. CI builds keyed (landing.yml).
 // PostHog, Google Analytics and Sentry load only after the visitor accepts
 // (components/ConsentedAnalytics.tsx). Nothing here is mocked: the requests are
 // the ones the real page makes, read off the DevTools network log.
 
 const TRACKERS = /\/_t\/n4q|\/gx4t|\/_t\/s7e/;
 const trackerRequests = (urls) => urls.filter((u) => TRACKERS.test(u));
-// The live site has real keys, so a test that accepts would send real analytics.
-const LIVE = BASE_URL === SITE_URL;
 // CI builds with dummy NEXT_PUBLIC_* keys and sets this, so accepting really
 // loads the trackers. A keyless build can only check that nothing loads.
 const KEYED = process.env.KEYED_BUILD === "1";

@@ -75,9 +75,9 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <ConsentPrompt />
         {children}
         <ConsentedAnalytics />
-        <ConsentPrompt />
       </body>
     </html>
   );

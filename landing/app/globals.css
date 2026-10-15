@@ -233,6 +233,17 @@ a:focus-visible {
   border-color: var(--dim);
 }
 @media (max-width: 480px) {
+  .consentBar {
+    left: 8px;
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    padding: 10px;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .consentActions button {
+    min-height: 36px;
+  }
   .consentActions {
     width: 100%;
   }

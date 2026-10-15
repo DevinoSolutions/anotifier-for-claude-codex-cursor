@@ -65,9 +65,9 @@ export function subscribeReopen(onReopen: () => void): () => void {
 }
 
 /** Browser storage the three tools leave behind, by name prefix: PostHog's
-    ph_* (and its __ph_opt_in_out_* flag), Google Analytics' _ga*, and Sentry
+    ph_* (and its __ph_opt_in_out_* flag), Google Analytics' _ga* and _gcl_*, and Sentry
     replay's sentryReplay* session. */
-const COOKIE_PREFIXES = ["ph_", "__ph_", "_ga"];
+const COOKIE_PREFIXES = ["ph_", "__ph_", "_ga", "_gcl_"];
 const STORAGE_PREFIXES = ["ph_", "__ph_", "sentryReplay"];
 
 /** Removes those cookies and storage entries. Run when the visitor has

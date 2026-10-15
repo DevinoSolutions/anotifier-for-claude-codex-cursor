@@ -71,13 +71,13 @@ export default function PrivacyPage() {
           <p>
             A bar at the bottom of the page asks whether to allow analytics.
             Until you press Accept, the site does not load PostHog, Google
-            Analytics or Sentry. If you press Decline, none of them loads. Your
-            choice is remembered in this browser, and the site asks again if
-            browser storage is cleared or blocked.
+            Analytics or Sentry. If you press Decline, none of them loads and
+            the site does not ask again in this browser, unless its storage is
+            cleared or this page's wording changes.
           </p>
           <p>
             Your choice is stored in your browser&apos;s local storage under the
-            name <code>anotifier:consent:v1</code>. The site never sends it
+            name <code>anotifier:consent:v1</code>. The site does not send it
             anywhere. If your browser blocks local storage, the choice only
             lasts for the page you are on.
           </p>
@@ -85,8 +85,9 @@ export default function PrivacyPage() {
             To change your mind, use &quot;privacy choices&quot; in the footer
             of any page. If you withdraw after accepting, the page reloads
             without the three tools, and the site removes the cookies and
-            storage entries they created (names starting with <code>ph_</code>,{" "}
-            <code>_ga</code> or <code>sentryReplay</code>).
+            storage entries they normally create (names starting with{" "}
+            <code>ph_</code>, <code>__ph_</code>, <code>_ga</code>,{" "}
+            <code>_gcl_</code> or <code>sentryReplay</code>).
           </p>
         </section>
 
@@ -107,28 +108,24 @@ export default function PrivacyPage() {
               It records three events of the site&apos;s own:{" "}
               <code>copy_command</code> when you press a copy button (where the
               button sits, whether the copy worked, and the first 100 characters
-              of the copied command), <code>star_click</code> when you press a
-              Star on GitHub button (where the button sits), and{" "}
+              of the copied text), <code>star_click</code> when you press a Star
+              on GitHub button (where the button sits), and{" "}
               <code>demo_video_click</code> when you press the play button on
               the home page&apos;s demo video.
             </li>
             <li>
-              Each event, and each page view, also carries the page address, the
-              referring page, and details PostHog adds by default: your browser,
-              operating system, device type, screen size, language and time
-              zone.
+              Every PostHog event also records the page address, your referrer,
+              your browser and operating system, device type, language, time
+              zone and screen size. Page views also record the page title.
             </li>
             <li>
               Pressing a copy button also creates an anonymous PostHog profile
-              for you. The profile keeps first-visit details such as the
-              referring site, campaign tags and the page you landed on.
+              for you. It keeps where you first arrived from: the referrer, the
+              first page address, any UTM tags and any advertising click ids.
             </li>
             <li>
-              The site is set to create no profile for visitors unless they
-              press a copy button (<code>person_profiles</code> is{" "}
-              <code>identified_only</code>), and its code never calls PostHog
-              identify, so profiles are not tied to a name, an email or an
-              account.
+              The site&apos;s code does not identify anyone or link a profile to
+              a name, an email or an account.
             </li>
             <li>
               PostHog is set to discard visitor IP addresses. That is a setting
@@ -163,8 +160,8 @@ export default function PrivacyPage() {
               of the Google Analytics property, not of the site&apos;s code.
             </li>
             <li>
-              The gateway is set up in Cloudflare to hide your original IP
-              address from Google. That setting lives in Cloudflare, not in the
+              The gateway is configured in Cloudflare to hide your original IP
+              address from Google. That is a Cloudflare setting, not part of the
               site&apos;s code.
             </li>
             <li>
@@ -190,9 +187,8 @@ export default function PrivacyPage() {
               visit.
             </li>
             <li>
-              What you type or choose in input, textarea and select fields is
-              masked in both tools. The only such field is the platform dropdown
-              in the install box on the home page.
+              The site has no text fields or forms. The only form control is a
+              platform picker on the home page, and inputs are masked anyway.
             </li>
             <li>
               Text inside an element with the class <code>ph-sensitive</code> is
@@ -218,11 +214,9 @@ export default function PrivacyPage() {
             </li>
             <li>
               Besides replays, Sentry reports errors that occur on a page. An
-              error report includes the page address, your browser&apos;s
-              language and time zone, and breadcrumbs: the last few clicks, page
-              changes, network requests and console messages before the error.
-              These come from the Sentry SDK&apos;s default settings, which the
-              site does not turn off.
+              error report includes the page address, your language and time
+              zone, and the last few things the page did, including the
+              addresses of requests it made.
             </li>
             <li>
               The site tells Sentry not to collect user info, cookies, HTTP
@@ -243,17 +237,18 @@ export default function PrivacyPage() {
               an hour.
             </li>
             <li>
-              The home page has a demo video from YouTube. Nothing is requested
-              from YouTube until you press the play button. When you do, the
-              video loads from youtube-nocookie.com, YouTube&apos;s
-              privacy-enhanced mode, so YouTube receives your IP address and
-              browser details.
+              The home page&apos;s demo video loads from youtube-nocookie.com,
+              YouTube&apos;s privacy-enhanced mode, only after you click play.
+              YouTube then sees your IP address and browser details, as with any
+              request.
             </li>
             <li>
               The site sends your browser a content security policy in
               report-only mode. If a page breaks that policy, your browser can
-              send a short violation report to Devino&apos;s Sentry at
-              sentry.devino.ca.
+              send a short violation report, with the page address and your
+              browser details, directly to Devino&apos;s Sentry at
+              sentry.devino.ca. This happens whether or not you accepted
+              analytics.
             </li>
           </ul>
         </section>
