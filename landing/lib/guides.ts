@@ -59,7 +59,7 @@ const WHAT_ANOTIFIER_ADDS: Block[] = [
         "Yes, ntfy, generic by default",
       ],
       [
-        "Slack / Discord / Telegram",
+        "[Slack](/slack/) / [Discord](/discord/) / [Telegram](/telegram/)",
         "No",
         "Write the JSON yourself",
         "Yes, pick a `format`",
@@ -153,7 +153,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "What you get: a beep or a plain banner on the machine you are sitting at, with no project name, no message content, and nothing on your phone. Terminals without the built-in notification, such as Warp or the VS Code integrated terminal, need the bell or a hook. For the bell and custom sounds, see [Claude Code notification sounds](/guides/claude-code-notification-sound/).",
+            text: "What you get: a beep or a plain banner on the machine you are sitting at, with no project name, no message content, and nothing on your phone. Terminals without the built-in notification, such as Warp or the VS Code integrated terminal, need the bell or a hook. For the bell and custom sounds, see [Claude Code notification sounds](/guides/claude-code-notification-sound/); for what the hooks do inside the editor, see [anotifier in VS Code](/vscode/).",
           },
         ],
       },

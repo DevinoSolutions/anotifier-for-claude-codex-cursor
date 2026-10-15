@@ -253,6 +253,24 @@ test("home links every guide, so crawlers reach them from the top page", () => {
   assert.deepEqual(missing, [], "guides the home page does not link");
 });
 
+test("/vscode/ and /discord/ are linked from the body of guides or docs, not only the footer", () => {
+  const readers = paths.filter(
+    (p) => /^\/guides\/.+\/$/.test(p) || p === "/docs/",
+  );
+  for (const target of ["/vscode/", "/discord/"]) {
+    const linkers = readers.filter((p) =>
+      pages
+        .get(p)
+        .body.replace(/<footer[\s\S]*?<\/footer>/, "")
+        .includes(`href="${target}"`),
+    );
+    assert.ok(
+      linkers.length >= 2,
+      `${target} is linked from ${linkers.length} guide or docs bodies`,
+    );
+  }
+});
+
 const metaContent = (html, key) =>
   html.match(
     new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)"`),

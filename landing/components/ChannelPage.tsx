@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AGENTS } from "@/lib/agents";
 import { CHANNELS, getChannel } from "@/lib/channels";
+import Blocks from "@/components/docs/Blocks";
 import LogoMark from "@/components/LogoMark";
 import SiteFooter from "@/components/SiteFooter";
 import StarButton from "@/components/StarButton";
@@ -211,6 +212,16 @@ export default function ChannelPage({ slug }: { slug: string }) {
             </p>
           )}
         </section>
+
+        {channel.sections?.map((s) => (
+          <section key={s.id} id={s.id}>
+            <div className="kicker">{s.kicker}</div>
+            <h2>{s.title}</h2>
+            <div className="docBody">
+              <Blocks blocks={s.blocks} placement="channel" />
+            </div>
+          </section>
+        ))}
 
         {channel.kind === "webhook" ? (
           <section>
