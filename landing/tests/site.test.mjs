@@ -159,6 +159,29 @@ test("first-party tracking: PostHog via /_t/n4q, gtag via /gx4t, no third-party 
   }
 });
 
+test("first-party Sentry tunnel: /_t/s7e is POST-only and reaches Sentry", async () => {
+  const { body } = pages.get("/");
+  assert.doesNotMatch(
+    body,
+    /sentry\.devino\.ca/,
+    "the page talks to Sentry directly",
+  );
+  const blocked = await get("/_t/s7e");
+  assert.equal(blocked.status, 403, `GET /_t/s7e returned ${blocked.status}`);
+  // An empty envelope is rejected by Sentry itself (4xx), which proves nginx
+  // forwarded it; a 404/405 or a 5xx would mean the tunnel is not wired.
+  const res = await fetch(new URL("/_t/s7e", BASE_URL), {
+    method: "POST",
+    body: "{}\n",
+    redirect: "manual",
+  });
+  assert.ok(
+    res.status >= 200 && res.status < 500 && ![404, 405].includes(res.status),
+    `POST /_t/s7e returned ${res.status}`,
+  );
+  assert.equal(res.headers.get("set-cookie"), null, "the tunnel set a cookie");
+});
+
 test("home: PostHog, when the build has a key, loads only after the load event", () => {
   const { body } = pages.get("/");
   // Keyless builds (local, CI) ship no PostHog script at all. The live suite
