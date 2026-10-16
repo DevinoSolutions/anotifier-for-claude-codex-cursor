@@ -827,7 +827,7 @@ export const DOCS_FAQ: DocFaq[] = [
   },
   {
     q: "Which AI coding agents does anotifier support?",
-    a: "Claude Code (terminal and VS Code extension), OpenAI Codex CLI, Cursor's agent, Google Gemini CLI, and, from 1.4.0, Google's Antigravity CLI. All are wired by one setup command and share one config. Antigravity CLI, which replaced Gemini CLI for Google AI Pro and Ultra subscribers, uses its own hook file (`~/.gemini/config/hooks.json`); anotifier wires its `Stop` event, so it alerts on \"Task complete\" and sends no needs-input alert (Antigravity hooks have no such event; Antigravity's own `notifications` setting covers permission prompts and questions). It has not yet been tested against a live Antigravity CLI.",
+    a: "Claude Code (terminal and VS Code extension), OpenAI Codex CLI, Cursor's agent, Google Gemini CLI, and, from 1.4.0, Google's Antigravity CLI. All are wired by one setup command and share one config. Antigravity CLI, which replaced Gemini CLI for Google AI Pro and Ultra subscribers, uses its own hook file (~/.gemini/config/hooks.json); anotifier wires its Stop event, so it alerts on \"Task complete\" and sends no needs-input alert (Antigravity hooks have no such event; Antigravity's own notifications setting covers permission prompts and questions). It has not yet been tested against a live Antigravity CLI.",
   },
   {
     q: "Does it work inside VS Code?",
