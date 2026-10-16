@@ -33,10 +33,28 @@ const CONVERSIONS = new Set(["copy_command"]);
 /** True for traffic that is not a visitor: a WebDriver browser, a headless UA,
     the site tests' UA, or an 800x600 screen with a wider viewport (our own stealth-browser
     checks spoof the screen; a real 800x600 window stays counted). PostHog, GA4 and Sentry replay skip
-    init when it is true. Self-contained on purpose: PostHog.tsx and
-    GoogleAnalytics.tsx inline its source into their bootstrap scripts. */
+    init when it is true.
+
+    AUTOMATED_SRC is the same check as a plain JS expression for the inline
+    bootstrap scripts in PostHog.tsx and GoogleAnalytics.tsx. It is a string,
+    not isAutomated.toString(): the bundler compiles the function for the
+    server, folds its typeof window test to a constant and inlines "return
+    false". tests/tracking.test.mjs runs both against the same cases. */
+export const AUTOMATED_SRC = `(function(){
+  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  if (window.anotifierTestTrackers) return false;
+  return navigator.webdriver === true ||
+    /HeadlessChrome|anotifier-site-tests/.test(navigator.userAgent) ||
+    (screen.width === 800 && screen.height === 600 && window.innerWidth > 800);
+})()`;
+
 export function isAutomated(): boolean {
   if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return false;
+  }
+  // Test-only opt-out: tests/browser.test.mjs runs a headless browser with every
+  // tracker request blocked and needs the trackers to load.
+  if ((window as { anotifierTestTrackers?: boolean }).anotifierTestTrackers) {
     return false;
   }
   return (

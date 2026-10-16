@@ -1,5 +1,5 @@
 import Script from "next/script";
-import { isAutomated } from "@/lib/track";
+import { AUTOMATED_SRC } from "@/lib/track";
 
 /** Google Analytics 4 (gtag.js).
 
@@ -22,7 +22,7 @@ import { isAutomated } from "@/lib/track";
     transport_url sends its hits to /gx4t/g/collect. nginx (nginx.conf) relays
     both to Google without the visitor's IP address or cookies, so Google sees
     the server, not the visitor. Google signals and ad personalisation are off.
-    Automated browsers (isAutomated in lib/track.ts) set GA's own
+    Automated browsers (AUTOMATED_SRC in lib/track.ts) set GA's own
     ga-disable-<id> flag first, so gtag sends nothing for them.
 
     Cloudflare's Google Tag Gateway did this before, but it also injected the
@@ -37,7 +37,7 @@ export default function GoogleAnalytics() {
     <>
       <Script src={`/gx4t/?id=${gaId}`} strategy="lazyOnload" />
       <Script id="google-analytics" strategy="afterInteractive">
-        {`if((${isAutomated.toString()})()){window['ga-disable-${gaId}']=true;}
+        {`if((${AUTOMATED_SRC})){window['ga-disable-${gaId}']=true;}
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());

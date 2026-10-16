@@ -26,7 +26,11 @@ test("every analytics loader skips automated browsers", () => {
     "components/GoogleAnalytics.tsx",
     "components/SentryReplay.tsx",
   ]) {
-    assert.match(read(f), /isAutomated/, `${f} must check isAutomated`);
+    assert.match(
+      read(f),
+      /isAutomated|AUTOMATED_SRC/,
+      `${f} must check automation`,
+    );
   }
 });
 
@@ -51,6 +55,8 @@ test("every CopyButton and StarButton usage names its placement", () => {
   }
 });
 
+// Runs both forms of the check, the function (Sentry) and the inline source
+// string (PostHog and GA bootstraps), and requires them to agree.
 function loadIsAutomated() {
   const src = read("lib/track.ts");
   const start = src.indexOf("export function isAutomated");
@@ -59,17 +65,25 @@ function loadIsAutomated() {
   const code = src
     .slice(start, end)
     .replace("export ", "")
-    .replace("(): boolean", "()");
-  return (env) => vm.runInNewContext(`${code}; isAutomated()`, env);
+    .replace("(): boolean", "()")
+    .replace(/\(window as \{[^}]*\}\)/, "window");
+  const inline = src.match(/AUTOMATED_SRC = `([\s\S]*?)`;/);
+  assert.ok(inline, "AUTOMATED_SRC not found");
+  return (env) => {
+    const a = vm.runInNewContext(`${code}; isAutomated()`, env);
+    const b = vm.runInNewContext(inline[1], env);
+    assert.equal(a, b, "isAutomated and AUTOMATED_SRC disagree");
+    return a;
+  };
 }
 
 test("isAutomated classifies browsers", () => {
   const run = loadIsAutomated();
   const desk = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/155.0.0.0";
-  const env = (nav, scr, w) => ({
+  const env = (nav, scr, w, optOut = false) => ({
     navigator: nav,
     screen: scr,
-    window: { innerWidth: w },
+    window: { innerWidth: w, anotifierTestTrackers: optOut },
   });
   const big = { width: 1920, height: 1080 };
   assert.equal(run(env({ webdriver: true, userAgent: desk }, big, 1920)), true);
@@ -93,6 +107,18 @@ test("isAutomated classifies browsers", () => {
     false,
   );
   assert.equal(run({}), false);
+  // the test-only opt-out wins over every automation signal
+  assert.equal(
+    run(
+      env(
+        { webdriver: true, userAgent: "HeadlessChrome/155" },
+        big,
+        1920,
+        true,
+      ),
+    ),
+    false,
+  );
   assert.equal(
     run({ navigator: { userAgent: "node", webdriver: false } }),
     false,

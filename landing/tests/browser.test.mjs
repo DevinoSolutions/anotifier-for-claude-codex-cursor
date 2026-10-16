@@ -196,6 +196,15 @@ const BLOCK_TRACKERS = ["*/_t/n4q/*", "*/_t/s7e*", "*/gx4t/*"];
 const blockTrackers = (b) =>
   b.send("Network.setBlockedURLs", { urls: BLOCK_TRACKERS });
 
+// The test Chrome is headless with remote debugging, which lib/track.ts
+// isAutomated() treats as a bot and keeps out of analytics. Tests that need the
+// trackers to load opt out with this flag, set before any page script runs.
+// Safe because blockTrackers() stops every tracker request.
+const allowTrackers = (b) =>
+  b.send("Page.addScriptToEvaluateOnNewDocument", {
+    source: "window.anotifierTestTrackers = true;",
+  });
+
 async function realClick(b, selector) {
   const at = await b.evaluate(`(async () => {
     const el = document.querySelector(${JSON.stringify(selector)});
@@ -260,6 +269,7 @@ test(
           placement: "guide",
           result: "copied",
           command: copied.code.slice(0, 100),
+          transport_type: "beacon",
         },
       ]);
 
@@ -271,7 +281,11 @@ test(
       await realClick(b, "a.starBtn");
       await sleep(200);
       const events = await b.evaluate(GA_EVENTS);
-      assert.deepEqual(events.at(-1), { name: "star_click", placement: "nav" });
+      assert.deepEqual(events.at(-1), {
+        name: "star_click",
+        placement: "nav",
+        transport_type: "beacon",
+      });
     } finally {
       b.close();
     }
@@ -339,6 +353,7 @@ test(
           placement: "guide_hero",
           result: "copied",
           command: "npx anotifier@latest setup",
+          transport_type: "beacon",
         },
       ]);
     } finally {
@@ -428,6 +443,7 @@ test(
     try {
       await b.send("Network.enable");
       await blockTrackers(b);
+      await allowTrackers(b);
       await b.send("Emulation.setDeviceMetricsOverride", {
         width: 320,
         height: 700,
@@ -485,6 +501,41 @@ test(
         assert.equal(ga.allow_google_signals, false);
         assert.equal(ga.allow_ad_personalization_signals, false);
       }
+    } finally {
+      b.close();
+    }
+  },
+);
+
+test(
+  "a headless browser is kept out of the trackers",
+  {
+    skip:
+      (!CHROME && "no Chrome found (set CHROME_PATH)") ||
+      (!KEYED && "needs a keyed build"),
+  },
+  async () => {
+    const b = await openBrowser(9352);
+    try {
+      await b.send("Network.enable");
+      await blockTrackers(b);
+      await load(b, BASE_URL + "/", 7000);
+      const urls = trackerRequests(b.requests);
+      assert.ok(
+        !urls.some((u) => u.includes("/_t/n4q/static/array.js")),
+        `PostHog loaded in a headless browser: ${urls}`,
+      );
+      assert.ok(
+        !urls.some((u) => u.includes("/gx4t/g/collect")),
+        `GA sent a hit from a headless browser: ${urls}`,
+      );
+      const state = await b.evaluate(`({
+        posthog: typeof window.posthog?.capture, // a bare window.posthog is the <script id="posthog"> element
+        disabled: Object.keys(window).filter((k) => k.startsWith("ga-disable-")),
+        sentry: typeof window.__SENTRY__,
+      })`);
+      assert.equal(state.posthog, "undefined");
+      assert.equal(state.disabled.length, 1, "ga-disable flag not set");
     } finally {
       b.close();
     }
