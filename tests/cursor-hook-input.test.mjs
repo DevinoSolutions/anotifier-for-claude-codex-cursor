@@ -260,7 +260,7 @@ describe('notify.mjs with a Cursor stop (real subprocess, real local HTTP server
 
   it('a UTF-8 BOM before the JSON does not drop the payload', async () => {
     const home = makeHome();
-    const res = await runHook(home, stop('conv-bom'), '﻿');
+    const res = await runHook(home, stop('conv-bom'), '\uFEFF');
     const logPath = path.join(home, '.anotifier', 'errors.log');
     const log = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : '';
     fs.rmSync(home, { recursive: true, force: true });

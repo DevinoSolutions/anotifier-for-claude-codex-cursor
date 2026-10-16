@@ -135,7 +135,7 @@ async function main() {
     try {
       // Cursor on Windows can prefix stdin with a UTF-8 BOM, which JSON.parse
       // rejects, dropping the whole payload.
-      raw = JSON.parse(stdinData.replace(/^﻿/, ''));
+      raw = JSON.parse(stdinData.replace(/^\uFEFF/, ''));
     } catch {
       raw = {};
       logHookError('stdin', new Error('malformed hook stdin JSON'), { source: args.source, bytes: stdinData.length });
