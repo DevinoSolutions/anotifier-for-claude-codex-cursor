@@ -726,7 +726,7 @@ export const AGENTS: Agent[] = [
       {
         q: "Does anotifier work with Antigravity CLI?",
         aHtml:
-          "<p>Yes, from anotifier 1.4.0. Antigravity CLI has no <code>AfterAgent</code> or <code>Notification</code> event, so the Gemini CLI hooks don't fire there; instead <code>npx anotifier setup</code> adds an <code>anotifier</code> group with a <code>Stop</code> handler to <code>~/.gemini/config/hooks.json</code> when <code>~/.gemini/antigravity-cli</code> exists. You get a &quot;Task complete&quot; alert. anotifier sends no needs-input alert, because Antigravity hooks have no such event; Antigravity&rsquo;s own <code>notifications</code> setting covers permission prompts and questions. A stop caused by an error or cancel also says &quot;Task complete&quot;, and it has not yet been tested against a live Antigravity CLI.</p>",
+          "<p>Yes, from anotifier 1.4.0. Antigravity CLI has no <code>AfterAgent</code> or <code>Notification</code> event, so the Gemini CLI hooks don't fire there; instead <code>npx anotifier setup</code> adds an <code>anotifier</code> group with a <code>Stop</code> handler to <code>~/.gemini/config/hooks.json</code> when <code>~/.gemini/antigravity-cli</code> exists. You get a &quot;Task complete&quot; alert. anotifier sends no needs-input alert, because Antigravity hooks have no such event; Antigravity's own <code>notifications</code> setting covers permission prompts and questions. A stop caused by an error or cancel also says &quot;Task complete&quot;, and it has not yet been tested against a live Antigravity CLI.</p>",
       },
       {
         q: "Can I still use Gemini CLI?",
@@ -820,7 +820,7 @@ export const AGENTS: Agent[] = [
       {
         q: "Does anotifier work with Antigravity CLI?",
         aHtml:
-          "<p>Yes, from anotifier 1.4.0. <code>npx anotifier setup</code> adds a <code>Stop</code> handler to <code>~/.gemini/config/hooks.json</code> and you get a &ldquo;Task complete&rdquo; alert on your desktop, phone or webhook when a run ends. The hook wiring and payload parsing are unit-tested against Google&rsquo;s hooks docs; anotifier has not yet been tested against a live Antigravity CLI.</p>",
+          "<p>Yes, from anotifier 1.4.0. <code>npx anotifier setup</code> adds a <code>Stop</code> handler to <code>~/.gemini/config/hooks.json</code> and you get a &ldquo;Task complete&rdquo; alert on your desktop, phone or webhook when a run ends. The hook wiring and payload parsing are unit-tested against Google's hooks docs; anotifier has not yet been tested against a live Antigravity CLI.</p>",
       },
       {
         q: "When does setup wire Antigravity CLI?",
@@ -830,7 +830,7 @@ export const AGENTS: Agent[] = [
       {
         q: "Will I be told when Antigravity CLI is waiting for permission?",
         aHtml:
-          '<p>Not from anotifier. Antigravity&rsquo;s hooks have no notification or permission event, so there is nothing for anotifier to hook and it reports finished runs only. Antigravity&rsquo;s own <code>notifications</code> setting does alert for permission prompts, and for questions since CLI 1.3.1: set it to <code>true</code> in <code>~/.gemini/antigravity-cli/settings.json</code> or toggle it in <code>/config</code>. See the <a href="/guides/antigravity-cli-notifications/">Antigravity CLI notifications guide</a>.</p>',
+          "<p>Not from anotifier. Antigravity's hooks have no notification or permission event, so there is nothing for anotifier to hook and it reports finished runs only. Antigravity's own <code>notifications</code> setting does alert for permission prompts, and for questions since CLI 1.3.1: set it to <code>true</code> in <code>~/.gemini/antigravity-cli/settings.json</code> or toggle it in <code>/config</code>. See the <a href=\"/guides/antigravity-cli-notifications/\">Antigravity CLI notifications guide</a>.</p>",
       },
       {
         q: 'Why does a failed or cancelled run say "Task complete"?',
@@ -840,7 +840,7 @@ export const AGENTS: Agent[] = [
       {
         q: "Does it work in the Antigravity 2.0 app and the IDE?",
         aHtml:
-          "<p>Google&rsquo;s docs say both read the same global <code>~/.gemini/config/hooks.json</code>, so the handler should fire when they finish too. But setup only wires Antigravity when <code>~/.gemini/antigravity-cli</code> exists, and neither app has been tested.</p>",
+          "<p>Google's docs say both read the same global <code>~/.gemini/config/hooks.json</code>, so the handler should fire when they finish too. But setup only wires Antigravity when <code>~/.gemini/antigravity-cli</code> exists, and neither app has been tested.</p>",
       },
       {
         q: "Can the hook keep Antigravity from stopping?",
