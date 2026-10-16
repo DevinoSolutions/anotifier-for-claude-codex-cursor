@@ -176,7 +176,7 @@ export const CODEX_GUIDES: Guide[] = [
     faqs: [
       {
         q: "How do I make Codex ding when it needs approval or a response?",
-        a: 'Under [tui] in ~/.codex/config.toml, set notifications = ["approval-requested"], notification_method = "bel" and notification_condition = "always". Or add a PermissionRequest hook to ~/.codex/hooks.json that plays a sound file.',
+        a: 'Under [tui] in ~/.codex/config.toml, set notifications = ["approval-requested", "plan-mode-prompt", "async-question"], notification_method = "bel" and notification_condition = "always". Or add a PermissionRequest hook to ~/.codex/hooks.json that plays a sound file (approvals only).',
       },
       {
         q: "Can Codex ding when a Plan mode prompt or a question needs my response?",

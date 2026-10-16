@@ -673,7 +673,7 @@ const AGENT_GUIDES: Guide[] = [
             items: [
               "Open `/hooks` in Codex and trust the two new hooks, or Codex skips them.",
               "The toast shows under the name Windows PowerShell, with the title and message you pass and no agent icon, custom sound, or click-to-focus. If nothing appears, Do not disturb (Focus Assist) may be on.",
-              "For a sound file instead of a toast, use the `commandWindows` sound hook from the guide to [making Codex ding when it needs approval](/guides/codex-notification-sound/#hook).",
+              "For a sound file instead of a toast, use the `commandWindows` sound hook in [the guide to making Codex ding when it needs approval](/guides/codex-notification-sound/#hook).",
             ],
           },
           {
