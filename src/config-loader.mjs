@@ -363,7 +363,9 @@ export function normalizeProjectPath(value, platform = process.platform) {
   let p = String(value).trim().replace(/\\/g, '/');
   if (/^\/[A-Za-z]:(\/|$)/.test(p)) p = p.slice(1);
   p = path.posix.normalize(p);
-  if (p.length > 1) p = p.replace(/\/+$/, '');
+  // A loop, not /\/+$/: that regex is polynomial on a long run of slashes
+  // (CodeQL js/polynomial-redos), and the path comes from hook input.
+  while (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
   if (platform === 'win32' || platform === 'darwin') p = p.toLowerCase();
   return p;
 }
