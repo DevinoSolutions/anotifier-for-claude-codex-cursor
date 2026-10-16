@@ -203,6 +203,84 @@ status=$(echo "$input" | jq -r '.status')
 project=$(basename "$(echo "$input" | jq -r '.workspace_roots[0]')")
 notify-send "Cursor · $project" "Agent $status"`;
 
+const geminiHooks = (done: string, attention: string) =>
+  json({
+    hooks: {
+      AfterAgent: [{ hooks: [{ type: "command", command: done }] }],
+      Notification: [{ hooks: [{ type: "command", command: attention }] }],
+    },
+  });
+
+const GEMINI_HOOKS_SHAPE = json({
+  hooks: {
+    AfterAgent: [
+      {
+        hooks: [
+          {
+            name: "notify-done",
+            type: "command",
+            command: 'notify-send "Gemini CLI" "Run complete"',
+            timeout: 10000,
+          },
+        ],
+      },
+    ],
+    Notification: [
+      {
+        hooks: [
+          {
+            name: "notify-approval",
+            type: "command",
+            command:
+              'notify-send -u critical "Gemini CLI" "Needs your approval"',
+            timeout: 10000,
+          },
+        ],
+      },
+    ],
+  },
+});
+
+const GEMINI_HOOKS_WINDOWS = geminiHooks(
+  'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:/Users/you/.gemini/win-toast.ps1" -Title "Gemini CLI" -Message "Run complete"',
+  'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:/Users/you/.gemini/win-toast.ps1" -Title "Gemini CLI" -Message "Needs your approval"',
+);
+
+const GEMINI_HOOKS_NTFY = geminiHooks(
+  "curl -s -o /dev/null -H 'Title: Gemini CLI' -d 'Run complete' https://ntfy.sh/your-long-random-topic",
+  "curl -s -o /dev/null -H 'Title: Gemini CLI' -H 'Priority: urgent' -d 'Needs your approval' https://ntfy.sh/your-long-random-topic",
+);
+
+const GEMINI_AFTER_AGENT_STDIN = json({
+  session_id: "string",
+  transcript_path: "/absolute/path/to/session.json",
+  cwd: "/home/you/my-app",
+  hook_event_name: "AfterAgent",
+  timestamp: "2026-10-16T09:41:07.000Z",
+  prompt: "your original request",
+  prompt_response: "the final text the agent wrote",
+  stop_hook_active: false,
+});
+
+const GEMINI_NOTIFICATION_STDIN = json({
+  session_id: "string",
+  transcript_path: "/absolute/path/to/session.json",
+  cwd: "/home/you/my-app",
+  hook_event_name: "Notification",
+  timestamp: "2026-10-16T09:41:07.000Z",
+  notification_type: "ToolPermission",
+  message: "a summary of the alert",
+  details: { "…": "metadata such as the tool name or file path" },
+});
+
+const GEMINI_NOTIFY_SH = `#!/bin/bash
+input=$(cat)
+project=$(basename "$(echo "$input" | jq -r '.cwd')")
+notify-send "Gemini CLI · $project" "Run complete" || true`;
+
+const GEMINI_SRC =
+  "https://github.com/google-gemini/gemini-cli/blob/v0.64.0/packages";
+
 const AGENT_GUIDES: Guide[] = [
   {
     slug: "claude-code-notifications",
@@ -1055,47 +1133,266 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "gemini-cli-notifications",
-    updated: "2026-10-09",
+    updated: "2026-10-16",
     kind: "agent",
     agentSlug: "gemini-cli",
     name: "Gemini CLI",
     icon: "/assets/icons/gemini.png",
-    title: "Gemini CLI Notifications: Alerts When the Agent Finishes",
+    title: "Gemini CLI Notifications: Hooks, Sound & Phone Alerts",
     description:
-      "Desktop, phone, or webhook alerts when Gemini CLI finishes a run or needs attention: AfterAgent and Notification hooks by hand, or anotifier in one command.",
+      "Get a Gemini CLI notification when a run ends or needs approval: the built-in alert or AfterAgent and Notification hooks, with toast, sound or phone push.",
     h1: "How to get notified when Gemini CLI finishes",
     intro:
-      "Gemini CLI runs long agentic loops in the terminal and supports lifecycle hooks in its settings file. `AfterAgent` fires when the agent loop completes and `Notification` fires when the CLI needs your attention. Both can run any command, which is the basis for every option below.",
+      "To make Gemini CLI notify you when it's done, set `general.enableNotifications` to `true` in `~/.gemini/settings.json` for a terminal alert, or add an `AfterAgent` hook in the same file that runs a toast, sound or `curl` command. `AfterAgent` fires when the agent loop ends, and `Notification` fires when a tool call is waiting for your approval. Hooks are on by default, so there is no flag to flip. To wire both to your desktop and phone at once, run `npx anotifier@latest setup`. Here is every option, then [fixes for hooks that don't fire](#fix). On Antigravity CLI instead? Its hooks use a different format; see the [Antigravity CLI guide](/guides/antigravity-cli-notifications/).",
     sections: [
       {
-        id: "hook",
-        title: "Option 1: hooks in ~/.gemini/settings.json",
+        id: "quick",
+        title: "Quick setup: which Gemini CLI alert do you want?",
+        blocks: [
+          {
+            kind: "table",
+            head: ["You want", "Do this"],
+            rows: [
+              [
+                "A terminal alert, no scripts",
+                "Set `general.enableNotifications` to `true` ([Option 1](#builtin))",
+              ],
+              [
+                "A desktop toast when a run finishes",
+                "Add an `AfterAgent` hook ([Option 2](#hooks), [commands per OS](#toast-sound))",
+              ],
+              [
+                "An alert when a tool waits for approval",
+                "Add a `Notification` hook, or turn on the built-in alert",
+              ],
+              [
+                "A sound when it's done",
+                "Set `general.notificationMethod` to `bell`, or play a sound file from an `AfterAgent` hook ([sounds](#toast-sound))",
+              ],
+              [
+                "A push to your phone",
+                "A hook that posts to ntfy ([phone](#phone)), or anotifier",
+              ],
+              [
+                "All of it in one command",
+                "`npx anotifier@latest setup` ([Option 3](#anotifier))",
+              ],
+            ],
+          },
+        ],
+      },
+      {
+        id: "builtin",
+        title: "Option 1: Gemini CLI's built-in terminal notifications",
         blocks: [
           {
             kind: "p",
-            text: "Gemini CLI reads hooks from `~/.gemini/settings.json` (not from a separate hooks.json). The shape mirrors Claude Code's:",
+            text: "Gemini CLI can alert you from the terminal itself, but the setting is off by default. Turn it on in `~/.gemini/settings.json`:",
           },
           {
             kind: "code",
             lang: "json",
-            code: '{\n  "hooks": {\n    "AfterAgent": [\n      {\n        "hooks": [\n          { "type": "command", "command": "notify-send \\"Gemini CLI\\" \\"Run complete\\"" }\n        ]\n      }\n    ],\n    "Notification": [\n      {\n        "hooks": [\n          { "type": "command", "command": "notify-send -u critical \\"Gemini CLI\\" \\"Needs attention\\"" }\n        ]\n      }\n    ]\n  }\n}',
+            code: '{\n  "general": {\n    "enableNotifications": true,\n    "notificationMethod": "auto"\n  }\n}',
           },
           {
             kind: "p",
-            text: "Swap the command per OS as in the other guides. Phone push works the same way as for Claude Code: `curl -d 'Gemini finished' https://ntfy.sh/your-secret-topic`.",
+            text: "Gemini CLI describes it as terminal notifications for action-required prompts and session completion: one alert when a response finishes and one when something needs your action, such as a tool approval. When your terminal reports focus changes, Gemini CLI stays quiet while its window is in front. `notificationMethod` takes `auto`, `osc9`, `osc777` or `bell`. With `auto`, iTerm2 gets an OSC 9 notification; Alacritty, Apple Terminal, the VS Code terminal and Windows Terminal get the terminal bell; every other terminal gets OSC 777.",
+          },
+          {
+            kind: "p",
+            text: 'What you get: an alert that reaches your terminal, not your phone, with fixed text such as "Gemini CLI session complete". For a sound, set `notificationMethod` to `bell` and check what your terminal does with a bell. In Windows Terminal that is the `bellStyle` profile setting, which accepts `audible` (the default), `window`, `taskbar`, `all` and `none`.',
+          },
+        ],
+      },
+      {
+        id: "hooks",
+        title: "Option 2: Gemini CLI hooks in ~/.gemini/settings.json",
+        blocks: [
+          {
+            kind: "p",
+            text: "Gemini CLI reads hooks from the `hooks` key of `settings.json`, not from a separate hooks file. Hooks are enabled by default (`hooksConfig.enabled` is `true`, and changing it needs a restart). Each event holds a list of groups, and each group holds a `hooks` list. Only `type` and `command` are required; `name`, `timeout` (milliseconds, 60000 by default) and `description` are optional. This shape runs a toast when the agent finishes and a louder one when a tool needs approval:",
+          },
+          { kind: "code", lang: "json", code: GEMINI_HOOKS_SHAPE },
+          {
+            kind: "table",
+            head: ["Event", "Fires when", "Use it for"],
+            rows: [
+              ["`AfterAgent`", "The agent loop ends", "The run-finished alert"],
+              [
+                "`Notification`",
+                "A tool call is waiting for your confirmation (`notification_type` is `ToolPermission`)",
+                "The needs-approval alert. It never fires for a run that needs no approval",
+              ],
+              [
+                "`SessionEnd`",
+                "The CLI exits or a session is cleared",
+                "Not for alerts: Gemini CLI doesn't wait for it to finish",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "Gemini CLI writes one JSON object to the hook's stdin. Every event carries `session_id`, `transcript_path`, `cwd`, `hook_event_name` and `timestamp`. `AfterAgent` adds `prompt`, `prompt_response` and `stop_hook_active`; `Notification` adds `notification_type`, `message` and `details`. The values below are illustrative:",
+          },
+          { kind: "code", lang: "json", code: GEMINI_AFTER_AGENT_STDIN },
+          { kind: "code", lang: "json", code: GEMINI_NOTIFICATION_STDIN },
+          {
+            kind: "p",
+            text: "A hook can read `cwd` to put the project name in the alert. This script needs `jq`; save it as `~/.gemini/hooks/notify.sh`, run `chmod +x` on it, and set the hook's `command` to its path:",
+          },
+          { kind: "code", lang: "bash", code: GEMINI_NOTIFY_SH },
+          {
+            kind: "ul",
+            items: [
+              "Gemini CLI expects stdout to be JSON, so plain text there becomes a system message in the session. Print nothing, or `{}`.",
+              "Exit `0` for success. Exit `1` is a warning. Any other code that prints text, such as `127` for a missing command, is treated as a block, and on `AfterAgent` it makes the agent retry. End the script with `|| true`.",
+              "Gemini CLI runs matching hooks as part of the agent loop and waits for them, up to the hook's `timeout`. Keep the command short.",
+              "The hook's environment includes `GEMINI_PROJECT_DIR`, `GEMINI_CWD` and `GEMINI_SESSION_ID`.",
+              "Hooks run through `bash -c` on Linux and macOS. On Windows they run through PowerShell: `pwsh` if it is installed, otherwise Windows PowerShell 5.1.",
+            ],
+          },
+          {
+            kind: "note",
+            text: "Hooks run with your user permissions, and Gemini CLI fingerprints project-level hooks and warns you when one changes. Put alert hooks in your user `~/.gemini/settings.json`, and read any `.gemini/settings.json` in a cloned repository before you trust the folder. The [agent hooks guide](/guides/agent-hooks-explained/) compares where every agent keeps its hooks.",
+          },
+        ],
+      },
+      {
+        id: "toast-sound",
+        title: "Gemini CLI desktop toast and sound by OS",
+        blocks: [
+          {
+            kind: "p",
+            text: 'Put these in the `command` field of the `AfterAgent` hook. Inside the JSON, write each double quote as `\\"` and use forward slashes in paths. Chain a toast and a sound with `;`, which works in both bash and PowerShell. In bash, end the command with `|| true`: a failing command that prints text, such as a missing `notify-send` (exit 127), would otherwise make `AfterAgent` retry.',
+          },
+          {
+            kind: "table",
+            head: ["OS", "Toast", "Sound"],
+            rows: [
+              [
+                "macOS",
+                '`osascript -e \'display notification "Run complete" with title "Gemini CLI"\'`',
+                "`afplay /System/Library/Sounds/Glass.aiff`",
+              ],
+              [
+                "Linux",
+                '`notify-send "Gemini CLI" "Run complete"`',
+                "`paplay /usr/share/sounds/freedesktop/stereo/complete.oga`",
+              ],
+              [
+                "Windows",
+                "A PowerShell toast script, below",
+                "`(New-Object Media.SoundPlayer 'C:/Windows/Media/chimes.wav').PlaySync()`",
+              ],
+            ],
+          },
+          {
+            kind: "ul",
+            items: [
+              "macOS notifications from `osascript` are attributed to Script Editor, and if Script Editor isn't allowed to send notifications the command fails silently. `afplay` plays any `.aiff`, `.mp3` or `.wav`.",
+              "`paplay` needs PulseAudio or PipeWire and the freedesktop sound theme. `notify-send` has nowhere to deliver on a server or over SSH with no desktop session.",
+              "On Windows, `PlaySync` waits for the sound to end so PowerShell doesn't exit first. Any `.wav` in `C:\\Windows\\Media` works.",
+              "A hook runs on the machine where Gemini CLI runs. Over SSH, `notify-send` and `afplay` act on the remote machine, so use [phone push](#phone) there.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "For a Windows toast, save this as `C:\\Users\\you\\.gemini\\win-toast.ps1`. It needs no module and runs on Windows PowerShell 5.1; it is the same toast as in the [WSL toast guide](/guides/wsl-notify-send/):",
+          },
+          { kind: "code", lang: "powershell", code: CODEX_WIN_TOAST_PS1 },
+          {
+            kind: "p",
+            text: "Then point the hooks at it. The path uses forward slashes, so the JSON needs no backslash escapes:",
+          },
+          { kind: "code", lang: "json", code: GEMINI_HOOKS_WINDOWS },
+          {
+            kind: "p",
+            text: "The toast shows under the name Windows PowerShell with the title and message you pass, and no agent icon, custom sound or click-to-focus. If nothing appears, Do not disturb (Focus Assist) may be on.",
+          },
+        ],
+      },
+      {
+        id: "phone",
+        title: "Gemini CLI alerts on your phone with ntfy",
+        blocks: [
+          {
+            kind: "p",
+            text: "[ntfy](https://ntfy.sh) turns an HTTP POST into a phone push. Install the ntfy app, subscribe to a long random topic name, and have the hooks post to it. `-s -o /dev/null` keeps curl's reply off the hook's stdout:",
+          },
+          { kind: "code", lang: "json", code: GEMINI_HOOKS_NTFY },
+          {
+            kind: "p",
+            text: "On Windows, Gemini CLI runs the hook in PowerShell. In Windows PowerShell 5.1, `curl` is an alias for `Invoke-WebRequest`; use `curl.exe` and `-o NUL` in either shell instead of `-o /dev/null`. For the full setup, including private topics, self-hosting and priorities, see the [ntfy phone push guide](/guides/ntfy-phone-notifications/) and the [phone page](/phone/).",
           },
         ],
       },
       {
         id: "anotifier",
-        title: "Option 2: anotifier",
+        title:
+          "Option 3: anotifier, one command for Gemini CLI and every other agent",
         blocks: [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: "The wizard detects `~/.gemini`, registers `AfterAgent` and `Notification` in `settings.json` with a backup, and cleans up any stale `hooks.json` from older versions. Completed runs arrive as `my-app · Gemini`; attention requests arrive urgent. Gemini CLI is driven end to end in CI on Linux and macOS, hard-failing if the `AfterAgent` hook does not deliver a real push.",
+            text: 'The wizard finds a Gemini CLI install in `~/.gemini`, registers `AfterAgent` and `Notification` hooks in `settings.json` with a 30-second timeout, and backs the file up first. It also removes anotifier\'s entries from a stale `~/.gemini/hooks.json` left by older versions. A finished run arrives as `my-app · Gemini` with the text "Task complete"; a tool waiting for approval arrives urgent as "Needs your input", on your desktop and phone. The text is generic for Gemini CLI: showing the agent\'s own words is Claude Code-only today. Gemini CLI is driven end to end in CI on Linux and macOS with a headless `gemini -p` run, and the job fails unless the `AfterAgent` hook delivers a real push.',
           },
           ...WHAT_ANOTIFIER_ADDS,
+          {
+            kind: "p",
+            text: "`npx anotifier@latest uninstall` removes only the hooks anotifier added and leaves your own. `anotifier snooze 2h` silences every channel for two hours. For the Gemini CLI page and what setup writes, see [Gemini CLI](/gemini-cli/).",
+          },
+        ],
+      },
+      {
+        id: "fix",
+        title: "Gemini CLI hooks not firing: fixes by symptom",
+        blocks: [
+          {
+            kind: "p",
+            text: "Gemini CLI merges settings from several files. For a single value the order is system defaults (`system-defaults.json`), then user (`~/.gemini/settings.json`), then project (`.gemini/settings.json` in the current directory), then the system `settings.json` (`/etc/gemini-cli/settings.json` on Linux, `C:\\ProgramData\\gemini-cli\\settings.json` on Windows), which overrides all of them. Hook lists are the exception: they are concatenated, so a hook in two files runs twice.",
+          },
+          {
+            kind: "table",
+            head: ["Symptom", "Cause and fix"],
+            rows: [
+              [
+                "No hook fires",
+                "`hooksConfig.enabled` set to `false` turns every hook off, and the change needs a restart. Set it to `true` or delete it, then restart. Run `/hooks panel` to see what Gemini CLI loaded.",
+              ],
+              [
+                "The hook is listed but disabled",
+                "Its `name` (or its `command`, if it has no name) is in `hooksConfig.disabled`, or you ran `/hooks disable`. Run `/hooks enable <name>` or `/hooks enable-all`.",
+              ],
+              [
+                "A new hook isn't listed",
+                "Gemini CLI discards a malformed hook definition. Check the JSON is valid, each event holds a list of groups, each group has a `hooks` list, and each hook has `type` set to `command` plus a `command`.",
+              ],
+              [
+                "No settings hook runs in one folder",
+                "Folder Trust is on and the folder is untrusted, so Gemini CLI loads no settings hooks at all, user ones included. Trust the folder with `/permissions`, or turn off `security.folderTrust.enabled`.",
+              ],
+              [
+                "It fires twice",
+                "The same hook is in two settings files, or a hand-written hook sits beside anotifier's. anotifier collapses a repeat of its own hook within 1.5 seconds but can't de-duplicate another script.",
+              ],
+              [
+                "`Notification` never fires",
+                "It fires only when a tool call waits for your confirmation. A run that needs no approval sends only `AfterAgent`.",
+              ],
+              [
+                "Gemini CLI pauses after a run",
+                "Hooks run synchronously. Keep the command short, or lower its `timeout`.",
+              ],
+              [
+                "Text from the hook appears in the session",
+                "Plain text on stdout becomes a system message. Print nothing, and use `curl -s -o /dev/null`.",
+              ],
+              [
+                "The command works in a terminal but not in a Windows hook",
+                "Windows hooks run in PowerShell (`pwsh` if installed, otherwise 5.1), not cmd. In 5.1, `curl` is an alias for `Invoke-WebRequest`, so use `curl.exe`. Use forward slashes in paths.",
+              ],
+            ],
+          },
         ],
       },
       {
@@ -1104,31 +1401,66 @@ const AGENT_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "On June 18, 2026 Google stopped serving Gemini CLI to Google AI Pro and Ultra subscribers and free Gemini Code Assist users, and moved them to Antigravity CLI. Gemini CLI keeps working with a Gemini API key or a Code Assist Standard or Enterprise license, and everything above applies to it.",
+            text: "Google replaced Gemini CLI with Antigravity CLI on June 18, 2026: Gemini CLI stopped serving Google AI Pro and Ultra subscribers and free users. It stays available with a paid Gemini API key or a Code Assist Standard or Enterprise license, and everything above applies to it.",
           },
           {
             kind: "p",
-            text: 'Antigravity CLI has hooks too, in a new format: it reads them from files such as `~/.gemini/config/hooks.json` or a workspace\'s `.agents/hooks.json`, and its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`. There is no `AfterAgent` or `Notification` event, so the Gemini CLI hooks above don\'t fire there. anotifier 1.4.0 and later support it separately: `npx anotifier setup` adds one group named `anotifier` with a `Stop` handler to `~/.gemini/config/hooks.json` when `~/.gemini/antigravity-cli` exists, and a finished run sends "Task complete". Limits: there is no needs-input alert (Antigravity has no such event), a `Stop` caused by an error or cancel also says "Task complete", and it has not yet been tested against a live Antigravity CLI. Google\'s [Antigravity hooks docs](https://antigravity.google/docs/hooks/) describe the format. For a hook you write yourself, see the [Antigravity CLI notifications guide](/guides/antigravity-cli-notifications/); for what setup writes, the [Antigravity CLI page](/antigravity-cli/).',
+            text: 'Antigravity CLI has its own hooks, in `~/.gemini/config/hooks.json`, with different events (`PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`). There is no `AfterAgent` or `Notification` event there, so the hooks above don\'t fire. For a hook you write yourself, see the [Antigravity CLI notifications guide](/guides/antigravity-cli-notifications/). anotifier 1.4.0 and later wires Antigravity separately, with a `Stop` handler that sends "Task complete" and no needs-input alert; it has not yet been tested against a live Antigravity CLI. What setup writes is on the [Antigravity CLI page](/antigravity-cli/).',
+          },
+        ],
+      },
+      {
+        id: "sources",
+        title: "Sources",
+        blocks: [
+          {
+            kind: "p",
+            text: "Each Gemini CLI claim above comes from the official docs or source code, read on 2026-10-16 against Gemini CLI 0.64.0, the latest release at the time. Settings and hooks change between releases, so confirm anything you rely on there.",
+          },
+          {
+            kind: "ul",
+            items: [
+              "Hooks overview and configuration: [docs/hooks/index.md](https://github.com/google-gemini/gemini-cli/blob/main/docs/hooks/index.md)",
+              "Hook events, stdin fields, exit codes: [docs/hooks/reference.md](https://github.com/google-gemini/gemini-cli/blob/main/docs/hooks/reference.md)",
+              "Settings (`general.*`, `hooksConfig.*`, `hooks.*`): [docs/reference/configuration.md](https://github.com/google-gemini/gemini-cli/blob/main/docs/reference/configuration.md)",
+              "Untrusted folders: [docs/cli/trusted-folders.md](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/trusted-folders.md)",
+              `Source: [terminalNotifications.ts](${GEMINI_SRC}/cli/src/utils/terminalNotifications.ts), [useRunEventNotifications.ts](${GEMINI_SRC}/cli/src/ui/hooks/useRunEventNotifications.ts), [hookRunner.ts](${GEMINI_SRC}/core/src/hooks/hookRunner.ts), [hookRegistry.ts](${GEMINI_SRC}/core/src/hooks/hookRegistry.ts), [confirmation.ts](${GEMINI_SRC}/core/src/scheduler/confirmation.ts), [shell-utils.ts](${GEMINI_SRC}/core/src/utils/shell-utils.ts) and [settingsSchema.ts](${GEMINI_SRC}/cli/src/config/settingsSchema.ts), all at tag v0.64.0`,
+              "Gemini CLI and Antigravity CLI: Google's [transition announcement](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli)",
+              "Windows Terminal `bellStyle`: Microsoft's [advanced profile settings](https://learn.microsoft.com/en-us/windows/terminal/customize-settings/profile-advanced#bell-notification-style)",
+              "anotifier: the [README](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor#readme), the [docs](/docs/) and the [agent hooks guide](/guides/agent-hooks-explained/)",
+            ],
           },
         ],
       },
     ],
     faqs: [
       {
+        q: "How do I get a notification when Gemini CLI finishes?",
+        a: "Set general.enableNotifications to true in ~/.gemini/settings.json for a terminal alert, or add an AfterAgent hook to the same file that runs notify-send, osascript or a PowerShell toast. For desktop and phone together, run npx anotifier@latest setup, which registers the hooks and sends the alert to your toast and ntfy.",
+      },
+      {
         q: "Which Gemini CLI hook fires when the agent is done?",
-        a: "AfterAgent. Notification fires when the CLI needs your attention. Both are configured under hooks in ~/.gemini/settings.json.",
+        a: "AfterAgent, when the agent loop ends. Its stdin JSON has prompt, prompt_response and stop_hook_active plus session_id, transcript_path, cwd, hook_event_name and timestamp. Notification is a different event: it fires only when a tool call is waiting for your approval. Both are configured under hooks in ~/.gemini/settings.json.",
       },
       {
-        q: "Does the notification include what Gemini said?",
-        a: "No. anotifier sends the generic completion text for Gemini CLI, with the project name in the title. Showing the agent's own words is Claude Code-only today.",
+        q: "Does Gemini CLI have built-in notifications?",
+        a: "Yes, but they are off by default. Set general.enableNotifications to true and Gemini CLI sends a terminal notification when a response finishes and when something needs your action. general.notificationMethod picks auto, osc9, osc777 or bell, and the alert reaches your terminal, not your phone.",
       },
       {
-        q: "Can I use anotifier for Gemini CLI and Claude Code at the same time?",
-        a: "Yes. One config covers every supported agent, and all of them deliver to the same toast, ntfy topic, and webhook.",
+        q: "How do I make Gemini CLI play a sound when it's done?",
+        a: "Set general.notificationMethod to bell with notifications enabled, or add an AfterAgent hook that plays a file: afplay /System/Library/Sounds/Glass.aiff on macOS, paplay /usr/share/sounds/freedesktop/stereo/complete.oga on Linux, or a Media.SoundPlayer call in PowerShell on Windows. The hook runs where Gemini CLI runs, so over SSH it plays on the remote machine.",
+      },
+      {
+        q: "Do Gemini CLI hooks need to be enabled?",
+        a: "No, hooks are on by default; hooksConfig.enabled is true unless you set it to false, and changing it needs a restart. If a hook doesn't fire, run /hooks panel to see whether it loaded and is enabled, check hooksConfig.disabled, and remember that in an untrusted folder, with Folder Trust turned on, Gemini CLI loads no settings hooks at all, user ones included.",
+      },
+      {
+        q: "Can Gemini CLI send alerts to my phone?",
+        a: "Yes, through a hook. Add an AfterAgent hook that runs curl -s -o /dev/null -d 'Run complete' against your ntfy topic, and subscribe to the topic in the ntfy app. anotifier does the same without writing the hook: its setup asks about phone notifications and registers AfterAgent and Notification for you.",
       },
       {
         q: "Does this work with Antigravity CLI?",
-        a: 'Yes, from anotifier 1.4.0: run npx anotifier setup and it adds an anotifier group with a Stop handler to ~/.gemini/config/hooks.json. You get a "Task complete" alert; there is no needs-input alert, a stop caused by an error or cancel also says "Task complete", and it has not yet been tested against a live Antigravity CLI. Gemini CLI hooks don\'t fire there, since Antigravity has no AfterAgent or Notification event. Gemini CLI itself still works with a Gemini API key or a Code Assist Standard or Enterprise license.',
+        a: 'Not the Gemini CLI hooks: Antigravity has no AfterAgent or Notification event, and keeps its hooks in ~/.gemini/config/hooks.json. anotifier 1.4.0 and later adds an anotifier group with a Stop handler there, so you get a "Task complete" alert; there is no needs-input alert and it has not yet been tested against a live Antigravity CLI. Gemini CLI itself still works with a paid Gemini API key or a Code Assist Standard or Enterprise license.',
       },
     ],
   },
