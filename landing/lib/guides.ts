@@ -276,7 +276,7 @@ const GEMINI_NOTIFICATION_STDIN = json({
 const GEMINI_NOTIFY_SH = `#!/bin/bash
 input=$(cat)
 project=$(basename "$(echo "$input" | jq -r '.cwd')")
-notify-send "Gemini CLI · $project" "Run complete"`;
+notify-send "Gemini CLI · $project" "Run complete" || true`;
 
 const GEMINI_SRC =
   "https://github.com/google-gemini/gemini-cli/blob/v0.64.0/packages";
@@ -1200,7 +1200,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: 'What you get: an alert on this machine\'s terminal only, with fixed text such as "Gemini CLI session complete" and nothing on your phone. For a sound, set `notificationMethod` to `bell` and check what your terminal does with a bell. In Windows Terminal that is the `bellStyle` profile setting, which accepts `audible` (the default), `window`, `taskbar`, `all` and `none`.',
+            text: 'What you get: an alert that reaches your terminal, not your phone, with fixed text such as "Gemini CLI session complete". For a sound, set `notificationMethod` to `bell` and check what your terminal does with a bell. In Windows Terminal that is the `bellStyle` profile setting, which accepts `audible` (the default), `window`, `taskbar`, `all` and `none`.',
           },
         ],
       },
@@ -1244,8 +1244,8 @@ const AGENT_GUIDES: Guide[] = [
           {
             kind: "ul",
             items: [
-              "Exit with `0` and print nothing, or `{}`, on stdout. Gemini CLI expects stdout to be JSON, so plain text there becomes a system message in the session.",
-              "Exit code `2` on `AfterAgent` rejects the response and makes the agent retry, so a notification hook should never exit `2`. Any other non-zero code is a warning and the CLI carries on.",
+              "Gemini CLI expects stdout to be JSON, so plain text there becomes a system message in the session. Print nothing, or `{}`.",
+              "Exit `0` for success. Exit `1` is a warning. Any other code that prints text, such as `127` for a missing command, is treated as a block, and on `AfterAgent` it makes the agent retry. End the script with `|| true`.",
               "Gemini CLI runs matching hooks as part of the agent loop and waits for them, up to the hook's `timeout`. Keep the command short.",
               "The hook's environment includes `GEMINI_PROJECT_DIR`, `GEMINI_CWD` and `GEMINI_SESSION_ID`.",
               "Hooks run through `bash -c` on Linux and macOS. On Windows they run through PowerShell: `pwsh` if it is installed, otherwise Windows PowerShell 5.1.",
@@ -1263,7 +1263,7 @@ const AGENT_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: 'Put these in the `command` field of the `AfterAgent` hook. Inside the JSON, write each double quote as `\\"`. Chain a toast and a sound with `;`, which works in both bash and PowerShell.',
+            text: 'Put these in the `command` field of the `AfterAgent` hook. Inside the JSON, write each double quote as `\\"` and use forward slashes in paths. Chain a toast and a sound with `;`, which works in both bash and PowerShell. In bash, end the command with `|| true`: a failing command that prints text, such as a missing `notify-send` (exit 127), would otherwise make `AfterAgent` retry.',
           },
           {
             kind: "table",
@@ -1282,7 +1282,7 @@ const AGENT_GUIDES: Guide[] = [
               [
                 "Windows",
                 "A PowerShell toast script, below",
-                "`(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\chimes.wav').PlaySync()`",
+                "`(New-Object Media.SoundPlayer 'C:/Windows/Media/chimes.wav').PlaySync()`",
               ],
             ],
           },
@@ -1322,7 +1322,7 @@ const AGENT_GUIDES: Guide[] = [
           { kind: "code", lang: "json", code: GEMINI_HOOKS_NTFY },
           {
             kind: "p",
-            text: "On Windows, Gemini CLI runs the hook in PowerShell, where `curl` is an alias for `Invoke-WebRequest`. Use `curl.exe` and write `-o NUL` instead of `-o /dev/null`. For the full setup, including private topics, self-hosting and priorities, see the [ntfy phone push guide](/guides/ntfy-phone-notifications/) and the [phone page](/phone/).",
+            text: "On Windows, Gemini CLI runs the hook in PowerShell. In Windows PowerShell 5.1, `curl` is an alias for `Invoke-WebRequest`; use `curl.exe` and `-o NUL` in either shell instead of `-o /dev/null`. For the full setup, including private topics, self-hosting and priorities, see the [ntfy phone push guide](/guides/ntfy-phone-notifications/) and the [phone page](/phone/).",
           },
         ],
       },
@@ -1349,7 +1349,7 @@ const AGENT_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "Gemini CLI merges settings from several files. For a single value the order is project (`.gemini/settings.json` in the current directory), then user (`~/.gemini/settings.json`), then system (`/etc/gemini-cli/settings.json` on Linux), with the project file winning. Hook lists are different: they are concatenated, so a hook in two files runs twice.",
+            text: "Gemini CLI merges settings from several files. For a single value the order is system defaults (`system-defaults.json`), then user (`~/.gemini/settings.json`), then project (`.gemini/settings.json` in the current directory), then the system `settings.json` (`/etc/gemini-cli/settings.json` on Linux, `C:\\ProgramData\\gemini-cli\\settings.json` on Windows), which overrides all of them. Hook lists are the exception: they are concatenated, so a hook in two files runs twice.",
           },
           {
             kind: "table",
@@ -1368,8 +1368,8 @@ const AGENT_GUIDES: Guide[] = [
                 "Gemini CLI discards a malformed hook definition. Check the JSON is valid, each event holds a list of groups, each group has a `hooks` list, and each hook has `type` set to `command` plus a `command`.",
               ],
               [
-                "Hooks in a project's `.gemini/settings.json` never run",
-                "In an untrusted folder Gemini CLI ignores workspace settings. Trust the folder when it asks, or put the hook in `~/.gemini/settings.json`.",
+                "No settings hook runs in one folder",
+                "Folder Trust is on and the folder is untrusted, so Gemini CLI loads no settings hooks at all, user ones included. Trust the folder with `/permissions`, or turn off `security.folderTrust.enabled`.",
               ],
               [
                 "It fires twice",
@@ -1389,7 +1389,7 @@ const AGENT_GUIDES: Guide[] = [
               ],
               [
                 "The command works in a terminal but not in a Windows hook",
-                "Windows hooks run in PowerShell, not cmd. Use `curl.exe`, and forward slashes in paths.",
+                "Windows hooks run in PowerShell (`pwsh` if installed, otherwise 5.1), not cmd. In 5.1, `curl` is an alias for `Invoke-WebRequest`, so use `curl.exe`. Use forward slashes in paths.",
               ],
             ],
           },
@@ -1444,7 +1444,7 @@ const AGENT_GUIDES: Guide[] = [
       },
       {
         q: "Does Gemini CLI have built-in notifications?",
-        a: "Yes, but they are off by default. Set general.enableNotifications to true and Gemini CLI sends a terminal notification when a response finishes and when something needs your action. general.notificationMethod picks auto, osc9, osc777 or bell, and it only reaches the terminal on that machine, not your phone.",
+        a: "Yes, but they are off by default. Set general.enableNotifications to true and Gemini CLI sends a terminal notification when a response finishes and when something needs your action. general.notificationMethod picks auto, osc9, osc777 or bell, and the alert reaches your terminal, not your phone.",
       },
       {
         q: "How do I make Gemini CLI play a sound when it's done?",
@@ -1452,7 +1452,7 @@ const AGENT_GUIDES: Guide[] = [
       },
       {
         q: "Do Gemini CLI hooks need to be enabled?",
-        a: "No, hooks are on by default; hooksConfig.enabled is true unless you set it to false, and changing it needs a restart. If a hook doesn't fire, run /hooks panel to see whether it loaded and is enabled, check hooksConfig.disabled, and remember that a project's .gemini/settings.json is ignored in an untrusted folder.",
+        a: "No, hooks are on by default; hooksConfig.enabled is true unless you set it to false, and changing it needs a restart. If a hook doesn't fire, run /hooks panel to see whether it loaded and is enabled, check hooksConfig.disabled, and remember that in an untrusted folder, with Folder Trust turned on, Gemini CLI loads no settings hooks at all, user ones included.",
       },
       {
         q: "Can Gemini CLI send alerts to my phone?",
