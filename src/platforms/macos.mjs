@@ -1,6 +1,7 @@
 // src/platforms/macos.mjs
 import { execFile } from 'node:child_process';
 import { logHookError } from '../error-log.mjs';
+import { playFirst, prepareSoundFile } from './sound.mjs';
 
 // The 14 built-in macOS system sounds (files in /System/Library/Sounds).
 const MAC_SYSTEM_SOUNDS = new Set([
@@ -22,14 +23,24 @@ export function macSoundName(toastSound) {
   return null;
 }
 
-export function sendToast(notification) {
+// deps are injectable for tests: execFile, the spawn that starts afplay, and
+// the error logger.
+export async function sendToast(notification, deps = {}) {
+  const { execFileImpl = execFile, log = logHookError, ...soundDeps } = deps;
+
+  // A custom sound file is played by afplay (detached, so the hook does not wait
+  // for it) and the notification carries no sound clause. macSoundName(path) is
+  // null, so an unusable file leaves the notification on the default sound.
+  const file = prepareSoundFile(notification.toastSound, 'toast:macos', { log, ...soundDeps });
+  if (file) await playFirst([['afplay', [file]]], 'toast:macos', { log, ...soundDeps });
+
   return new Promise((resolve) => {
     const sound = macSoundName(notification.toastSound);
     const soundClause = sound ? ` sound name "${esc(sound)}"` : '';
     const script = `display notification "${esc(notification.message)}" with title "${esc(notification.title)}"${soundClause}`;
 
-    execFile('osascript', ['-e', script], { timeout: 5000 }, (err, stdout, stderr) => {
-      if (err) logHookError('toast:macos', err, { stderr: (stderr || '').slice(0, 400) });
+    execFileImpl('osascript', ['-e', script], { timeout: 5000 }, (err, stdout, stderr) => {
+      if (err) log('toast:macos', err, { stderr: (stderr || '').slice(0, 400) });
       resolve(!err);
     });
   });

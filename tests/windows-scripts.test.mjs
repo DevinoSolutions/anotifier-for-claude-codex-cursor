@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WIN_DIR = path.join(repoRoot, 'assets', 'windows');
-const SCRIPTS = ['toast.ps1', 'bell.ps1', 'focus-window.ps1', 'toast-wsl.ps1'];
+const SCRIPTS = ['toast.ps1', 'bell.ps1', 'focus-window.ps1', 'toast-wsl.ps1', 'play-sound.ps1'];
 
 // True only when a usable pwsh is on PATH (spawn succeeds). Lets the parse checks
 // skip cleanly on runners without PowerShell 7 installed.
@@ -57,5 +57,20 @@ describe('assets/windows/toast.ps1 regression pins', () => {
     const block = paramBlock(src);
     assert.ok(block, 'toast.ps1 must open with a param(...) block');
     assert.match(block, /ClickToFocus/, 'toast.ps1 param block must declare ClickToFocus');
+  });
+
+  // src/platforms/windows.mjs and wsl.mjs pass -Silent true while a custom sound
+  // file plays; a script without the param would fail to bind and drop the toast.
+  it('toast.ps1 and toast-wsl.ps1 declare the Silent param (custom sound files)', () => {
+    for (const name of ['toast.ps1', 'toast-wsl.ps1']) {
+      const block = paramBlock(fs.readFileSync(path.join(WIN_DIR, name), 'utf8'));
+      assert.match(block, /[$]Silent/, `${name} param block must declare Silent`);
+    }
+  });
+
+  it('play-sound.ps1 declares the Path and Detach params', () => {
+    const block = paramBlock(fs.readFileSync(path.join(WIN_DIR, 'play-sound.ps1'), 'utf8'));
+    assert.match(block, /[$]Path/);
+    assert.match(block, /[$]Detach/);
   });
 });

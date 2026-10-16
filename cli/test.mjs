@@ -3,6 +3,7 @@ import { loadConfigResult } from '../src/config-loader.mjs';
 import { sendNtfyDetailed } from '../src/ntfy.mjs';
 import { sendWebhook } from '../src/webhook.mjs';
 import { resolveToastBackend } from '../src/platforms/index.mjs';
+import { checkSoundFile, isSoundFilePath } from '../src/platforms/sound.mjs';
 import { sendBell } from '../src/bell.mjs';
 import { track } from '../src/telemetry.mjs';
 import { c, spinner } from './ui.mjs';
@@ -11,6 +12,13 @@ import { c, spinner } from './ui.mjs';
 // `both` is the documented toast+ntfy shorthand. An unrecognised value used to
 // print the header and exit 0 doing nothing, which reads as a silent success.
 export const KNOWN_CHANNELS = ['toast', 'ntfy', 'webhook', 'bell', 'both'];
+
+// The toast sound for `test`: the first configured event whose toastSound is an
+// audio file, so a custom file is heard; Default otherwise (names are not tested).
+export function testToastSound(config) {
+  const custom = Object.values(config?.events || {}).map((e) => e?.toastSound).find(isSoundFilePath);
+  return custom || 'Default';
+}
 
 export async function run(channel) {
   if (channel && !KNOWN_CHANNELS.includes(channel)) {
@@ -29,7 +37,7 @@ export async function run(channel) {
   const testNotif = {
     title: 'anotifier',
     message: 'Test notification — if you see this, it works!',
-    toastSound: 'Default',
+    toastSound: testToastSound(config),
     priority: 'default',
     ntfyTags: 'test_tube',
     projectName: 'test',
@@ -56,9 +64,10 @@ export async function run(channel) {
   if (doToast) {
     const spin = spinner('Sending toast notification...');
     const sendToast = await resolveToastBackend();
+    const customSound = isSoundFilePath(testNotif.toastSound) && !checkSoundFile(testNotif.toastSound).reason;
     const ok = await sendToast(testNotif);
     outcomes.toast = ok ? 'sent' : 'failed';
-    if (ok) spin.stop('Toast sent');
+    if (ok) spin.stop(customSound ? 'Toast sent, playing your custom sound' : 'Toast sent');
     else { spin.fail('Toast failed'); failed = true; }
   }
 

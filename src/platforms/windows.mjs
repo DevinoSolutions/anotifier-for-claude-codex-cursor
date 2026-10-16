@@ -4,6 +4,7 @@ import { platform } from 'node:process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { logHookError } from '../error-log.mjs';
+import { PLAY_SCRIPT, isSoundFilePath, playFirst, prepareSoundFile, windowsPlayerArgs } from './sound.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TOAST_SCRIPT = path.join(__dirname, '..', '..', 'assets', 'windows', 'toast.ps1');
@@ -37,16 +38,31 @@ export function toastFailureDetail(err, stderr, elapsedMs, timeoutMs = TOAST_TIM
   };
 }
 
-export async function sendToast(notification) {
-  if (platform !== 'win32') return false;
+// deps are injectable for tests: the platform, execFile, the spawn that starts
+// the sound player, and the error logger.
+export async function sendToast(notification, deps = {}) {
+  const { platform: host = platform, execFileImpl = execFile, log = logHookError, ...soundDeps } = deps;
+  if (host !== 'win32') return false;
+
+  // A custom sound file plays in its own detached pwsh and the toast is made
+  // silent; if the file is unusable or the player cannot start, the toast keeps
+  // the default sound.
+  const file = prepareSoundFile(notification.toastSound, 'toast:windows', { log, ...soundDeps });
+  const playing = file
+    ? await playFirst([['pwsh', windowsPlayerArgs(PLAY_SCRIPT, file)]], 'toast:windows', { log, windowsHide: true, ...soundDeps })
+    : false;
+  // A path is never a BurntToast sound name, so it never goes into -Sound.
+  const sound = isSoundFilePath(notification.toastSound) ? 'Default' : (notification.toastSound || 'Default');
+
   return new Promise((resolve) => {
     const args = [
       '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', TOAST_SCRIPT,
       '-Title', notification.title,
       '-Message', notification.message,
-      '-Sound', notification.toastSound || 'Default',
+      '-Sound', sound,
       '-ClickToFocus', notification.clickToFocus === false ? 'false' : 'true',
     ];
+    if (playing) args.push('-Silent', 'true');
 
     if (notification.projectName) {
       args.push('-ProjectName', notification.projectName);
@@ -63,7 +79,7 @@ export async function sendToast(notification) {
     // windowsHide: a caller with no console of its own (the detached usage-alert
     // sender) would otherwise get a visible PowerShell window flashing up.
     const started = Date.now();
-    execFile('pwsh', args, { timeout: TOAST_TIMEOUT_MS, windowsHide: true }, (err, stdout, stderr) => {
+    execFileImpl('pwsh', args, { timeout: TOAST_TIMEOUT_MS, windowsHide: true }, (err, stdout, stderr) => {
       if (err) {
         // The first line of the message is what `anotifier status` prints, so
         // it names the cause; execFile's "Command failed: <cmd>" goes to extra.
@@ -71,7 +87,7 @@ export async function sendToast(notification) {
         // The original stack is not copied: its first line repeats the whole
         // command line, which extra.command already keeps once.
         const logged = new Error(`toast.ps1 failed: ${detail.cause}`);
-        logHookError('toast:windows', logged, { ...detail, command: String(err.message || '').split('\n')[0].slice(0, 300) });
+        log('toast:windows', logged, { ...detail, command: String(err.message || '').split('\n')[0].slice(0, 300) });
       }
       resolve(!err);
     });

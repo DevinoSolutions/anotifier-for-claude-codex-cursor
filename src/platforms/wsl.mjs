@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import fs from 'node:fs';
 import { logHookError } from '../error-log.mjs';
+import { PLAY_SCRIPT, prepareSoundFile, windowsPlayerArgs } from './sound.mjs';
 
 // --- Detection -------------------------------------------------------------
 
@@ -98,7 +99,7 @@ function toWindowsPath(linuxPath) {
 }
 
 // Resolves { ok, err, stderr } so a total failure can say why in errors.log.
-function runToast(exe, winPath, title, message) {
+function runToast(exe, winPath, title, message, silent = false) {
   return new Promise((resolve) => {
     try {
       // -File + typed param() binding only — never -Command/-EncodedCommand,
@@ -107,6 +108,7 @@ function runToast(exe, winPath, title, message) {
         '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
         '-WindowStyle', 'Hidden', '-File', winPath,
         '-Title', title, '-Message', message,
+        ...(silent ? ['-Silent', 'true'] : []),
       ];
       execFile(exe, args, { timeout: TOAST_TIMEOUT_MS }, (err, stdout, stderr) => {
         resolve({ ok: !err, err, stderr: String(stderr || '').slice(0, 400) });
@@ -117,21 +119,62 @@ function runToast(exe, winPath, title, message) {
   });
 }
 
+// Starts the Windows sound player (play-sound.ps1 -Detach: it relaunches itself
+// as its own hidden Windows process and returns at once) for a custom toastSound
+// file. The file goes through wslpath -w, so it can be a Linux path or a /mnt/c
+// one. Walks the same exe candidates as the toast; the first that starts the
+// player is cached. Resolves true when the player is running, so the toast can be
+// made silent; false (logged once, without the path) leaves the default sound.
+async function startSoundPlayer(file, log, run) {
+  const winFile = await run.toWindowsPath(file);
+  const winScript = await run.toWindowsPath(PLAY_SCRIPT);
+  if (!winFile || !winScript) {
+    log('toast:wsl', new Error('wslpath could not translate the sound file path, using the default sound'));
+    return false;
+  }
+  const args = windowsPlayerArgs(winScript, winFile, { detach: true });
+  for (const exe of cachedExe ? [cachedExe] : EXE_CANDIDATES) {
+    const r = await run.runPowerShell(exe, args);
+    if (r.ok) { cachedExe = exe; return true; }
+  }
+  log('toast:wsl', new Error('no Windows PowerShell could start the sound player, using the default sound'));
+  return false;
+}
+
+// Plain PowerShell call with the same flags as the toast (never -Command).
+function runPowerShell(exe, args) {
+  return new Promise((resolve) => {
+    try {
+      execFile(exe, ['-WindowStyle', 'Hidden', ...args], { timeout: TOAST_TIMEOUT_MS }, (err, stdout, stderr) => {
+        resolve({ ok: !err, err, stderr: String(stderr || '').slice(0, 400) });
+      });
+    } catch (err) {
+      resolve({ ok: false, err, stderr: '' });
+    }
+  });
+}
+
 // `log` is injectable so tests can assert the failure record without writing
-// to the real ~/.anotifier/errors.log.
-export async function sendToast(notification, { log = logHookError } = {}) {
+// to the real ~/.anotifier/errors.log; `run` and the file deps are injectable for
+// the custom sound file path.
+export async function sendToast(notification, { log = logHookError, run = { toWindowsPath, runPowerShell, runToast }, ...soundDeps } = {}) {
   const title = String(notification?.title ?? '');
   const message = String(notification?.message ?? '');
 
   // The script path is constant; translate once to its \\wsl.localhost\... UNC.
-  if (!cachedWinPath) cachedWinPath = await toWindowsPath(TOAST_SCRIPT);
+  if (!cachedWinPath) cachedWinPath = await run.toWindowsPath(TOAST_SCRIPT);
   if (!cachedWinPath) {
     log('toast:wsl', new Error('wslpath could not translate the toast script path'), { script: TOAST_SCRIPT });
     return false;
   }
 
+  // The toast goes out through Windows, so a custom sound file does too: Windows
+  // plays it and the toast is made silent, so there is only one sound.
+  const file = prepareSoundFile(notification?.toastSound, 'toast:wsl', { log, ...soundDeps });
+  const silent = file ? await startSoundPlayer(file, log, run) : false;
+
   if (cachedExe) {
-    const r = await runToast(cachedExe, cachedWinPath, title, message);
+    const r = await run.runToast(cachedExe, cachedWinPath, title, message, silent);
     if (!r.ok) log('toast:wsl', r.err, { exe: cachedExe, stderr: r.stderr });
     return r.ok;
   }
@@ -141,7 +184,7 @@ export async function sendToast(notification, { log = logHookError } = {}) {
   // and only when every candidate failed is one error logged, naming each.
   const tried = [];
   for (const exe of EXE_CANDIDATES) {
-    const r = await runToast(exe, cachedWinPath, title, message);
+    const r = await run.runToast(exe, cachedWinPath, title, message, silent);
     if (r.ok) {
       cachedExe = exe;
       return true;

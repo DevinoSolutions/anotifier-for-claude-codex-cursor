@@ -9,4 +9,4 @@ Open the anotifier interactive configuration menu. Execute this in the terminal:
 node "${CLAUDE_PLUGIN_ROOT}/cli/index.mjs" config
 ```
 
-Sections: `ntfy` (push notification settings), `webhook` (Slack/Discord/Telegram/generic endpoint), `sounds` (per-event `toastSound` values, Windows BurntToast only), `events` (per-event overrides), `sentry` (opt-in error reporting).
+Sections: `ntfy` (push notification settings), `webhook` (Slack/Discord/Telegram/generic endpoint), `sounds` (per-event `toastSound`: a sound name, or the path of your own audio file), `events` (per-event overrides), `sentry` (opt-in error reporting).

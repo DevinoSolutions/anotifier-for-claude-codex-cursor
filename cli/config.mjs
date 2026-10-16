@@ -1,6 +1,7 @@
 // cli/config.mjs
 import readline from 'node:readline';
 import { loadConfigResult, saveConfig, getConfigPath } from '../src/config-loader.mjs';
+import { checkSoundFile, isSoundFilePath } from '../src/platforms/sound.mjs';
 import { ask, askYN, log, c } from './ui.mjs';
 
 async function configNtfy(rl, config) {
@@ -28,11 +29,25 @@ async function configWebhook(rl, config) {
   }
 }
 
+// A toastSound answer is a sound name or the path of an audio file. A path must
+// exist: a typo is reported and the old value kept, never saved to fail silently
+// at the next notification.
+export function acceptSoundAnswer(answer, current, check = checkSoundFile) {
+  const value = String(answer ?? '').trim();
+  if (!isSoundFilePath(value)) return { value: value || current };
+  const checked = check(value);
+  if (checked.reason) return { value: current, error: `${checked.reason}: ${checked.path}` };
+  return { value };
+}
+
 async function configSounds(rl, config) {
   log('\n  Sound Configuration\n', 'bold');
   log('  Windows sounds: Default, IM, Mail, Reminder, SMS, Alarm', 'dim');
+  log('  Or the path of your own audio file (.wav .mp3 .m4a .aiff .flac .ogg ...), e.g. ~/sounds/done.wav', 'dim');
   for (const [event, conf] of Object.entries(config.events)) {
-    conf.toastSound = await ask(rl, `Sound for ${event}`, conf.toastSound);
+    const { value, error } = acceptSoundAnswer(await ask(rl, `Sound for ${event}`, conf.toastSound), conf.toastSound);
+    if (error) log(`  ${error} -- kept ${conf.toastSound}.`, 'red');
+    conf.toastSound = value;
   }
 }
 
