@@ -95,6 +95,7 @@ describe('resolveSoundPath / checkSoundFile', () => {
     assert.deepEqual(checkSoundFile(wav), { path: wav });
     assert.equal(checkSoundFile(path.join(dir, 'nope.wav')).reason, 'file not found');
     assert.equal(checkSoundFile(dir).reason, 'not a file');
+    assert.equal(checkSoundFile(path.join(dir, 'a"b.wav')).reason, 'unsupported character in path');
   });
 });
 
@@ -350,6 +351,7 @@ describe('wsl sendToast with a sound file', () => {
     assert.equal(f.toasts.length, 1);
     assert.equal(entries.length, 1);
     assert.ok(!JSON.stringify(entries).includes(dir));
+    assert.ok(entries[0].extra.tried.length > 0 && entries[0].extra.tried.every((t) => t.reason === 'failed'));
   });
 
   it('a name sends the toast exactly as before', async () => {

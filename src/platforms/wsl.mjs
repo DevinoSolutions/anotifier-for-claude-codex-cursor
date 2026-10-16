@@ -135,11 +135,14 @@ async function startSoundPlayer(file, log, run) {
     return false;
   }
   const args = windowsPlayerArgs(winScript, winFile, { detach: true });
+  const reasons = [];
   for (const exe of cachedExe ? [cachedExe] : EXE_CANDIDATES) {
     const r = await run.runPowerShell(exe, args);
     if (r.ok) { cachedExe = exe; return true; }
+    // A reason code per attempt; never stderr or the file, which may carry the path.
+    reasons.push({ exe, reason: r.err?.killed ? 'timeout' : (r.err?.code ?? 'failed') });
   }
-  log('toast:wsl', new Error('no Windows PowerShell could start the sound player, no sound will play'));
+  log('toast:wsl', new Error('no Windows PowerShell could start the sound player, no sound will play'), { tried: reasons });
   return false;
 }
 

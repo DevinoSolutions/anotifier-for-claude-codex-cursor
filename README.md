@@ -450,11 +450,11 @@ It takes the same `min` / `low` / `default` / `high` / `urgent` scale as `priori
 { "events": { "task_complete": { "toastSound": "~/sounds/done.wav" }, "needs_input": { "toastSound": "C:\Sounds\ask.mp3" } } }
 ```
 
-A value is read as a file, not a name, when it starts with `~/`, is an absolute path, contains a `/` or `\`, or ends in `.wav`, `.mp3`, `.aiff`, `.aif`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.opus` or `.flac`. `~` is your home folder, and a relative path is relative to `~/.anotifier`. The sound names above never match, so existing configs keep working.
+A value is read as a file, not a name, when it starts with `~/`, is an absolute path, contains a `/` or `\`, or ends in `.wav`, `.mp3`, `.aiff`, `.aif`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.opus` or `.flac`. `~` is your home folder, and a relative path is relative to `~/.anotifier`. A path containing a double quote is not used. The sound names above never match, so existing configs keep working.
 
 When the file exists, it plays instead of the toast's own sound and the toast is silent, so you hear one sound. It plays in the background: the hook does not wait for it to finish.
 
-- Windows: `.wav` plays through the Windows sound player; other formats go through Windows Media (`.mp3`, `.m4a`, `.aac` and `.flac` normally work; `.ogg`, `.oga` and `.opus` need a codec Windows may not have). Any clip is cut off after 30 seconds.
+- Windows: `.wav` plays through the Windows sound player; other formats go through Windows Media (`.mp3`, `.m4a`, `.aac` and `.flac` normally work; `.ogg`, `.oga` and `.opus` need a codec Windows may not have). Any clip is cut off after 30 seconds. On macOS and Linux a long file plays to the end.
 - macOS: `afplay`, so any format macOS plays (not `.ogg`, `.oga` or `.opus`).
 - Linux: the first of `pw-play`, `paplay` and `aplay` that starts (`aplay` is used for `.wav` only). Linux toasts have no sound otherwise, so this is the only case where Linux plays one.
 - WSL: Windows plays it, like the toast, and the toast is silenced when the alert starts, before the player has launched. A Linux path or a `/mnt/c/...` path works; write `/mnt/c/Sounds/ask.mp3`, not `C:\Sounds\ask.mp3`, because a `C:\...` value is not a path Linux can open.

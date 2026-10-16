@@ -47,6 +47,9 @@ export function resolveSoundPath(value, { home = os.homedir(), configDir = getCo
 // { path } for a readable regular file, otherwise { path, reason }.
 export function checkSoundFile(value, deps = {}) {
   const file = resolveSoundPath(value, deps);
+  // The Windows player relaunch (play-sound.ps1 -Detach) quotes the path, which a
+  // double quote in a Linux file name would break.
+  if (file.includes('"')) return { path: file, reason: 'unsupported character in path' };
   const { statSync = fs.statSync, accessSync = fs.accessSync } = deps;
   try {
     if (!statSync(file).isFile()) return { path: file, reason: 'not a file' };
