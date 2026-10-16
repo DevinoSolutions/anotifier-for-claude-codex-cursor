@@ -44,6 +44,7 @@
     "from": "22:00",
     "to": "08:00"
   },
+  "suppressWhenFocused": false,
   "events": {
     "task_complete": {
       "toastSound": "IM",

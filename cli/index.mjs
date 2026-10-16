@@ -37,7 +37,7 @@ const UNTRACKED = new Set(['telemetry', 'approval', 'away']);
 // is reported as 'other' so a usage event can never carry what the user typed.
 const KNOWN_ARGS = new Set([
   '--deep', '--json', '--strict', 'toast', 'ntfy', 'webhook', 'bell', 'both',
-  'sounds', 'events', 'sentry', 'off',
+  'sounds', 'events', 'sentry', 'focus', 'off',
 ]);
 const argShape = (args) => args.filter(Boolean).map((a) => (KNOWN_ARGS.has(a) ? a : 'other'));
 

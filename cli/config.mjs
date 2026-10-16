@@ -76,6 +76,17 @@ async function configMinDuration(rl, conf) {
   }
 }
 
+// suppressWhenFocused. Opt-in: the check starts a short probe (about 1-1.8 s on
+// Windows) on every alert, and another tab or pane of the same terminal window
+// counts as in front.
+async function configFocus(rl, config) {
+  log('\n  Focus Configuration\n', 'bold');
+  log('  Skip every alert (toast, ntfy, webhook, bell) while the window running the agent is the one in front.', 'dim');
+  log('  Costs a short window probe per alert (about 1-1.8 s on Windows, run in parallel with the rest).', 'dim');
+  log('  Unknown cases (tmux, screen, zellij, ssh, Wayland) still send. Another tab of the same terminal counts as in front.', 'dim');
+  config.suppressWhenFocused = await askYN(rl, 'Skip alerts while the agent window is in front?', config.suppressWhenFocused === true);
+}
+
 // A Sentry DSN looks like https://<publicKey>@<host>/<projectId>. Validate the
 // shape with a plain URL parse plus a non-empty key and project id — enough to
 // reject obvious typos loudly without pretending to be a full Sentry client.
@@ -130,6 +141,7 @@ export async function run(section) {
   else if (section === 'sounds') await configSounds(rl, config);
   else if (section === 'events') await configEvents(rl, config);
   else if (section === 'sentry') await configSentry(rl, config);
+  else if (section === 'focus') await configFocus(rl, config);
   else {
     log('\n  anotifier config\n', 'bold');
     log('  1. ntfy');
@@ -137,12 +149,14 @@ export async function run(section) {
     log('  3. Sounds');
     log('  4. Events');
     log('  5. Sentry');
-    const choice = await ask(rl, 'Choose (1-5)', '1');
+    log('  6. Focus');
+    const choice = await ask(rl, 'Choose (1-6)', '1');
     if (choice === '1') await configNtfy(rl, config);
     else if (choice === '2') await configWebhook(rl, config);
     else if (choice === '3') await configSounds(rl, config);
     else if (choice === '4') await configEvents(rl, config);
     else if (choice === '5') await configSentry(rl, config);
+    else if (choice === '6') await configFocus(rl, config);
   }
 
   saveConfig(config, getConfigPath());

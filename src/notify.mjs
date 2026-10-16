@@ -126,7 +126,32 @@ export function loadEffectiveConfig(event, load = loadConfig) {
   return resolveProjectConfig(load(), event?.cwd);
 }
 
-async function main() {
+// A probe that never settles must not hold the alert: the probe has its own
+// budget (about 1.2 s on Windows, 400 ms elsewhere), this is the backstop above it.
+const FOCUS_PROBE_CAP_MS = 2500;
+
+const probeFocus = async (opts) => (await import('./focus.mjs')).isAgentWindowFocused(opts);
+
+// Opt-in focus suppression (`suppressWhenFocused`). Returns null, WITHOUT running
+// the probe, when the key is not exactly true (the default); otherwise a promise
+// of true / false / null for "is the agent's own window in front?". Start it as
+// early as the event is known and await it right before dispatch, so the
+// ~1-1.8 s Windows probe overlaps the transcript read and backend lookup. The
+// promise never rejects: a throw, a rejection or a probe that outlives the cap
+// all read as null ("could not tell"), and only an exact `true` skips the alert.
+// A failure goes to errors.log, never stdout (hook output matters).
+export function startFocusProbe(config, event, { probe = probeFocus, capMs = FOCUS_PROBE_CAP_MS } = {}) {
+  if (config?.suppressWhenFocused !== true) return null;
+  let timer;
+  const cap = new Promise((resolve) => { timer = setTimeout(() => resolve(null), capMs); timer.unref?.(); });
+  const run = (async () => probe({ source: event?.source, workspace: event?.cwd }))()
+    .then((v) => (v === true || v === false ? v : null))
+    .catch((err) => { logHookError('focus', err); return null; });
+  return Promise.race([run, cap]).finally(() => clearTimeout(timer));
+}
+
+// `focus` carries startFocusProbe's options; only tests pass it (a fake probe).
+export async function main({ focus } = {}) {
   // Function-scoped, not built at the write site: the catch branch and the
   // dedup-skip / unmapped-event early exits must fall through to a plain '{}\n'
   // so a crash or a suppressed duplicate never rings. Only the fully-successful
@@ -271,6 +296,10 @@ async function main() {
       process.exit(0);
     }
 
+    // Start the focus probe now (a no-op unless suppressWhenFocused is on), so it
+    // runs while the rich views and the toast backend are prepared below.
+    const focusProbe = startFocusProbe(config, event, focus);
+
     // Check per-event overrides
     const eventConfig = config.events?.[event.event] || {};
 
@@ -282,6 +311,18 @@ async function main() {
     // rich-capable channel is actually enabled, so codex/cursor/gemini and
     // fully-disabled runs pay no I/O.
     const views = deriveRichViews(event, config, eventConfig, notification);
+
+    // The user is looking at the agent's own window: they see the prompt or the
+    // result already, so send nothing on any channel. Exactly `true` only; false,
+    // null, a timeout and an error all fall through to the normal dispatch. Same
+    // quiet exit as the gates above (plain '{}\n', no bell, no update notice) and
+    // counted as 'skipped' so the telemetry outcome names stay as they were.
+    if (focusProbe && (await focusProbe) === true) {
+      await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
+      await flushErrorReporting();
+      process.stdout.write(defaultResponseBody(event?.source));
+      process.exit(0);
+    }
 
     const tasks = [];
 

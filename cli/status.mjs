@@ -84,6 +84,10 @@ export function minDurationValue(config) {
   return seconds > 0 ? c.white(`skip completions under ${seconds}s`) : c.muted('off');
 }
 
+export function focusValue(config) {
+  return config.suppressWhenFocused === true ? c.white('skip alerts while the agent window is in front') : c.muted('off');
+}
+
 export async function run() {
   const { config, problem } = loadConfigResult();
   if (problem) {
@@ -155,6 +159,7 @@ export async function run() {
     kv('Usage alerts', usageAlertsValue(config, claudeStatuslineWired())),
     kv('Context alerts', contextAlertsValue(config)),
     kv('Min duration', minDurationValue(config)),
+    kv('When focused', focusValue(config)),
     kv('ntfy', ''),
     `${''.padEnd(15)} ${ntfyValue}`,
     ...(config.ntfy?.enabled && config.ntfy?.topic && config.ntfy?.fallbackServer

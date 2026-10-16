@@ -72,15 +72,15 @@ export function parseHHMM(value) {
   return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }
 
-const TOP_LEVEL_KEYS = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'contextAlerts', 'quietHours', 'events', 'sources'];
+const TOP_LEVEL_KEYS = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'contextAlerts', 'quietHours', 'suppressWhenFocused', 'events', 'sources'];
 
 // Top-level keys a project rule may NOT override: machine- or account-wide
 // settings that make no sense per workspace. `sentry`, `updateCheck` and
 // `telemetry` are process-level (error reporting, the update check, opt-in
 // stats) and are read outside any workspace; `usageAlerts` is about the
 // account's plan quota, not a project; `projects` cannot nest. Everything else
-// (channels, sounds, priority, quiet hours, event overrides, min-duration,
-// context alerts, source labels) is allowed.
+// (channels, sounds, priority, quiet hours, suppressWhenFocused, event overrides,
+// min-duration, context alerts, source labels) is allowed.
 // One nested key is excluded too: `toast.disabledBySetup` is a flag written by
 // `anotifier setup` for this machine, not a preference.
 const PROJECT_EXCLUDED_KEYS = ['sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'projects'];
@@ -172,6 +172,15 @@ function validateSettings(user, { inRule = false, inheritedWebhook = null } = {}
     }
   }
   checkBlock('quietHours', { enabled: 'boolean', from: 'string', to: 'string' });
+
+  // Opt-in focus suppression: a plain top-level boolean (it silences every
+  // channel at once, so it belongs to no channel block). A wrong type is dropped
+  // so the default `false` applies (a probe that runs, or a swallowed alert,
+  // because of a typo would both be surprises).
+  if (user.suppressWhenFocused !== undefined && typeof user.suppressWhenFocused !== 'boolean') {
+    issues.push(`"suppressWhenFocused" must be a boolean, got ${typeof user.suppressWhenFocused}`);
+    delete user.suppressWhenFocused;
+  }
 
   // Webhook format is a fixed preset enum (like event priority): an invalid
   // value is dropped so the 'generic' default wins. Telegram addresses the

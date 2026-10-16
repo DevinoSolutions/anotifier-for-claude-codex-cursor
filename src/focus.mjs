@@ -63,9 +63,14 @@
 // windows of one multi-window app (iTerm, JetBrains IDEs): the frontmost-app
 // check cannot tell them apart.
 //
-// Cursor separates its title segments with an em dash, not " - ". The exact
-// segment match then finds no folder and answers false for Cursor on Windows
-// and Linux. That is the fail-safe direction and is left as it is.
+// Title separator: VS Code (and Cursor and Windsurf, which are forks and use the
+// same title template) join the segments with " - " on Windows and Linux. The
+// em dash (U+2014) is the default only on macOS, where titles are never read
+// here (see above). Source: defaultWindowTitleSeparator in microsoft/vscode,
+// src/vs/workbench/browser/parts/titlebar/windowTitle.ts:
+//   isMacintosh ? ' \u2014 ' : ' - '
+// A user who sets window.titleSeparator to something else gets false: the exact
+// segment match finds no folder, which is the fail-safe direction.
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
