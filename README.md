@@ -495,6 +495,35 @@ How a turn is measured depends on what each tool's hooks offer. The start time i
 
 Cursor's `beforeSubmitPrompt` hook can block a prompt unless it answers correctly, and its docs do not promise that it and `stop` share an id, so Cursor is left untimed rather than guessed. Antigravity has no event documented as once per user turn. Neither is ever filtered and neither shows a length. Setup must be re-run once after upgrading (`npx anotifier setup`) to add the timing hook to the tools that use it; until then nothing is timed and nothing is filtered. A Stop that fires while Claude Code still has background work running is held back as before and does not end the turn.
 
+### Per-project overrides
+
+A `projects` list in `~/.anotifier/config.json` changes settings for the workspaces you name. Each rule has a `match` and the settings it overrides:
+
+```json
+{
+  "projects": [
+    {
+      "match": "~/work/acme",
+      "ntfy": { "topic": "acme-alerts" },
+      "webhook": { "enabled": true, "url": "https://example.com/acme-hook" },
+      "events": { "task_complete": { "toastSound": "Alarm", "minDurationSeconds": 60 } },
+      "quietHours": { "enabled": true, "from": "18:00", "to": "09:00" }
+    }
+  ]
+}
+```
+
+A hook run whose working folder is `~/work/acme`, or anything inside it, uses those settings on top of your top-level ones. Every other folder is exactly as before.
+
+- **Where rules live.** Only in your own `~/.anotifier/config.json`. There is deliberately no per-repo file (such as `.anotifier.json` in a project): a repository you clone could otherwise point your alerts, with your prompt and the message text, at its own webhook or ntfy topic.
+- **`match`.** An absolute path (`/home/me/acme`, `C:/work/acme`) or one starting with `~/` (your home folder). A rule matches that folder and everything inside it, so a hook running in `~/work/acme/src` matches too, while `~/work/acme-two` does not. `*` stands for any text within one folder name and `**` for any number of folders: `~/work/*/app`, `~/clients/**`. Paths are compared without regard to case on Windows and macOS. A relative `match` (`.`, `src/app`) is rejected, because it would have nothing to anchor to.
+- **What a rule can override.** `ntfy`, `toast`, `terminalBell`, `webhook`, `quietHours`, `events` (sound, priority, tags, which channels, `minDurationSeconds`) and `sources`. `sentry`, `updateCheck`, `telemetry`, `usageAlerts` and `projects` are machine-wide and are rejected inside a rule (reported by `anotifier status`, and left out of the rule). `contextAlerts` is accepted but not applied yet.
+- **How rules combine.** Your defaults, then your top-level config, then every matching rule in the order it appears in the list, so a later rule wins. Objects merge key by key; a list or a single value is replaced. A rule only needs the keys it changes.
+- **Telegram.** A rule that sets `"webhook": { "format": "telegram" }` takes `chatId` from your top-level `webhook` when it has one. If the top level has no `chatId`, put it in the same rule as `format`; otherwise `anotifier status` reports it as missing.
+- **Where the folder comes from.** The `cwd` the agent sends with the hook; for Cursor and Antigravity CLI, which can omit it, the first workspace folder. With no folder in the hook input, no rule applies.
+- **What it covers.** The notifications your agents send through hooks: task complete, needs input and session start, including quiet hours and the minimum duration filter. Snooze is not per project: `anotifier snooze` still silences everything. Usage-limit warnings, context warnings and remote approvals are not tied to a hook folder and read your top-level settings only.
+- **The CLI.** `anotifier status`, `doctor` and `config` work on your top-level settings. A rule's overrides are never applied there.
+
 ### Error visibility
 
 Hook and channel errors never interrupt your agent -- they're appended to `~/.anotifier/errors.log` and surfaced by `npx anotifier status`, so a misconfigured toast backend or unreachable ntfy topic shows up as a logged error instead of a silent no-op. Set `sentry.enabled` to `true` (with a `sentry.dsn`) to also mirror those errors to [Sentry](https://sentry.io) through a built-in, zero-dependency envelope client: no SDK is bundled, nothing leaves your machine unless you opt in, and only error data is sent.
