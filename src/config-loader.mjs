@@ -81,6 +81,8 @@ const TOP_LEVEL_KEYS = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'u
 // account's plan quota, not a project; `projects` cannot nest. Everything else
 // (channels, sounds, priority, quiet hours, event overrides, min-duration,
 // context alerts, source labels) is allowed.
+// One nested key is excluded too: `toast.disabledBySetup` is a flag written by
+// `anotifier setup` for this machine, not a preference.
 const PROJECT_EXCLUDED_KEYS = ['sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'projects'];
 const PROJECT_KEYS = TOP_LEVEL_KEYS.filter((key) => !PROJECT_EXCLUDED_KEYS.includes(key));
 
@@ -287,6 +289,11 @@ function validateProjects(user, issues) {
       }
       overrides[key] = rule[key];
     }
+    if (overrides.toast && typeof overrides.toast === 'object' && !Array.isArray(overrides.toast) && 'disabledBySetup' in overrides.toast) {
+      issues.push(`${at}: unknown key "toast.disabledBySetup" (not allowed in a project rule)`);
+      overrides.toast = { ...overrides.toast };
+      delete overrides.toast.disabledBySetup;
+    }
     for (const issue of validateSettings(overrides)) issues.push(`${at}: ${issue}`);
     const clean = { match: rule.match };
     for (const key of PROJECT_KEYS) {
@@ -346,13 +353,13 @@ function projectPatternToRegExp(pattern) {
       .join('[^/]*');
     source += '/' + body;
   }
-  return { source, hasGlob: segments.some((s) => s.includes('*')) };
+  return source;
 }
 
-// Does `workspace` fall under the rule's `match`? A plain path (no glob)
-// matches that directory and anything below it. A glob matches exactly the
-// shape it describes: `side/*` is the directories directly under `side`,
-// `acme/**` is `acme` itself and everything below it.
+// Does `workspace` fall under the rule's `match`? One rule for every pattern,
+// glob or not: it matches the folder it names and anything inside it. A hook's
+// cwd can be a subfolder of the project, so `side/*` matches `side/app` and
+// `side/app/src`; `acme/**` matches `acme` and everything below it.
 export function matchesProjectPath(match, workspace, { platform = process.platform, home = os.homedir() } = {}) {
   if (typeof match !== 'string' || !match.trim()) return false;
   if (typeof workspace !== 'string' || !workspace.trim()) return false;
@@ -362,16 +369,16 @@ export function matchesProjectPath(match, workspace, { platform = process.platfo
   }
   pattern = normalizeProjectPath(pattern, platform);
   const target = normalizeProjectPath(workspace, platform);
-  const { source, hasGlob } = projectPatternToRegExp(pattern);
+  const source = projectPatternToRegExp(pattern);
   const rooted = target.startsWith('/') ? target : '/' + target;
-  return new RegExp(`^${source}${hasGlob ? '' : '(?:/.*)?'}$`).test(rooted);
+  return new RegExp(`^${source}(?:/.*)?$`).test(rooted);
 }
 
 // Config for one workspace: a NEW object (the input is never mutated) with every
 // matching rule applied and the `projects` key removed. An empty or non-string
 // workspace, or no rules, yields the config as-is minus `projects`. Never throws.
-// Excluded keys are skipped here too, so a config that skipped the loader's
-// validation cannot override a machine-level setting.
+// Excluded keys (and toast.disabledBySetup) are skipped here too, so a config
+// that skipped the loader's validation cannot override a machine-level setting.
 export function resolveProjectConfig(config, workspace, options = {}) {
   if (!config || typeof config !== 'object') return config;
   let out;
@@ -386,6 +393,7 @@ export function resolveProjectConfig(config, workspace, options = {}) {
       for (const key of PROJECT_KEYS) {
         if (rule[key] !== undefined) overrides[key] = JSON.parse(JSON.stringify(rule[key]));
       }
+      if (overrides.toast && typeof overrides.toast === 'object') delete overrides.toast.disabledBySetup;
       deepMerge(out, overrides);
     }
     return out;

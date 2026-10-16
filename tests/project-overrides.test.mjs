@@ -28,18 +28,21 @@ describe('normalizeProjectPath', () => {
 });
 
 describe('matchesProjectPath', () => {
-  it('a plain path matches the directory itself and anything below it', () => {
+  it('every pattern matches the folder it names and anything inside it', () => {
     assert.ok(matchesProjectPath('/home/me/app', '/home/me/app', LINUX));
     assert.ok(matchesProjectPath('/home/me/app', '/home/me/app/src/deep', LINUX));
     assert.ok(!matchesProjectPath('/home/me/app', '/home/me/application', LINUX));
     assert.ok(!matchesProjectPath('/home/me/app', '/home/me', LINUX));
   });
 
-  it('* is exactly one path segment', () => {
+  it('* is one path segment, and the folder it names still matches subfolders', () => {
     assert.ok(matchesProjectPath('/home/me/side/*', '/home/me/side/a', LINUX));
+    assert.ok(matchesProjectPath('/home/me/side/*', '/home/me/side/a/src', LINUX));
+    assert.ok(matchesProjectPath('/home/me/side/*', '/home/me/side/a/b/c', LINUX));
     assert.ok(!matchesProjectPath('/home/me/side/*', '/home/me/side', LINUX));
-    assert.ok(!matchesProjectPath('/home/me/side/*', '/home/me/side/a/b', LINUX));
+    assert.ok(!matchesProjectPath('/home/me/side/*', '/home/me/sidekick/a', LINUX));
     assert.ok(matchesProjectPath('/home/me/side/*/src', '/home/me/side/a/src', LINUX));
+    assert.ok(matchesProjectPath('/home/me/side/*/src', '/home/me/side/a/src/deep', LINUX));
     assert.ok(!matchesProjectPath('/home/me/side/*/src', '/home/me/side/a/b/src', LINUX));
     assert.ok(matchesProjectPath('/home/me/side/app-*', '/home/me/side/app-web', LINUX));
     assert.ok(!matchesProjectPath('/home/me/side/app-*', '/home/me/side/web-app', LINUX));
@@ -205,6 +208,16 @@ describe('resolveProjectConfig', () => {
     assert.doesNotThrow(() => resolveProjectConfig(undefined, WS));
   });
 
+  it('drops toast.disabledBySetup from a rule but keeps the rest of the toast block', () => {
+    const config = base();
+    config.toast = { enabled: true, disabledBySetup: false };
+    config.projects = [{ match: '~/work/acme/**', toast: { enabled: false, disabledBySetup: true } }];
+    const out = resolveProjectConfig(config, WS, LINUX);
+    assert.equal(out.toast.enabled, false);
+    assert.equal(out.toast.disabledBySetup, false);
+    assert.equal(config.projects[0].toast.disabledBySetup, true); // input untouched
+  });
+
   it('refuses to override machine-level keys even when validation was skipped', () => {
     const config = base();
     config.projects = [{
@@ -330,6 +343,15 @@ describe('project rule validation', () => {
       assert.match(problem.message, new RegExp(`projects\\[0\\]: unknown key "${key}"`));
     }
     assert.deepEqual(config.projects, [{ match: '/ok', ntfy: { topic: 'kept' } }]);
+  });
+
+  it('reports toast.disabledBySetup inside a rule and removes it', () => {
+    const { config, problem } = load({
+      projects: [{ match: '/ok', toast: { enabled: false, disabledBySetup: true } }],
+    });
+    assert.equal(problem?.type, 'validate');
+    assert.match(problem.message, /projects\[0\]: unknown key "toast\.disabledBySetup"/);
+    assert.deepEqual(config.projects, [{ match: '/ok', toast: { enabled: false } }]);
   });
 
   it('reports a __proto__ key inside a rule and never merges it', () => {
