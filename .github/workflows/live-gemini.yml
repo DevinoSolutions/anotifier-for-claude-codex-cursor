@@ -3,12 +3,14 @@ name: Live Gemini
 # Required (no continue-on-error) and runs unconditionally: the script hard-fails
 # if GEMINI_API_KEY is missing, so a deleted/renamed secret — or a fork PR without
 # secret access — turns the build red instead of skipping silently.
+# Skipped when a push or PR only changes docs or landing/ (the marketing site): those
+# files can't affect this lane, and a day of SEO PRs exhausted the Gemini daily quota.
 on:
   push:
     branches: [main]
-    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore', 'landing/**']
   pull_request:
-    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore', 'landing/**']
 
 concurrency:
   group: '${{ github.workflow }}-${{ github.ref }}'
