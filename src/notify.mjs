@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseInput } from './parse-input.mjs';
 import { route, isSilentNotification } from './router.mjs';
-import { loadConfig } from './config-loader.mjs';
+import { loadConfig, resolveProjectConfig } from './config-loader.mjs';
 import { sendNtfy } from './ntfy.mjs';
 import { sendWebhook } from './webhook.mjs';
 import { deriveRichViews } from './transcript.mjs';
@@ -115,6 +115,17 @@ export function defaultResponseBody(source) {
   return source === 'antigravity' ? '{"decision":"stop"}\n' : '{}\n';
 }
 
+// The config every later step of a hook run reads: the user's config with the
+// matching per-project rules (`projects` in ~/.anotifier/config.json) applied
+// for the workspace this event came from. THE one place that happens, so quiet
+// hours, the minimum-duration filter, routing, the channels and the update
+// notice all see the same answer; nothing downstream re-reads the file. With no
+// workspace, or no rule matching, the result is the loaded config minus the
+// `projects` list. Never throws (resolveProjectConfig does not).
+export function loadEffectiveConfig(event, load = loadConfig) {
+  return resolveProjectConfig(load(), event?.cwd);
+}
+
 async function main() {
   // Function-scoped, not built at the write site: the catch branch and the
   // dedup-skip / unmapped-event early exits must fall through to a plain '{}\n'
@@ -154,7 +165,7 @@ async function main() {
       return;
     }
 
-    config = loadConfig();
+    config = loadEffectiveConfig(event);
     enableSentryMirror(config.sentry);
 
     // An active snooze or quiet-hours window silences EVERY channel. Checked
