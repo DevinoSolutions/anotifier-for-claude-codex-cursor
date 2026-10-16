@@ -278,6 +278,14 @@ export function projectConfigFor(config, workspace, { resolve = resolveProjectCo
   }
 }
 
+// Is any channel on? The one definition of "a channel" for the usage warning:
+// sendUsageNotifications sends through exactly these, and the statusline tap
+// skips (and so does not record) a usage warning that nothing could deliver.
+const toastOn = (config) => config?.toast?.enabled !== false;
+const ntfyOn = (config) => Boolean(config?.ntfy?.enabled && config?.ntfy?.topic);
+const webhookOn = (config) => Boolean(config?.webhook?.enabled && config?.webhook?.url);
+export const hasChannel = (config) => toastOn(config) || ntfyOn(config) || webhookOn(config);
+
 // Fan the warnings out over the channels the user has on. No terminal bell: a
 // statusline has no terminal of its own to ring.
 export async function sendUsageNotifications(config, notifications, {
@@ -287,9 +295,9 @@ export async function sendUsageNotifications(config, notifications, {
 } = {}) {
   const tasks = [];
   for (const n of notifications) {
-    if (config?.toast?.enabled !== false) tasks.push(resolveBackend().then((send) => send(n)));
-    if (config?.ntfy?.enabled && config?.ntfy?.topic) tasks.push(ntfy(config.ntfy, n));
-    if (config?.webhook?.enabled && config?.webhook?.url) tasks.push(webhook(config.webhook, n));
+    if (toastOn(config)) tasks.push(resolveBackend().then((send) => send(n)));
+    if (ntfyOn(config)) tasks.push(ntfy(config.ntfy, n));
+    if (webhookOn(config)) tasks.push(webhook(config.webhook, n));
   }
   const results = await Promise.allSettled(tasks);
   for (const r of results) if (r.status === 'rejected') logHookError('usage-alert:send', r.reason);
@@ -302,10 +310,14 @@ export async function sendUsageNotifications(config, notifications, {
 // The child reads the config itself (secrets never ride on the command line)
 // and applies the project rules for `workspace`, passed as
 // `--workspace <base64>`, so a rule's channels carry the alert.
+const MAX_WORKSPACE_ARG = 4096;
+
 export function spawnDelivery(notifications, { spawnImpl = spawn, scriptPath = fileURLToPath(import.meta.url), workspace } = {}) {
   const arg = Buffer.from(JSON.stringify(notifications), 'utf8').toString('base64');
   const args = [scriptPath, '--deliver', arg];
-  if (typeof workspace === 'string' && workspace.trim()) {
+  // A very long path would make the spawn itself fail (ENAMETOOLONG) after the
+  // state is recorded; without it the child uses the top-level config.
+  if (typeof workspace === 'string' && workspace.trim() && workspace.length <= MAX_WORKSPACE_ARG) {
     args.push('--workspace', Buffer.from(workspace, 'utf8').toString('base64'));
   }
   const child = spawnImpl(process.execPath, args, {

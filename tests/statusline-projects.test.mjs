@@ -3,7 +3,7 @@
 // Unit tests inject the tap's dependencies; the subprocess tests run the real
 // statusline.mjs with a throwaway HOME and a local HTTP server standing in for
 // ntfy, so the detached delivery child's channel choice is observed on the wire.
-import { describe, it, before, after } from 'node:test';
+import { describe, it, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -12,7 +12,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { tapUsage, statuslineWorkspace } from '../src/statusline.mjs';
-import { projectConfigFor, spawnDelivery } from '../src/usage-alert.mjs';
+import { projectConfigFor, spawnDelivery, hasChannel } from '../src/usage-alert.mjs';
 import { useFakeHome } from './fake-home.mjs';
 useFakeHome();
 
@@ -124,6 +124,18 @@ describe('tapUsage with project rules (injected dependencies)', () => {
     assert.equal(seen.delivered.length, 1);
     assert.equal(seen.delivered[0].opts.workspace, '/work/acme', 'the child resolves the same rule for its channels');
   });
+  it('a rule with every channel off skips the usage check (nothing recorded) but still runs context', () => {
+    const load = () => ({
+      ...base(),
+      toast: { enabled: false },
+      projects: [{ match: '/work/acme', ntfy: { enabled: false } }],
+    });
+    const seen = run({ ...ctxPayload('/work/acme'), rate_limits: RL }, { load });
+    assert.equal(seen.usage.length, 0);
+    assert.equal(seen.context.length, 1);
+    const elsewhere = run({ ...ctxPayload('/work/other'), rate_limits: RL }, { load });
+    assert.equal(elsewhere.usage.length, 1, 'a folder with a channel still checks');
+  });
   it('quiet hours are read from the resolved config', () => {
     const load = () => ({ ...base(), projects: [{ match: '/work/acme', quietHours: { enabled: true, from: '00:00', to: '23:59' } }] });
     const seen = run(ctxPayload('/work/acme'), { load });
@@ -159,13 +171,28 @@ describe('projectConfigFor', () => {
     spawnDelivery([{ title: 't' }], { spawnImpl: (exe, a) => { args = a; return {}; }, scriptPath: 'x.mjs' });
     assert.equal(args.includes('--workspace'), false);
   });
+  it('spawnDelivery omits an oversized workspace so the spawn cannot fail', () => {
+    let args;
+    spawnDelivery([{ title: 't' }], { spawnImpl: (exe, a) => { args = a; return {}; }, scriptPath: 'x.mjs', workspace: `/${'a'.repeat(40000)}` });
+    assert.equal(args.includes('--workspace'), false);
+  });
+  it('hasChannel mirrors what sendUsageNotifications sends through', () => {
+    assert.equal(hasChannel({}), true, 'toast is on unless disabled');
+    assert.equal(hasChannel({ toast: { enabled: false } }), false);
+    assert.equal(hasChannel({ toast: { enabled: false }, ntfy: { enabled: true, topic: 't' } }), true);
+    assert.equal(hasChannel({ toast: { enabled: false }, ntfy: { enabled: true } }), false, 'ntfy needs a topic');
+    assert.equal(hasChannel({ toast: { enabled: false }, webhook: { enabled: true, url: 'http://x' } }), true);
+    assert.equal(hasChannel({ toast: { enabled: false }, webhook: { enabled: true } }), false, 'webhook needs a url');
+  });
 });
 
 describe('statusline.mjs end to end with project rules', () => {
   let server;
   let port;
   let root;
-  const requests = [];
+  let requests = [];
+  let seq = 0;
+  beforeEach(() => { requests = []; });
 
   before(async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-statusline-proj-'));
@@ -182,16 +209,20 @@ describe('statusline.mjs end to end with project rules', () => {
     try { fs.rmSync(root, { recursive: true, force: true }); } catch { /* a delivery child may still hold a handle */ }
   });
 
+  // Each home gets its own base topic, so a request can only come from that home.
+  const bases = new Map();
   const newHome = (projects, extra = {}) => {
+    const base = `base-${++seq}`;
     const home = fs.mkdtempSync(path.join(root, 'home-'));
     fs.mkdirSync(path.join(home, '.anotifier'), { recursive: true });
     fs.writeFileSync(path.join(home, '.anotifier', 'config.json'), JSON.stringify({
       toast: { enabled: false },
       terminalBell: { enabled: false },
-      ntfy: { enabled: true, server: `http://127.0.0.1:${port}`, topic: 'base' },
+      ntfy: { enabled: true, server: `http://127.0.0.1:${port}`, topic: base },
       ...extra,
       projects,
     }));
+    bases.set(home, base);
     return home;
   };
   const statusline = (home, payload) => {
@@ -221,10 +252,14 @@ describe('statusline.mjs end to end with project rules', () => {
 
   it('a rule\'s ntfy topic carries the context alert; stdout is the same line as without rules', async () => {
     const payload = ctxPayload(`${acme}/src`, { session_id: 'sess-chan' });
-    const withRule = statusline(newHome([{ ...rule, contextAlerts: { threshold: 80 } }]), payload);
+    const ruleHome = newHome([{ ...rule, contextAlerts: { threshold: 80 } }]);
+    const withRule = statusline(ruleHome, payload);
     const hit = await waitFor((r) => r.url === '/proj-chan');
     assert.ok(hit, 'the alert reaches the rule\'s topic');
-    const without = statusline(newHome([]), { ...payload, session_id: 'sess-chan-2' });
+    assert.equal(requests.some((r) => r.url === `/${bases.get(ruleHome)}`), false, 'nothing goes to the replaced topic');
+    const plainHome = newHome([]);
+    const without = statusline(plainHome, { ...payload, session_id: 'sess-chan-2' });
+    assert.ok(await waitFor((r) => r.url === `/${bases.get(plainHome)}`), 'without rules the base topic is used');
     assert.equal(withRule.stdout, without.stdout);
     assert.equal(withRule.stdout, 'Opus');
   });
@@ -235,7 +270,7 @@ describe('statusline.mjs end to end with project rules', () => {
     assert.deepEqual(warned(home), [], 'the matching session (90% < 95%) records nothing');
     const b = statusline(home, ctxPayload(`${other}/src`, { session_id: 'sess-b' }));
     assert.deepEqual(warned(home), ['sess-b'], 'another folder still warns at 85%');
-    assert.ok(await waitFor((r) => r.url === '/base' && /auto-compact/.test(r.body)));
+    assert.ok(await waitFor((r) => r.url === `/${bases.get(home)}` && /auto-compact/.test(r.body)));
     assert.equal(a.stdout, b.stdout);
   });
 
@@ -260,5 +295,23 @@ describe('statusline.mjs end to end with project rules', () => {
     assert.ok(hit, 'usage alert sent to the rule\'s topic');
     const state = JSON.parse(fs.readFileSync(path.join(home, '.anotifier', '.usage-alerts.json'), 'utf8'));
     assert.equal(state.five_hour.level, 85, 'the shared, global threshold ladder was used');
+  });
+
+  it('a rule that turns every channel off leaves the usage warning to the next chat', async () => {
+    const resetsAt = Math.floor(Date.now() / 1000) + 3600;
+    const usage = (dir, id) => ({
+      session_id: id,
+      workspace: { current_dir: dir },
+      rate_limits: { five_hour: { used_percentage: 90, resets_at: resetsAt } },
+    });
+    const home = newHome([{ match: acme, ntfy: { enabled: false } }]);
+    const statePath = path.join(home, '.anotifier', '.usage-alerts.json');
+    const a = statusline(home, usage(`${acme}/src`, 'sess-silent'));
+    assert.equal(fs.existsSync(statePath), false, 'nothing was recorded');
+    const b = statusline(home, usage(`${other}/src`, 'sess-next'));
+    assert.equal(JSON.parse(fs.readFileSync(statePath, 'utf8')).five_hour.level, 85);
+    assert.ok(await waitFor((r) => r.url === `/${bases.get(home)}` && /usage limit/.test(r.body)), 'announced on the base topic');
+    assert.equal(a.stdout, '5h 90%');
+    assert.equal(b.stdout, '5h 90%');
   });
 });

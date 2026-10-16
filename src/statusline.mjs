@@ -20,7 +20,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadConfigResult } from './config-loader.mjs';
 import { isSuppressed } from './suppress.mjs';
-import { checkUsage, spawnDelivery, projectConfigFor, isEntry, WINDOWS } from './usage-alert.mjs';
+import { checkUsage, spawnDelivery, projectConfigFor, hasChannel, isEntry, WINDOWS } from './usage-alert.mjs';
 import { checkContext as checkContextUsage } from './context-alert.mjs';
 import { logHookError } from './error-log.mjs';
 
@@ -141,7 +141,10 @@ export function tapUsage(raw, {
     // usage threshold and state stay account-wide; see projectConfigFor.
     const workspace = statuslineWorkspace(payload);
     const config = resolve(load(), workspace);
-    const doUsage = wantUsage && config?.usageAlerts?.enabled !== false;
+    // The usage warning is shared by every chat and recorded as sent, so it is
+    // only taken on when this folder's settings can deliver it: a rule that turns
+    // every channel off must leave the warning to a chat that can announce it.
+    const doUsage = wantUsage && config?.usageAlerts?.enabled !== false && hasChannel(config);
     const doContext = wantContext && config?.contextAlerts?.enabled !== false;
     if (!doUsage && !doContext) return [];
     // While snoozed or in quiet hours nothing is recorded either, so a
