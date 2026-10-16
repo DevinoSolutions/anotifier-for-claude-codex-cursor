@@ -1405,7 +1405,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: 'Antigravity CLI has its own hooks, in `~/.gemini/config/hooks.json`, with different events (`PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`). There is no `AfterAgent` or `Notification` event there, so the hooks above don\'t fire. For a hook you write yourself, see the [Antigravity CLI notifications guide](/guides/antigravity-cli-notifications/). anotifier 1.4.0 and later wires Antigravity separately, with a `Stop` handler that sends "Task complete" and no needs-input alert; it has not yet been tested against a live Antigravity CLI. What setup writes is on the [Antigravity CLI page](/antigravity-cli/).',
+            text: 'Antigravity CLI has its own hooks, in `~/.gemini/config/hooks.json`, with different events (`SessionStart`, `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`). There is no `AfterAgent` or `Notification` event there, so the hooks above don\'t fire. Antigravity CLI does have its own built-in `notifications` setting (default `false`), a desktop notification and terminal bell for finished tasks, permission prompts and questions; the [Antigravity CLI notifications guide](/guides/antigravity-cli-notifications/) covers it and the hook you write yourself. anotifier 1.4.0 and later wires Antigravity separately, with a `Stop` handler that sends "Task complete" and no needs-input alert, because Antigravity hooks have no such event; it has not yet been tested against a live Antigravity CLI. What setup writes is on the [Antigravity CLI page](/antigravity-cli/).',
           },
         ],
       },
@@ -1460,7 +1460,7 @@ const AGENT_GUIDES: Guide[] = [
       },
       {
         q: "Does this work with Antigravity CLI?",
-        a: 'Not the Gemini CLI hooks: Antigravity has no AfterAgent or Notification event, and keeps its hooks in ~/.gemini/config/hooks.json. anotifier 1.4.0 and later adds an anotifier group with a Stop handler there, so you get a "Task complete" alert; there is no needs-input alert and it has not yet been tested against a live Antigravity CLI. Gemini CLI itself still works with a paid Gemini API key or a Code Assist Standard or Enterprise license.',
+        a: 'Not the Gemini CLI hooks: Antigravity has no AfterAgent or Notification event, and keeps its hooks in ~/.gemini/config/hooks.json. anotifier 1.4.0 and later adds an anotifier group with a Stop handler there, so you get a "Task complete" alert; anotifier sends no needs-input alert, because Antigravity hooks have no such event, and it has not yet been tested against a live Antigravity CLI. Antigravity\'s own notifications setting covers permission prompts and questions. Gemini CLI itself still works with a paid Gemini API key or a Code Assist Standard or Enterprise license.',
       },
     ],
   },
