@@ -18,7 +18,7 @@
 
 ## Guides (how to get notified when an agent finishes)
 
-- [Claude Code](https://anotifier.io/guides/claude-code-notifications/): built-in terminal setting, Stop/Notification hook, ntfy phone push, anotifier
+- [Claude Code](https://anotifier.io/guides/claude-code-notifications/): which event fires when (Stop = finished, Notification = permission_prompt / idle_prompt after about 60 s), built-in terminal bell or desktop notification (Ghostty, Kitty, iTerm2), a hook you write for macOS, Linux and Windows, ntfy phone push, Claude Code's own Remote Control push, anotifier (Stop and Notification hooks, rich toast text, idle-reminder priority, snooze and quiet hours), fixes when nothing arrives
 - [Codex CLI](https://anotifier.io/guides/codex-cli-notifications/): built-in [tui] notifications, notify command, Stop/PermissionRequest hooks, approval alerts, Windows (Windows Terminal bell, commandWindows toast hook), turning notifications off
 - [Cursor](https://anotifier.io/guides/cursor-agent-notifications/): Cursor's built-in completion sound and OS notification, the stop hook in ~/.cursor/hooks.json (format, macOS/Linux/Windows examples), phone push and Slack, Windows/WSL, troubleshooting, turning it off; anotifier alerts are titled "Cursor" and say "Task complete"
 - [Gemini CLI](https://anotifier.io/guides/gemini-cli-notifications/): AfterAgent/Notification hooks in ~/.gemini/settings.json; Antigravity CLI (Gemini CLI's successor for Google AI Pro/Ultra) uses a different hook format; anotifier 1.4.0+ wires it separately with a Stop hook in ~/.gemini/config/hooks.json (Task complete only, no needs-input alert, not yet tested against a live Antigravity CLI)

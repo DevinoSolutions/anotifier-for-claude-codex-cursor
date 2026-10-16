@@ -211,20 +211,158 @@ const AGENT_GUIDES: Guide[] = [
     agentSlug: "claude-code",
     name: "Claude Code",
     icon: "/assets/icons/claude.png",
-    title: "Claude Code Notification When It Finishes: Desktop & Phone",
+    title: "Claude Code Notifications When It Finishes or Needs You",
     description:
-      "Add a Stop hook for finished turns and a Notification hook for input prompts to ~/.claude/settings.json. Configs for a macOS banner, the bell and ntfy push.",
-    h1: "How to get notified when Claude Code finishes or needs you",
+      "Add a Stop hook for finished turns and a Notification hook for permission prompts. Desktop, sound and phone alerts for Claude Code, set up in minutes.",
+    h1: "Claude Code notifications: get alerted when it finishes or needs you",
     intro:
-      "Add two hooks to `~/.claude/settings.json`: `Stop`, which fires when Claude finishes a turn, and `Notification`, which fires when it needs your permission or input. Point each at a command that shows a banner, plays a sound (see the [Claude Code notification sound guide](/guides/claude-code-notification-sound/)), or sends a push to your phone. Or run `npx anotifier@latest setup`, the [Claude Code notifier](/claude-code/), which wires both for you. Below is every option, from the one-line setting to a full multi-agent setup, with configs you can paste.",
+      "Claude Code fires two hook events you can alert on: `Stop` when it finishes a turn, and `Notification` when it needs your permission or input. Add both to `~/.claude/settings.json` with a command that shows a banner, plays a sound or sends a push, or run `npx anotifier@latest setup`, the [Claude Code notifier](/claude-code/), to wire both for you. Ghostty, Kitty and iTerm2 also show a built-in desktop notification, and `preferredNotifChannel` can ring the terminal bell elsewhere. Below: [which event fires when](#events), [banner, sound or phone](#channels), [every option with configs](#built-in), [snooze and quiet hours](#quiet), and [fixes when nothing arrives](#troubleshooting).",
     sections: [
+      {
+        id: "answer",
+        title: "Quick answer: what you want, which event, where to read more",
+        blocks: [
+          {
+            kind: "table",
+            head: ["You want", "Claude Code event", "Read this"],
+            rows: [
+              [
+                "An alert when Claude finishes a turn",
+                "`Stop`",
+                "[Option 2](#hook) below, or `npx anotifier@latest setup`",
+              ],
+              [
+                "An alert when it needs permission or an answer",
+                "`Notification`, matcher `permission_prompt`",
+                "[Permission and waiting-for-input notifications](/guides/claude-code-permission-notifications/)",
+              ],
+              [
+                "A sound, nothing else",
+                "`Stop` and `Notification`, or `preferredNotifChannel`",
+                "[Claude Code notification sound](/guides/claude-code-notification-sound/)",
+              ],
+              [
+                "A push on your phone",
+                "Any hook, posting to ntfy",
+                "[Phone push with ntfy](/guides/ntfy-phone-notifications/) and the [phone page](/phone/)",
+              ],
+              [
+                "A message in Slack, Discord or Telegram",
+                "Any hook, posting to a webhook",
+                "[Slack](/slack/), [Discord](/discord/), [Telegram](/telegram/)",
+              ],
+              [
+                "A real toast on Windows or WSL",
+                "Any hook, plus a toast backend",
+                "[Windows and WSL notifications](/guides/windows-wsl-notifications/)",
+              ],
+              [
+                "A banner on macOS or Linux",
+                "Any hook, running `osascript` or `notify-send`",
+                "[macOS and Linux notifications](/guides/macos-linux-notifications/)",
+              ],
+              [
+                "A warning before a usage limit or auto-compact",
+                "Neither: a statusline command, not a hook",
+                "[Usage limit warning](/guides/claude-code-usage-limit-notifications/) and [auto-compact warning](/guides/claude-code-auto-compact-warning/)",
+              ],
+              [
+                "Alerts that never arrive",
+                "Check the hook is registered",
+                "[Notifications not working](/guides/notifications-not-working/)",
+              ],
+            ],
+          },
+        ],
+      },
+      {
+        id: "events",
+        title: "Which Claude Code event fires when",
+        blocks: [
+          {
+            kind: "p",
+            text: "Claude Code runs a hook when one of its lifecycle events happens. Two matter for alerts. `Stop` fires when Claude finishes responding. `Notification` fires when Claude Code sends a notification, and its payload names the kind in `notification_type`:",
+          },
+          {
+            kind: "table",
+            head: ["Event or type", "Fires when", "Good for"],
+            rows: [
+              [
+                "`Stop`",
+                "Claude finishes responding. The payload includes `last_assistant_message`, the final reply",
+                "The done alert",
+              ],
+              [
+                "`Notification`, `permission_prompt`",
+                "Claude needs you to approve a tool use and the prompt has waited about six seconds",
+                "The needs-permission alert",
+              ],
+              [
+                "`Notification`, `idle_prompt`",
+                "Claude finished about 60 seconds ago and you haven't typed since",
+                "A late reminder, not the done alert",
+              ],
+              [
+                "`Notification`, `elicitation_dialog`",
+                "An MCP server opens a form and you haven't typed for about six seconds",
+                "A question from a tool",
+              ],
+              [
+                "`Notification`, `auth_success`",
+                "Authentication completes",
+                "Nothing: filter it out",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: 'An empty matcher runs the hook for every notification type, so a bare `Notification` hook also fires for `auth_success` and the rest. Set `"matcher": "permission_prompt"` to alert on approvals only. Because `idle_prompt` arrives about a minute after `Stop`, use `Stop` for the done alert. The [permission notifications guide](/guides/claude-code-permission-notifications/) lists every type with its timing, including how Claude Desktop and the VS Code extension differ from the terminal.',
+          },
+        ],
+      },
+      {
+        id: "channels",
+        title: "Banner, sound or phone: pick one or all",
+        blocks: [
+          {
+            kind: "table",
+            head: ["Channel", "What you get", "How"],
+            rows: [
+              [
+                "Terminal bell",
+                "A beep in the terminal, no text",
+                '`"preferredNotifChannel": "terminal_bell"` ([sound guide](/guides/claude-code-notification-sound/))',
+              ],
+              [
+                "Desktop banner",
+                "A toast with a title and a line of text",
+                "A hook that runs `osascript`, `notify-send` or PowerShell ([Option 2](#hook))",
+              ],
+              [
+                "Phone push (ntfy)",
+                "A push on Android or iOS; free, no account",
+                "A hook that POSTs to a topic ([Option 3](#phone))",
+              ],
+              [
+                "Slack, Discord, Telegram",
+                "A chat message",
+                "A webhook URL; anotifier has a `format` for each ([Option 4](#anotifier))",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "Claude Code also has its own phone push. With Remote Control active, `/config` offers **Push when Claude decides** and **Push when actions required**, and the Claude app on iOS or Android gets the push. It needs a Pro, Max, Team or Enterprise plan; API keys are not supported ([Remote Control docs](https://code.claude.com/docs/en/remote-control#mobile-push-notifications)). The hooks in this guide need no Remote Control session.",
+          },
+        ],
+      },
       {
         id: "built-in",
         title: "Option 1: Claude Code's built-in terminal notifications",
         blocks: [
           {
             kind: "p",
-            text: "Out of the box, Claude Code sends a desktop notification when it finishes or pauses for permission, but only in Ghostty, Kitty, and iTerm2. In any other terminal, set `preferredNotifChannel` in `~/.claude/settings.json` to ring the terminal bell instead:",
+            text: "When Claude finishes or pauses for a permission prompt and you appear to be away from the terminal, Claude Code sends a desktop notification, but by default only in Ghostty, Kitty, and iTerm2. In any other terminal, set `preferredNotifChannel` in `~/.claude/settings.json` to ring the terminal bell instead:",
           },
           {
             kind: "code",
@@ -251,7 +389,7 @@ const AGENT_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "Hooks are shell commands Claude Code runs on lifecycle events, configured under `hooks` in `~/.claude/settings.json`. `Stop` fires when Claude finishes a turn; `Notification` fires when it needs your attention (permission prompts, questions, and the idle reminder about a minute after a turn ends). A minimal macOS example:",
+            text: "Hooks are shell commands Claude Code runs on lifecycle events, configured under `hooks` in `~/.claude/settings.json`. A minimal macOS example, one banner for `Stop` and one for `Notification`:",
           },
           {
             kind: "code",
@@ -268,11 +406,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: 'Without a matcher, the `Notification` hook runs for every notification type, including ones that don\'t need you, such as `auth_success`. To alert only on approvals, set `"matcher": "permission_prompt"`; `idle_prompt` is the reminder Claude Code sends about 60 seconds after it finishes. The [permission notifications guide](/guides/claude-code-permission-notifications/) lists every type and its timing.',
-          },
-          {
-            kind: "p",
-            text: "The hook receives a JSON payload on stdin: session id, working directory, transcript path, and for `Notification` the `message` and `notification_type`. A longer script can read the project name, and even the last assistant message, out of the transcript. Type `/hooks` in Claude Code to check what is registered.",
+            text: 'The hook receives a JSON payload on stdin: `session_id`, `cwd`, `transcript_path`, and for `Notification` the `message` and `notification_type`. `Stop` also carries `last_assistant_message`, so a script can put Claude\'s own words in the banner. Type `/hooks` in Claude Code to check what is registered. To alert only on approvals, add `"matcher": "permission_prompt"` to the `Notification` entry (see [which event fires when](#events)).',
           },
           {
             kind: "note",
@@ -295,7 +429,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "Because public ntfy.sh topics are guessable, send generic text only, or run your own ntfy server before putting conversation content in the body.",
+            text: "Because public ntfy.sh topics are guessable, send generic text only, or run your own ntfy server before putting conversation content in the body. The [ntfy phone push guide](/guides/ntfy-phone-notifications/) covers topics, privacy and a self-hosted server.",
           },
         ],
       },
@@ -306,7 +440,14 @@ const AGENT_GUIDES: Guide[] = [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: "The wizard detects Claude Code, registers the `Stop` and `Notification` hooks in `~/.claude/settings.json` (backing the file up first), sets up the desktop toast backend for your OS, and offers to create an ntfy topic for phone push. Restart Claude Code and you are done. It also works as a Claude Code plugin: `/plugin marketplace add DevinoSolutions/anotifier-for-claude-codex-cursor` then `/plugin install anotifier@anotifier`.",
+            text: "The wizard detects Claude Code, registers the `Stop` and `Notification` hooks in `~/.claude/settings.json` (backing the file up first), checks the desktop toast backend for your OS, and offers to create an ntfy topic for phone push. Restart Claude Code and you are done. It also works as a Claude Code plugin: `/plugin marketplace add DevinoSolutions/anotifier-for-claude-codex-cursor` then `/plugin install anotifier@anotifier`. The same setup covers [Codex CLI](/codex/), [Cursor](/cursor/) and [Gemini CLI](/gemini-cli/), and the webhook channel reaches [Slack](/slack/), [Discord](/discord/) and [Telegram](/telegram/).",
+          },
+          {
+            kind: "ul",
+            items: [
+              "**Done alerts say what Claude said.** For Claude Code the toast and the webhook carry the last assistant message, and the title names the project, as in `my-app · Claude Code`. ntfy stays generic by default because public topics are guessable; `ntfy.richContent` opts in.",
+              '**Approvals are urgent, reminders are not.** A `permission_prompt` arrives as an urgent "Needs your permission". The `idle_prompt` reminder is delivered at default priority. `auth_success` sends nothing, and a notification type Claude Code adds later still alerts.',
+            ],
           },
           {
             kind: "p",
@@ -315,15 +456,85 @@ const AGENT_GUIDES: Guide[] = [
           ...WHAT_ANOTIFIER_ADDS,
         ],
       },
+      {
+        id: "quiet",
+        title: "Quiet the noise: the idle reminder, snooze and quiet hours",
+        blocks: [
+          {
+            kind: "p",
+            text: "Three controls in anotifier, none of which can stall Claude Code: the hook still exits successfully when a run is silenced.",
+          },
+          {
+            kind: "ul",
+            items: [
+              "**Turn the idle reminder up or down.** `events.needs_input.idleReminderPriority` sets the level for the `idle_prompt` reminder only (`min`, `low`, `default`, `high` or `urgent`). Permission prompts keep their own priority.",
+              "**Snooze.** `anotifier snooze 2h` silences every channel (toast, ntfy, webhook and the terminal bell) until it expires. `30m`, `90s` and a bare `45` (minutes) work too; `anotifier snooze off` cancels it, and `anotifier status` shows whether you are snoozed.",
+              "**Quiet hours.** A nightly window, off by default, in your machine's local time. It may span midnight, and it silences all channels or none.",
+            ],
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              quietHours: { enabled: true, from: "22:00", to: "08:00" },
+              events: { needs_input: { idleReminderPriority: "low" } },
+            }),
+          },
+          {
+            kind: "p",
+            text: "Put that in `~/.anotifier/config.json`. Snooze and quiet hours work independently, and either one alone silences the run. The [docs](/docs/) list every config key.",
+          },
+        ],
+      },
+      {
+        id: "troubleshooting",
+        title: "When nothing arrives",
+        blocks: [
+          {
+            kind: "ol",
+            items: [
+              "Restart Claude Code after changing hooks, then type `/hooks` and confirm the hook is listed under `Stop` and `Notification`.",
+              "Built-in notifications only appear in Ghostty, Kitty and iTerm2. Elsewhere set `preferredNotifChannel` to `terminal_bell` or add a hook; inside tmux turn on `allow-passthrough`.",
+              "Expect delays by design: `permission_prompt` waits about six seconds and each keystroke defers it, and `idle_prompt` comes about 60 seconds after Claude finishes.",
+              "With anotifier, `anotifier status` shows which tools are wired and whether you are snoozed, `anotifier test` fires a test notification (add `toast`, `ntfy`, `webhook`, `bell` or `both` to test one channel), and `anotifier doctor` diagnoses each channel.",
+              "On Windows or WSL see the [Windows and WSL fixes](/guides/windows-wsl-notifications/#not-working); on macOS or Linux see [macOS and Linux notifications](/guides/macos-linux-notifications/). The [troubleshooting guide](/guides/notifications-not-working/) works through the rest in order.",
+            ],
+          },
+        ],
+      },
     ],
     faqs: [
       {
-        q: "Which Claude Code hook fires when it finishes?",
-        a: "Stop. It fires once per completed turn. Notification fires when Claude needs your input: a permission prompt, a question, or the idle reminder it sends about a minute after finishing.",
+        q: "How do I get a notification when Claude Code finishes?",
+        a: "Add a Stop hook to ~/.claude/settings.json that runs a notification command. Stop fires when Claude finishes responding. Or run npx anotifier@latest setup, which registers the Stop and Notification hooks and wires a desktop toast, a terminal bell and optional phone push.",
+      },
+      {
+        q: "How do I get notified when Claude Code needs permission?",
+        a: 'Add a Notification hook with "matcher": "permission_prompt". It fires once an approval prompt has waited about six seconds, so a prompt you answer right away does not ping you. anotifier sends it as an urgent "Needs your permission" alert. The permission notifications guide covers every notification type.',
+      },
+      {
+        q: "Can I get Claude Code notifications on my phone?",
+        a: "Yes, two ways. A hook can post to ntfy, a free push service with Android and iOS apps and no account; anotifier creates the topic for you. Or use Claude Code's own mobile push: with Remote Control active, enable Push when Claude decides or Push when actions required in /config. That needs a Pro, Max, Team or Enterprise plan.",
+      },
+      {
+        q: "Why does the notification arrive a minute late or not at all?",
+        a: "The idle_prompt notification is sent about 60 seconds after Claude finishes, and only if you haven't typed since, so alerting on Notification alone feels a minute late. Use a Stop hook for the done alert. If nothing arrives, restart Claude Code, check /hooks, and run anotifier doctor; the built-in desktop notification only works in Ghostty, Kitty and iTerm2.",
+      },
+      {
+        q: "Can I send Claude Code alerts to Slack, Discord or Telegram?",
+        a: "Yes. anotifier posts to a Slack, Discord or Telegram webhook, or to any HTTP endpoint with an optional Authorization header. Set webhook.format to slack, discord, telegram or generic. The Slack, Discord and Telegram pages have the steps.",
+      },
+      {
+        q: "How do I silence Claude Code notifications at night?",
+        a: "With anotifier, run anotifier snooze 8h to silence every channel for a while, or enable quietHours in ~/.anotifier/config.json for a nightly window such as 22:00 to 08:00. Both silence the toast, ntfy, webhook and terminal bell together, and neither can stall Claude Code.",
+      },
+      {
+        q: "Does this work with Codex, Cursor and Gemini CLI too?",
+        a: "Yes. One anotifier setup wires Claude Code, Codex CLI, Cursor and Gemini CLI to the same channels. Codex alerts on Stop and PermissionRequest, Gemini CLI on AfterAgent and Notification, and Cursor when a run finishes only, because it has no needs-input event.",
       },
       {
         q: "Can I get a notification with what Claude actually said?",
-        a: "Yes. The hook payload includes the transcript path. anotifier reads the last assistant message (or the question, for needs-input events) from it and puts that in the toast and webhook body, with the project name in the title.",
+        a: "Yes. The hook payload includes the transcript path. anotifier reads the last assistant message (or the question, for needs-input events) from it and puts that in the toast and webhook body, with the project name in the title. ntfy stays generic unless you set ntfy.richContent.",
       },
       {
         q: "Does this work when Claude Code runs inside VS Code?",
@@ -332,14 +543,6 @@ const AGENT_GUIDES: Guide[] = [
       {
         q: "Will notifications slow Claude Code down?",
         a: "Not noticeably. Claude Code waits for the hook to exit, and anotifier sends every channel in parallel, each with its own 5 to 7 second timeout. It registers its hook with a 10-second timeout (Claude Code's default for command hooks is 600 seconds) and always exits 0, so it can never stall a session.",
-      },
-      {
-        q: "Why am I not getting Claude Code notifications?",
-        a: "The built-in desktop notification only works in Ghostty, Kitty and iTerm2; elsewhere set preferredNotifChannel to terminal_bell or add a hook. With a hook, restart Claude Code and check /hooks. On macOS, allow Script Editor in System Settings > Notifications; inside tmux, turn on allow-passthrough.",
-      },
-      {
-        q: "How do I get notified only when Claude Code needs permission?",
-        a: 'Give the Notification hook "matcher": "permission_prompt". It fires when an approval has waited about six seconds. The permission notifications guide covers every notification type.',
       },
       {
         q: "Can Claude Code play a sound when it finishes?",
