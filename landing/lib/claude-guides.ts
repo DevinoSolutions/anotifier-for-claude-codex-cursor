@@ -1017,7 +1017,7 @@ if (typeof win?.used_percentage !== "number") {
           {
             kind: "ul",
             items: [
-              "`DISABLE_AUTO_COMPACT` overrides `autoCompactEnabled`. Whichever of the two turns auto-compact off, the other cannot turn it back on.",
+              "`DISABLE_AUTO_COMPACT=1` overrides `autoCompactEnabled`, so setting the key to `true` does not turn auto-compact back on while the variable is set.",
               "Turning auto-compact off also turns off idle compaction. The manual `/compact` command keeps working.",
               "`DISABLE_COMPACT=1` is stronger: it disables all compaction, including `/compact`.",
               "To turn it back on, set `autoCompactEnabled` to `true` (or toggle it in `/config`) and remove the environment variable.",
@@ -1268,7 +1268,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
               "**It reaches the channels you have on.** Desktop toast, ntfy push and webhook. It never rings the terminal bell, because a statusline has no terminal of its own.",
               "**Snooze and quiet hours hold it back.** While either is active nothing is sent and nothing is recorded, so a chat already over the line is warned once it ends, if a statusline refresh happens.",
               "**No subscription needed.** The context numbers come with every statusline refresh, so API-key and proxy sessions are covered, unlike the usage-limit warnings.",
-              "**Silent when auto-compact is off.** If you turned it off with `autoCompactEnabled` or `DISABLE_AUTO_COMPACT` (see [how to turn auto-compact off](#turn-off)), there is nothing to warn about, so nothing is sent.",
+              "**Silent when auto-compact is off.** If you turned it off (see [how to turn auto-compact off](#turn-off)), there is nothing to warn about, so nothing is sent. anotifier sees `autoCompactEnabled: false` in the settings files it reads, and `DISABLE_AUTO_COMPACT` or `DISABLE_COMPACT` when the variable is set in the environment the statusline runs in.",
             ],
           },
           {
@@ -1326,6 +1326,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
               "**Some settings are invisible to a statusline.** The `--autocompact` command-line flag and managed (enterprise) settings never reach it, so with either in play the warning can come late or not at all.",
               "**An idle chat is not checked.** The statusline runs on Claude Code's own events, so a chat you leave alone does not warn until it next refreshes, unless you set `refreshInterval` on `statusLine`.",
               "**One warning, not a countdown.** After the warning a chat is never warned again, even if you keep working past it.",
+              "**`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` is not read.** If you set it to compact earlier, anotifier still measures against the full auto-compact window, so the warning can come after the chat has already compacted. Lower `contextAlerts.threshold` to match, for example 40 for an override of 50.",
             ],
           },
         ],
@@ -1363,7 +1364,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
       },
       {
         q: "What does the autoCompactEnabled setting do?",
-        a: "It is a boolean that defaults to true. When false, Claude Code does not compact the conversation automatically, and idle compaction turns off too. It works in any settings file, and /config writes it to your user settings. DISABLE_AUTO_COMPACT overrides it, and whichever of the two turns auto-compact off, the other cannot turn it back on.",
+        a: "It is a boolean that defaults to true. When false, Claude Code does not compact the conversation automatically, and idle compaction turns off too. It works in any settings file, and /config writes it to your user settings. DISABLE_AUTO_COMPACT=1 overrides it, so the setting cannot turn auto-compact back on while that variable is set.",
       },
       {
         q: "What is the difference between /compact and /clear?",
@@ -1372,6 +1373,10 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
       {
         q: "Can Claude Code warn me before it auto-compacts?",
         a: "Not with a setting, but it passes the chat's context size (context_window.total_input_tokens) to your statusLine command, so a script there can send a notification. anotifier 1.6.0 and later does this for you, once per chat at 85% of the auto-compact window it finds from your settings, and sends nothing when auto-compact is off. Change the percentage with contextAlerts.threshold in ~/.anotifier/config.json.",
+      },
+      {
+        q: "Will anotifier warn again after I run /compact?",
+        a: "No. Each chat warns once and never again, even after /compact. /clear starts a new session, which can warn again.",
       },
     ],
   },
