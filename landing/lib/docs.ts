@@ -285,7 +285,7 @@ export const DOCS: DocSection[] = [
       },
       {
         kind: "note",
-        text: 'Claude\'s idle reminder is quieter than a real prompt. About a minute after a turn ends, Claude Code sends a second Notification like "Claude is waiting for your input". Nothing is blocked, so anotifier delivers it at default priority with a calm hourglass tag instead of urgent. A genuine permission prompt stays urgent. Set `events.needs_input.idleReminderPriority` to pick your own level; if Claude ever changes that wording the reminder goes back to urgent, never silent.',
+        text: 'Claude\'s idle reminder is quieter than a real prompt. About a minute after a turn ends, Claude Code sends a second Notification like "Claude is waiting for your input". Nothing is blocked, so anotifier delivers it at default priority with a calm hourglass tag instead of urgent. A genuine permission prompt stays urgent. Set `events.needs_input.idleReminderPriority` to pick your own level; if Claude ever changes that wording the reminder goes back to urgent, never silent. The [Claude Code notifications guide](/guides/claude-code-notifications/) explains the `Stop` and `Notification` events behind these alerts.',
       },
       {
         kind: "p",

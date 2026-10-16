@@ -211,6 +211,117 @@ test("the Cursor guide leads with the answer, shows valid hooks.json examples, a
   }
 });
 
+test("the Claude Code hub leads with the answer, explains the events, shows valid JSON, keeps FAQ schema in step and is linked from the pages around it", () => {
+  const hub = "/guides/claude-code-notifications/";
+  const g = pages.get(hub);
+  assert.match(g.title, /^Claude Code Notifications When/, "guide title");
+  assert.match(
+    g.h1Text,
+    /^Claude Code notifications: get alerted when it finishes or needs you$/,
+    "guide h1",
+  );
+  for (const id of [
+    "answer",
+    "events",
+    "channels",
+    "built-in",
+    "hook",
+    "phone",
+    "anotifier",
+    "quiet",
+    "troubleshooting",
+    "faq",
+  ]) {
+    assert.ok(g.body.includes(`id="${id}"`), `Claude Code hub lacks #${id}`);
+  }
+
+  // The paragraph under the h1 is the direct answer: both events, and the
+  // one-command route.
+  const sub = g.body.match(/<p class="sub">([\s\S]*?)<\/p>/)?.[1] ?? "";
+  assert.match(sub, /Stop/, "intro does not name the Stop event");
+  assert.match(sub, /Notification/, "intro does not name Notification");
+  assert.match(sub, /npx anotifier@latest setup/, "intro has no setup command");
+
+  // Every JSON example parses. Hook examples use only the two events the
+  // guide teaches, each with a command handler; the config example sets a
+  // quiet-hours window of valid HH:MM times.
+  const blocks = [
+    ...g.body.matchAll(/<pre data-lang="json"><code>([\s\S]*?)<\/code>/g),
+  ].map((m) => JSON.parse(decodeEntities(m[1])));
+  const hookFiles = blocks.filter((j) => j.hooks);
+  assert.ok(hookFiles.length >= 2, `only ${hookFiles.length} hook examples`);
+  for (const file of hookFiles) {
+    for (const [event, groups] of Object.entries(file.hooks)) {
+      assert.ok(["Stop", "Notification"].includes(event), `hook ${event}`);
+      for (const group of groups) {
+        for (const h of group.hooks) {
+          assert.equal(h.type, "command", `${event} handler type`);
+          assert.equal(typeof h.command, "string", `${event} has no command`);
+        }
+      }
+    }
+  }
+  const quiet = blocks.find((j) => j.quietHours)?.quietHours;
+  assert.ok(quiet, "no quietHours example");
+  assert.equal(quiet.enabled, true);
+  assert.match(quiet.from, /^([01]\d|2[0-3]):[0-5]\d$/, "quietHours.from");
+  assert.match(quiet.to, /^([01]\d|2[0-3]):[0-5]\d$/, "quietHours.to");
+
+  // Only released behaviour (npm 1.7.1): none of the unreleased features.
+  assert.doesNotMatch(
+    g.body,
+    /minDurationSeconds|\(took |workspace_roots|Per-project override/i,
+    "the guide describes an unreleased feature",
+  );
+
+  const { schemaQs, visibleQs } = faqQuestions(g.body);
+  assert.ok(visibleQs.length >= 7, `only ${visibleQs.length} FAQ questions`);
+  assert.deepEqual(schemaQs, visibleQs, "FAQ JSON-LD differs from the page");
+  for (const topic of [/finishes/, /permission/, /phone/, /Slack/, /night/]) {
+    assert.ok(
+      visibleQs.some((q) => topic.test(q)),
+      `no FAQ question matches ${topic}`,
+    );
+  }
+
+  // Links out to the neighbouring pages.
+  for (const href of [
+    "/guides/claude-code-permission-notifications/",
+    "/guides/claude-code-notification-sound/",
+    "/guides/ntfy-phone-notifications/",
+    "/guides/windows-wsl-notifications/",
+    "/guides/macos-linux-notifications/",
+    "/guides/notifications-not-working/",
+    "/guides/claude-code-usage-limit-notifications/",
+    "/slack/",
+    "/discord/",
+    "/telegram/",
+    "/phone/",
+    "/claude-code/",
+  ]) {
+    assert.ok(g.body.includes(`href="${href}`), `hub does not link ${href}`);
+  }
+
+  // Links in from the pages around it.
+  for (const from of [
+    "/",
+    "/claude-code/",
+    "/docs/",
+    "/guides/",
+    "/guides/claude-code-notification-sound/",
+    "/guides/claude-code-permission-notifications/",
+    "/guides/ntfy-phone-notifications/",
+    "/guides/notifications-not-working/",
+    "/guides/ccnotify/",
+    "/guides/claude-code-auto-compact-warning/",
+  ]) {
+    assert.ok(
+      pages.get(from).body.includes(`href="${hub}"`),
+      `${from} does not link the hub`,
+    );
+  }
+});
+
 test("home: descriptive title and an h1 that reads as one sentence", () => {
   const home = pages.get("/");
   for (const name of ["Claude Code", "Codex", "Cursor", "Gemini"]) {

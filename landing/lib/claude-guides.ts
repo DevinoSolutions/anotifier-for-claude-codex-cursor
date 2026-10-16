@@ -294,7 +294,7 @@ export const CLAUDE_GUIDES: Guide[] = [
       'Set "preferredNotifChannel": "terminal_bell" or add a Stop hook that plays a sound. Per-event sounds, Windows, WSL, Linux, no-sound fixes, and how to mute.',
     h1: "Claude Code notification sound: play one when it finishes, change it, or turn it off",
     intro:
-      'Two ways, with nothing to install: set `"preferredNotifChannel": "terminal_bell"` in `~/.claude/settings.json` to ring the terminal bell, or add a `Stop` hook that plays a sound file, such as `afplay /System/Library/Sounds/Glass.aiff` on macOS. Give the `Notification` hook a different sound and you can tell "done" from "needs you" by ear. Below: [which events deserve a sound](#events), [Windows and WSL](#windows), [Linux players](#linux), [keeping a sound from blocking Claude](#async), [fixes when you hear nothing](#no-sound), and [how to turn the sound off](#mute).',
+      'Two ways, with nothing to install: set `"preferredNotifChannel": "terminal_bell"` in `~/.claude/settings.json` to ring the terminal bell, or add a `Stop` hook that plays a sound file, such as `afplay /System/Library/Sounds/Glass.aiff` on macOS. Give the `Notification` hook a different sound and you can tell "done" from "needs you" by ear. This is the sound half of the [Claude Code notifications guide](/guides/claude-code-notifications/), which covers every alert channel. Below: [which events deserve a sound](#events), [Windows and WSL](#windows), [Linux players](#linux), [keeping a sound from blocking Claude](#async), [fixes when you hear nothing](#no-sound), and [how to turn the sound off](#mute).',
     sections: [
       {
         id: "bell",
@@ -943,7 +943,7 @@ if (typeof win?.used_percentage !== "number") {
   },
   {
     slug: "claude-code-auto-compact-warning",
-    updated: "2026-10-10",
+    updated: "2026-10-16",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code auto-compact warning",
@@ -953,7 +953,7 @@ if (typeof win?.used_percentage !== "number") {
       "Claude Code has no setting that warns before it auto-compacts. Read context_window.total_input_tokens in your statusline, or run npx anotifier setup (1.6.0+).",
     h1: "Get notified before Claude Code auto-compacts your chat",
     intro:
-      "Claude Code has no setting that warns you before it auto-compacts a chat. It does pass the chat's context size to your `statusLine` command as `context_window.total_input_tokens` on stdin, while hook input carries no `context_window` field. So a warning has to live in a statusline script: compare that number with the auto-compact window and send a notification when the chat gets close. Below is a script you can write yourself, then how anotifier 1.6.0 and later does it, once per chat at 85% by default. Unlike usage-limit warnings it needs no Claude.ai subscription, so it works on API-key and proxy sessions too.",
+      "Claude Code has no setting that warns you before it auto-compacts a chat. It does pass the chat's context size to your `statusLine` command as `context_window.total_input_tokens` on stdin, while hook input carries no `context_window` field. So a warning has to live in a statusline script: compare that number with the auto-compact window and send a notification when the chat gets close. Below is a script you can write yourself, then how anotifier 1.6.0 and later does it, once per chat at 85% by default. Unlike usage-limit warnings it needs no Claude.ai subscription, so it works on API-key and proxy sessions too. For an alert when Claude finishes or needs you, see the [Claude Code notifications guide](/guides/claude-code-notifications/).",
     sections: [
       {
         id: "what",

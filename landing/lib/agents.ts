@@ -111,7 +111,7 @@ powershell.exe -Command "[System.Reflection.Assembly]::LoadWithPartialName('Syst
 export const AGENTS: Agent[] = [
   {
     slug: "claude-code",
-    updated: "2026-10-15",
+    updated: "2026-10-16",
     name: "Claude Code",
     linkText: "Claude Code notifier",
     title: "Claude Code Notifier — Desktop, Phone & Slack Alerts",
@@ -187,7 +187,7 @@ export const AGENTS: Agent[] = [
           },
           {
             kind: "p",
-            text: "Pick by what you need to reach. One platform and one editor: a companion app or an extension may fit better. More than one OS, your phone or a chat channel, or more than one agent: a hook-based tool like anotifier covers them with one install. For how each hook option works, the [guide to every option](/guides/claude-code-notifications/) walks through them.",
+            text: "Pick by what you need to reach. One platform and one editor: a companion app or an extension may fit better. More than one OS, your phone or a chat channel, or more than one agent: a hook-based tool like anotifier covers them with one install. For how each hook option works, the [Claude Code notification guide](/guides/claude-code-notifications/) walks through them.",
           },
         ],
       },

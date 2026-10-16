@@ -587,7 +587,7 @@ export const TOPIC_GUIDES: Guide[] = [
       "Not getting alerts from Claude Code, Codex, Cursor or Gemini CLI? Check hooks, restarts, snooze, quiet hours, toast backends and ntfy, in that order.",
     h1: "Notifications not arriving? Work through this list",
     intro:
-      "When a notification doesn't show up, the cause is almost always one of a few things: the hook isn't wired, the agent wasn't restarted, notifications are paused, or the operating system is hiding the banner. anotifier has three commands that tell you which: `status`, `test`, and `doctor`. Start at the top and stop when you find it.",
+      "When a notification doesn't show up, the cause is almost always one of a few things: the hook isn't wired, the agent wasn't restarted, notifications are paused, or the operating system is hiding the banner. anotifier has three commands that tell you which: `status`, `test`, and `doctor`. Start at the top and stop when you find it. For how the Claude Code hooks work in the first place, see the [Claude Code notifications guide](/guides/claude-code-notifications/).",
     sections: [
       {
         id: "status",
@@ -774,7 +774,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "ntfy-phone-notifications",
-    updated: "2026-10-06",
+    updated: "2026-10-16",
     kind: "topic",
     name: "ntfy phone push",
     title: "Claude Code Phone Notifications with ntfy: Free, No Account",
@@ -782,7 +782,7 @@ export const TOPIC_GUIDES: Guide[] = [
       "Install the ntfy app, subscribe to a private topic, run npx anotifier setup: Claude Code, Codex, Cursor and Gemini CLI push to your phone when done or waiting.",
     h1: "Phone push for your coding agents, with ntfy",
     intro:
-      "[ntfy](https://ntfy.sh) is a free, open-source push service: you subscribe to a topic in the ntfy app, and anything posted to that topic arrives on your phone. There is no account to create. anotifier uses it as its phone channel, so a finished run or a pending approval reaches you away from your desk.",
+      "[ntfy](https://ntfy.sh) is a free, open-source push service: you subscribe to a topic in the ntfy app, and anything posted to that topic arrives on your phone. There is no account to create. anotifier uses it as its phone channel, so a finished run or a pending approval reaches you away from your desk. For the Claude Code side, the [Claude Code notifications guide](/guides/claude-code-notifications/) shows the `Stop` and `Notification` hooks that feed it.",
     sections: [
       {
         id: "setup",
