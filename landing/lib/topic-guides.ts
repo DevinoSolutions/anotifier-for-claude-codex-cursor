@@ -777,25 +777,63 @@ export const TOPIC_GUIDES: Guide[] = [
     updated: "2026-10-16",
     kind: "topic",
     name: "ntfy phone push",
-    title: "Claude Code Phone Notifications with ntfy: Free, No Account",
+    title: "Claude Code ntfy: Phone Alerts When Your Agent Finishes",
     description:
-      "Install the ntfy app, subscribe to a private topic, run npx anotifier setup: Claude Code, Codex, Cursor and Gemini CLI push to your phone when done or waiting.",
-    h1: "Phone push for your coding agents, with ntfy",
+      "Claude Code ntfy setup: install the ntfy app, run npx anotifier setup, or add a Stop hook with curl. Private topics, self-hosting, priority and fixes.",
+    h1: "Claude Code ntfy: push to your phone when the agent finishes",
     intro:
-      "[ntfy](https://ntfy.sh) is a free, open-source push service: you subscribe to a topic in the ntfy app, and anything posted to that topic arrives on your phone. There is no account to create. anotifier uses it as its phone channel, so a finished run or a pending approval reaches you away from your desk. For the Claude Code side, the [Claude Code notifications guide](/guides/claude-code-notifications/) shows the `Stop` and `Notification` hooks that feed it.",
+      "To get Claude Code to push to your phone through [ntfy](https://ntfy.sh), install the ntfy app, run `npx anotifier@latest setup`, answer yes to phone notifications, and subscribe to the topic it prints. The same topic also carries Codex, Cursor and Gemini CLI. Prefer no tool at all? A `Stop` hook that runs `curl` against your topic does the same for Claude Code alone. ntfy is a free, open-source push service: anything posted to a topic arrives in the app, and there is no account to create. For the hook side in more depth, see the [Claude Code notifications guide](/guides/claude-code-notifications/).",
     sections: [
       {
         id: "setup",
-        title: "Set it up in two minutes",
+        title: "Quick setup: Claude Code to your phone in two minutes",
         blocks: [
           {
             kind: "ol",
             items: [
               "Install the ntfy app on Android (Google Play or F-Droid) or iOS (App Store).",
-              "Run `npx anotifier@latest setup` and answer yes to **Enable phone notifications via ntfy?** Keep the default server, `https://ntfy.sh`, and the generated topic: `anotifier-` followed by 16 random letters and digits.",
+              "Run `npx anotifier@latest setup` and answer yes to **Enable phone notifications via ntfy?** Keep the default server, `https://ntfy.sh`, and the generated topic: `anotifier-` followed by 16 random letters and digits. You can type your own topic instead, as long as it is long and hard to guess.",
               "Setup prints the topic and its URL. In the app, subscribe to that topic name.",
               "Run `anotifier test ntfy`. Your phone should buzz within a second.",
             ],
+          },
+          {
+            kind: "p",
+            text: "Setup writes the choice to `~/.anotifier/config.json`. You can also edit it yourself, or run `anotifier config ntfy` to change the server, topic, icon and click URL:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: '{\n  "ntfy": {\n    "enabled": true,\n    "server": "https://ntfy.sh",\n    "topic": "anotifier-k3j9x0w7p2m8q4zt"\n  }\n}',
+          },
+        ],
+      },
+      {
+        id: "by-hand",
+        title: "By hand: a Claude Code hook that posts to ntfy",
+        blocks: [
+          {
+            kind: "p",
+            text: "Claude Code runs hooks from `~/.claude/settings.json`. The `Stop` hook fires when Claude finishes responding, and the `Notification` hook fires when it needs you; its `matcher` is the notification type, such as `permission_prompt` or `idle_prompt`. Each hook can run `curl` against your topic:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: '{\n  "hooks": {\n    "Stop": [\n      {\n        "hooks": [\n          {\n            "type": "command",\n            "command": "curl -s -o /dev/null -H \'Title: Claude Code\' -d \'Task complete\' https://ntfy.sh/your-long-random-topic"\n          }\n        ]\n      }\n    ],\n    "Notification": [\n      {\n        "matcher": "permission_prompt",\n        "hooks": [\n          {\n            "type": "command",\n            "command": "curl -s -o /dev/null -H \'Title: Claude Code\' -H \'Priority: urgent\' -H \'Tags: warning\' -d \'Needs your permission\' https://ntfy.sh/your-long-random-topic"\n          }\n        ]\n      }\n    ]\n  }\n}',
+          },
+          {
+            kind: "ul",
+            items: [
+              "Replace `your-long-random-topic` with a name nobody could guess, and subscribe to it in the app.",
+              "`-s -o /dev/null` keeps ntfy's JSON reply off the hook's output. That suits a Unix shell; in Windows PowerShell 5.1 run `curl.exe`, because `curl` is an alias for `Invoke-WebRequest` there.",
+              "Use fixed text like the above. Anyone who knows a public ntfy.sh topic can read it, so keep conversation content out of the body.",
+              "Add a `Notification` entry per type you care about. Without a `matcher`, the hook runs for every notification type, including ones that wait on nothing, such as a finished login.",
+              "Codex, Cursor and Gemini CLI have their own hook files. The [agent hooks guide](/guides/agent-hooks-explained/) lists where each one lives.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "That is the whole mechanism. anotifier adds the project name to the title, a sensible priority per event, a quieter idle reminder, snooze and quiet hours, one setup for every agent, and a fallback server.",
           },
         ],
       },
@@ -814,6 +852,11 @@ export const TOPIC_GUIDES: Guide[] = [
                 "default",
                 "`hourglass_flowing_sand`",
               ],
+              [
+                "Claude Code notice that waits on nothing, such as a finished background agent",
+                "default",
+                "`information_source`",
+              ],
               ["Session start", "not sent", "None"],
             ],
           },
@@ -824,16 +867,52 @@ export const TOPIC_GUIDES: Guide[] = [
         ],
       },
       {
+        id: "priority",
+        title: "Priority and tags",
+        blocks: [
+          {
+            kind: "p",
+            text: "ntfy has five priorities, set with the `Priority` header (aliases `X-Priority`, `prio` and `p`): `5` or `max`/`urgent`, `4` high, `3` default, `2` low and `1` min. Tags go in the `Tags` header (alias `X-Tags`); a tag that matches an emoji short code, like `warning`, is shown as that emoji.",
+          },
+          {
+            kind: "p",
+            text: "In anotifier both are per event in `~/.anotifier/config.json`. `priority` takes `min`, `low`, `default`, `high` or `urgent`, `ntfyTags` is a comma-separated list, and `ntfyEnabled: false` turns the phone push off for one event:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: '{\n  "events": {\n    "task_complete": { "priority": "low", "ntfyTags": "tada" },\n    "needs_input": { "priority": "high", "idleReminderPriority": "min" },\n    "session_start": { "ntfyEnabled": true }\n  }\n}',
+          },
+          {
+            kind: "p",
+            text: "`idleReminderPriority` sets the level of Claude Code's idle reminder, which is `default` unless you change it.",
+          },
+        ],
+      },
+      {
         id: "private",
-        title: "Keep the topic private",
+        title: "Private topics and access tokens",
         blocks: [
           {
             kind: "ul",
             items: [
-              "On ntfy.sh, a topic is readable by anyone who knows its name. The generated 16-character name is hard to guess; don't replace it with something short like `claude`.",
+              "On ntfy.sh, a topic with no access rules is readable by anyone who knows its name: ntfy's FAQ says the topic name is your password, and a randomly generated one is as good as a good password. The generated 16-character name is hard to guess; don't replace it with something short like `claude`.",
               "Keep the topic out of public issues and screenshots. `anotifier status` prints the full ntfy URL.",
               "Want Claude's actual words on your phone? Run your own ntfy server and turn on `richContent` for it (below).",
             ],
+          },
+          {
+            kind: "p",
+            text: "ntfy can also protect a topic with a username and password or an access token (`Authorization: Bearer tk_…`). anotifier (as of 1.7.1) has no config key for either: it never sends an `Authorization` header to ntfy, so the server has to accept anonymous publishing to your topic. The pattern that keeps your messages private on your own server is to deny anonymous reads and allow anonymous writes to that one topic (`server.yml`, then the `ntfy` command), and to sign in to the server in the ntfy app as that user so your phone can read:",
+          },
+          {
+            kind: "code",
+            lang: "yaml",
+            code: '# server.yml\nauth-file: "/var/lib/ntfy/user.db"\nauth-default-access: "deny-all"\n\n# then, on the server\nntfy user add phone\nntfy access phone anotifier-your-topic read-only\nntfy access everyone anotifier-your-topic write-only',
+          },
+          {
+            kind: "p",
+            text: "Anyone who learns the topic name can then post to it, but cannot read it. The by-hand hook above has no such limit: add `-H 'Authorization: Bearer tk_…'` to its `curl` and it publishes to a protected topic.",
           },
         ],
       },
@@ -844,16 +923,33 @@ export const TOPIC_GUIDES: Guide[] = [
           {
             kind: "code",
             lang: "json",
-            code: '{\n  "ntfy": {\n    "enabled": true,\n    "server": "https://ntfy.example.com",\n    "topic": "anotifier-your-topic",\n    "click": "",\n    "richContent": true\n  }\n}',
+            code: '{\n  "ntfy": {\n    "enabled": true,\n    "server": "https://ntfy.example.com",\n    "fallbackServer": "https://ntfy.sh",\n    "topic": "anotifier-your-topic",\n    "click": "",\n    "richContent": true\n  }\n}',
           },
           {
             kind: "ul",
             items: [
-              "Any ntfy server works, over https or http; a trailing slash is ignored.",
+              "Any ntfy server works, over https or http; a trailing slash is ignored. Include the scheme: a bare `ntfy.example.com` is logged as an invalid URL.",
+              "`fallbackServer` (1.7.0 and later) is a second server for the same topic. If `server` is unreachable, times out or answers with an error such as a 429 limit, the same push is sent there once. Subscribe your phone to the topic on both servers. A fallback shortens each attempt from 5 to 3 seconds, and if the main server accepts a push but answers slowly, the fallback sends it too, so a phone subscribed on both can buzz twice.",
               "`click` is an optional URL to open when you tap the notification.",
-              "`anotifier config ntfy` edits the server, topic, icon, and click URL interactively. `richContent` is only set in `~/.anotifier/config.json`.",
-              "anotifier doesn't send ntfy access tokens, so the server must allow anonymous publishing to your topic.",
+              "`anotifier config ntfy` edits the server, topic, icon, and click URL interactively. `fallbackServer` and `richContent` are only set in `~/.anotifier/config.json`.",
+              'On iOS, a self-hosted server needs `upstream-base-url: "https://ntfy.sh"` in its `server.yml`, or notifications can take hours to arrive. Only a poll request with a message ID goes upstream, not the message.',
+              "Setting up the server itself is covered in [ntfy's install docs](https://docs.ntfy.sh/install/): `ntfy serve`, or the `binwiederhier/ntfy` Docker image.",
             ],
+          },
+        ],
+      },
+      {
+        id: "test",
+        title: "Test it with one line of curl",
+        blocks: [
+          {
+            kind: "code",
+            lang: "bash",
+            code: "curl -H 'Title: Test' -H 'Priority: urgent' -H 'Tags: warning' -d 'Hello from curl' https://ntfy.sh/your-long-random-topic",
+          },
+          {
+            kind: "p",
+            text: "If that arrives, the app and topic are right and any remaining problem is in the hook. Then check anotifier itself: `anotifier test ntfy` sends a test push through your real config and prints `ntfy sent`, `ntfy failed` or `ntfy not configured`. If only the fallback delivered it, the output says so. `anotifier test` ignores snooze and quiet hours, so it works while notifications are paused. In Windows PowerShell 5.1, run the curl line as `curl.exe`.",
           },
         ],
       },
@@ -865,8 +961,12 @@ export const TOPIC_GUIDES: Guide[] = [
             kind: "ul",
             items: [
               "`anotifier test ntfy` prints `ntfy not configured` if ntfy was skipped during setup: run setup again, or `anotifier config ntfy`.",
-              "`ntfy failed`: check the server URL, then look in `~/.anotifier/errors.log` for `ntfy server responded <code>` or a timeout (anotifier gives ntfy 5 seconds).",
-              "ntfy.sh is a free public service with its own usage limits; normal agent traffic stays well below them, but a script firing many pushes can hit them. A self-hosted server has whatever limits you set.",
+              "`ntfy failed`: check the server URL, then look in `~/.anotifier/errors.log` for `ntfy server responded <code>`, `ntfy server is not a valid URL` or a timeout (anotifier gives ntfy 5 seconds, or 3 with a fallback server).",
+              "A topic typo is the commonest cause. `anotifier status` prints the exact server and topic anotifier posts to; compare it character by character with the subscription in the app.",
+              "iOS is slow or shows only `New message`: on a self-hosted server, set `upstream-base-url` as above. ntfy's docs say that without it notifications can take hours, and `New message` usually means the iPhone cannot reach your server. ntfy also lists a known iOS issue where the list does not refresh until you swipe down.",
+              'Android is delayed on a self-hosted server: the Google Play app uses Firebase only for ntfy.sh, so for your own server it relies on instant delivery, a foreground service shown as a permanent notification. Without it messages "may arrive with a significant delay" (sometimes many minutes, or even hours). The F-Droid build always uses instant delivery.',
+              "Everything is silent at once: `anotifier snooze` and quiet hours silence every channel, ntfy included. `anotifier status` shows the state.",
+              "ntfy.sh is a free public service with its own limits, such as 250 messages a day; normal agent traffic stays well below them, but a script firing many pushes can hit them. Set a `fallbackServer`, or run your own server, whose limits you choose.",
               "The test arrives but real events don't: the hook is the problem. See the [troubleshooting guide](/guides/notifications-not-working/).",
             ],
           },
@@ -875,12 +975,24 @@ export const TOPIC_GUIDES: Guide[] = [
     ],
     faqs: [
       {
-        q: "Is ntfy free?",
-        a: "Yes. ntfy is open source, the public ntfy.sh server is free to use, and you can run your own server instead.",
+        q: "How do I get Claude Code to send ntfy notifications?",
+        a: "Install the ntfy app, run npx anotifier@latest setup and answer yes to phone notifications, then subscribe to the topic it prints. Or add a Stop hook to ~/.claude/settings.json that runs curl -d 'Task complete' against https://ntfy.sh/your-topic.",
       },
       {
-        q: "Do I need an ntfy account?",
-        a: "No. You subscribe to a topic name in the app; there is nothing to sign up for.",
+        q: "Is ntfy free, and do I need an account?",
+        a: "ntfy is open source, the public ntfy.sh server is free to use, and you can run your own server instead. You subscribe to a topic name in the app; there is nothing to sign up for.",
+      },
+      {
+        q: "Does this work for Codex, Cursor and Gemini CLI too?",
+        a: "Yes. Setup wires every agent it finds to the same ntfy topic, so all of them land in one stream. Their alerts carry generic text, and the title names the project where the agent reports one.",
+      },
+      {
+        q: "Can I use an ntfy access token or password?",
+        a: "Not in anotifier (as of 1.7.1), which sends no Authorization header to ntfy. Use a server that allows anonymous writes to your topic and denies anonymous reads. Your own curl hook can send a Bearer token.",
+      },
+      {
+        q: "Can I use my own ntfy server?",
+        a: "Yes. Set ntfy.server in ~/.anotifier/config.json, and optionally ntfy.fallbackServer, which is tried once if the main server fails. On iOS, set upstream-base-url on your server.",
       },
       {
         q: "Can several machines use the same topic?",
@@ -888,7 +1000,7 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "Can I approve a Codex or Claude Code permission from my phone?",
-        a: "Not with anotifier today. The urgent push gets you back to the keyboard fast; the decision itself stays in the terminal.",
+        a: "Not with anotifier (as of 1.7.1). The urgent push gets you back to the keyboard fast; the decision itself stays in the terminal.",
       },
     ],
   },

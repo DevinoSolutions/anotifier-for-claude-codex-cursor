@@ -401,7 +401,7 @@ export const CHANNELS: Channel[] = [
   },
   {
     slug: "phone",
-    updated: "2026-09-11",
+    updated: "2026-10-16",
     name: "Phone push",
     kind: "ntfy",
     title: "Phone Push for Claude Code & AI Coding Agents — anotifier",
@@ -450,7 +450,7 @@ export const CHANNELS: Channel[] = [
       {
         q: "Can people see my notifications on the public ntfy server?",
         aHtml:
-          '<p>By default no content leaks. <code>ntfy.richContent</code> is off, so on the public ntfy.sh server your phone only sees generic text like "task complete", never conversation content. Turn on rich push only on a private ntfy server you control.</p>',
+          '<p>By default no content leaks. <code>ntfy.richContent</code> is off, so on the public ntfy.sh server your phone only sees generic text like "task complete", never conversation content. Turn on rich push only on a private ntfy server you control. The <a href="/guides/ntfy-phone-notifications/#private">ntfy guide</a> covers private topics, access tokens and self-hosting.</p>',
       },
       {
         q: "Do I need an account or a paid plan?",
