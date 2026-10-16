@@ -61,9 +61,11 @@ export function buildErrorEvent({ context, error, extra }) {
 // `{ ok, status }` where `ok` is a 2xx and `status` is the HTTP status, or 0
 // when no response was obtained (bad DSN, network failure, timeout). Never
 // throws — Sentry is an observability mirror, not a dependency of the
-// notification path. The status lets a caller tell "our client failed" apart
+// notification path. A timeout resolves `{ ok: false, status: 0, timedOut: true }`
+// so latency can be told apart from a connection error. `opts.timeoutMs`
+// overrides the hook-safe default. The status lets a caller tell "our client failed" apart
 // from "the server is up but refusing" (5xx), which the live test needs.
-export function sendSentryEnvelope(sentryConfig, { context, error, extra }) {
+export function sendSentryEnvelope(sentryConfig, { context, error, extra }, { timeoutMs = SEND_TIMEOUT_MS } = {}) {
   return new Promise((resolve) => {
     const dsn = parseSentryDsn(sentryConfig?.dsn || '');
     if (!dsn) { resolve({ ok: false, status: 0 }); return; }
@@ -85,7 +87,7 @@ export function sendSentryEnvelope(sentryConfig, { context, error, extra }) {
         'Content-Type': 'application/x-sentry-envelope',
         'X-Sentry-Auth': `Sentry sentry_version=7, sentry_client=${pkg.name}/${pkg.version}, sentry_key=${dsn.publicKey}`,
       },
-      timeout: SEND_TIMEOUT_MS,
+      timeout: timeoutMs,
     }, (res) => {
       res.resume(); // drain
       const status = res.statusCode || 0;
@@ -93,7 +95,7 @@ export function sendSentryEnvelope(sentryConfig, { context, error, extra }) {
     });
 
     req.on('error', () => resolve({ ok: false, status: 0 }));
-    req.on('timeout', () => { req.destroy(); resolve({ ok: false, status: 0 }); });
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, status: 0, timedOut: true }); });
     req.end(envelope);
   });
 }

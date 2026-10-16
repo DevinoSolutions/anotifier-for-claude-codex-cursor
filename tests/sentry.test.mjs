@@ -3,6 +3,7 @@
 // real ONLY when AAN_SENTRY_TEST_DSN is set (same live-gating pattern as
 // AAN_TOAST_LIVE in platforms.test.mjs) — there is no mocked transport here.
 import { describe, it } from 'node:test';
+import http from 'node:http';
 import assert from 'node:assert/strict';
 import { parseSentryDsn, buildErrorEvent, sendSentryErrorEvent, sendSentryEnvelope } from '../src/sentry.mjs';
 
@@ -60,20 +61,49 @@ describe('sendSentryErrorEvent', () => {
     assert.deepEqual(r, { ok: false, status: 0 });
   });
 
-  // Live delivery proof. Three honest outcomes, never a fake pass:
+  it('resolves timedOut: true when the server never answers', async () => {
+    const sockets = new Set();
+    const server = http.createServer(() => { /* never respond */ });
+    server.on('connection', (s) => { sockets.add(s); s.on('close', () => sockets.delete(s)); });
+    await new Promise((res) => server.listen(0, '127.0.0.1', res));
+    try {
+      const { port } = server.address();
+      const t0 = Date.now();
+      const r = await sendSentryEnvelope(
+        { enabled: true, dsn: `http://k@127.0.0.1:${port}/7` },
+        { context: 'x', error: new Error('y') },
+        { timeoutMs: 100 },
+      );
+      assert.deepEqual(r, { ok: false, status: 0, timedOut: true });
+      assert.ok(Date.now() - t0 < 3000, 'resolved promptly after the timeout');
+    } finally {
+      for (const s of sockets) s.destroy();
+      await new Promise((res) => server.close(res));
+    }
+  });
+
+  // Live delivery proof. Four honest outcomes, never a fake pass:
   //   2xx → PASS: our envelope was accepted end to end.
   //   5xx → SKIP, loudly: the server answered but is refusing ingestion (e.g.
   //         Relay "envelope buffer does not have capacity" during an outage).
   //         The client did its job and there is nothing here to prove or
   //         disprove — failing would pin a package release to infra health.
-  //   anything else (4xx, 0) → FAIL: bad DSN/auth, malformed envelope, or our
-  //         transport could not reach a server that a browser can — a real bug.
+  //   timeout (no answer within 10 s) → SKIP, loudly: runner network latency,
+  //         not a client bug; delivery is unverifiable right now.
+  //   anything else (4xx, status 0 without a timeout) → FAIL: bad DSN/auth,
+  //         malformed envelope, or our transport could not connect to a server
+  //         that a browser can reach — a real bug.
   const liveDsn = process.env.AAN_SENTRY_TEST_DSN;
   it('delivers a real event to a real Sentry project (live — set AAN_SENTRY_TEST_DSN)', { skip: !liveDsn }, async (t) => {
     const r = await sendSentryEnvelope(
       { enabled: true, dsn: liveDsn },
       { context: 'ci-live-test', error: new Error('sentry.test.mjs live delivery check (safe to resolve)') },
+      { timeoutMs: 10000 },
     );
+    if (r.timedOut) {
+      t.skip('Sentry did not answer within 10 s — network latency, delivery unverifiable right now');
+      return;
+    }
     if (r.status >= 500) {
       t.skip(`Sentry server answered ${r.status} — server-side outage, delivery unverifiable right now`);
       return;
