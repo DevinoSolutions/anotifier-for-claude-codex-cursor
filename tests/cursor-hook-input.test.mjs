@@ -122,7 +122,16 @@ describe('parseInput: Cursor hook input fields', () => {
       assert.equal(cursor({ reason: 'error' }, 'stop').runStatus, '', 'a stop reads status only');
     });
 
-    it('is ignored for every other agent', () => {
+    it('workspace_roots and conversation_id are ignored for every other agent', () => {
+      for (const source of ['claude', 'codex', 'gemini', 'antigravity']) {
+        const r = parseInput({ workspace_roots: ['/code/app'], conversation_id: 'c1' }, source, 'Stop');
+        assert.equal(r.cwd, '', source);
+        assert.equal(r.projectName, '', source);
+        assert.equal(r.sessionId, '', source);
+      }
+    });
+
+    it('status is ignored for every other agent', () => {
       for (const source of ['claude', 'codex', 'gemini', 'antigravity']) {
         assert.equal(parseInput({ status: 'error', reason: 'error' }, source, 'Stop').runStatus, '', source);
       }
@@ -207,7 +216,7 @@ describe('notify.mjs with a Cursor stop (real subprocess, real local HTTP server
   }
 
   // Async spawn: the server lives on this process's event loop.
-  function runHook(home, payload) {
+  function runHook(home, payload, prefix = '') {
     const env = { ...process.env, HOME: home, USERPROFILE: home };
     return new Promise((resolve, reject) => {
       const child = spawn(process.execPath, ['src/notify.mjs', '--source', 'cursor', '--event', 'stop'], { cwd: repoRoot, env });
@@ -217,7 +226,7 @@ describe('notify.mjs with a Cursor stop (real subprocess, real local HTTP server
       child.stderr.on('data', (d) => { stderr += d; });
       child.on('error', reject);
       child.on('close', (status) => resolve({ status, stdout, stderr }));
-      child.stdin.end(JSON.stringify(payload));
+      child.stdin.end(prefix + JSON.stringify(payload));
     });
   }
 
@@ -247,6 +256,18 @@ describe('notify.mjs with a Cursor stop (real subprocess, real local HTTP server
     assert.equal(res.status, 0, res.stderr);
     assert.equal(received.length, 1, JSON.stringify(received));
     assert.equal(JSON.parse(received[0].body).message, 'Task complete');
+  });
+
+  it('a UTF-8 BOM before the JSON does not drop the payload', async () => {
+    const home = makeHome();
+    const res = await runHook(home, stop('conv-bom'), '﻿');
+    const logPath = path.join(home, '.anotifier', 'errors.log');
+    const log = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : '';
+    fs.rmSync(home, { recursive: true, force: true });
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(received.length, 1, JSON.stringify(received));
+    assert.equal(JSON.parse(received[0].body).message, 'my-app: Task complete');
+    assert.equal(log, '', 'a BOM is not a malformed payload');
   });
 
   it('error: sends "Task failed", never "Task complete"', async () => {

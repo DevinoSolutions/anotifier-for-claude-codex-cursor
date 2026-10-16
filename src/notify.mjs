@@ -133,7 +133,9 @@ async function main() {
 
     let raw;
     try {
-      raw = JSON.parse(stdinData);
+      // Cursor on Windows can prefix stdin with a UTF-8 BOM, which JSON.parse
+      // rejects, dropping the whole payload.
+      raw = JSON.parse(stdinData.replace(/^﻿/, ''));
     } catch {
       raw = {};
       logHookError('stdin', new Error('malformed hook stdin JSON'), { source: args.source, bytes: stdinData.length });

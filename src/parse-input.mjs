@@ -90,7 +90,9 @@ export function parseInput(raw, source, eventOverride) {
   // The project folder: cwd, else the first workspace folder (workspacePaths for
   // Antigravity, workspace_roots for Cursor). Each is used only when it is a
   // string, so an odd payload reads as "no project" instead of crashing.
-  const workspace = firstString(raw.workspacePaths) || firstString(raw.workspace_roots);
+  // workspace_roots is read for Cursor only, so other agents parse as before.
+  const workspace = firstString(raw.workspacePaths)
+    || (source === 'cursor' ? firstString(raw.workspace_roots) : '');
   const cwd = (typeof raw.cwd === 'string' && raw.cwd) || workspace;
   const map = EVENT_MAP[source] || {};
 
@@ -102,7 +104,7 @@ export function parseInput(raw, source, eventOverride) {
     // Cursor names it conversation_id (stable across a chat's turns), which makes
     // the dedup lock per conversation instead of global.
     sessionId: raw.session_id || raw.sessionId || raw.conversationId
-      || (typeof raw.conversation_id === 'string' ? raw.conversation_id : ''),
+      || (source === 'cursor' && typeof raw.conversation_id === 'string' ? raw.conversation_id : ''),
     // Codex names the turn on both its prompt and its Stop hook; the turn timer
     // refuses to pair a start and a finish that disagree.
     turnId: typeof raw.turn_id === 'string' ? raw.turn_id : '',
