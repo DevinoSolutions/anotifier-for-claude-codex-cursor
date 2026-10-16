@@ -1,35 +1,19 @@
 import type { ReactNode } from "react";
+import BrandIcon, { type IconName } from "./BrandIcon";
 
-const iconBase = {
-  xmlns: "http://www.w3.org/2000/svg",
-  width: "16",
-  height: "16",
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "#59d499",
-  strokeWidth: "1.6",
-  style: { marginLeft: "auto", opacity: 0.9 } as React.CSSProperties,
-} as const;
+type Feature = { title: string; icon: IconName; body: ReactNode };
 
-const features: { title: string; icon: ReactNode; body: ReactNode }[] = [
+// The four ways an alert reaches you get the large cards; what rides along
+// with them is a plainer row underneath, so the section has two levels.
+const channels: Feature[] = [
   {
-    title: "[+] desktop toasts",
-    icon: (
-      <svg {...iconBase} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-        <path d="M10.3 21a2 2 0 0 0 3.4 0" />
-      </svg>
-    ),
+    title: "desktop toasts",
+    icon: "desktop",
     body: "BurntToast on Windows, Notification Center on macOS, libnotify on Linux. WSL routes to real Windows toasts — no Linux daemon needed.",
   },
   {
-    title: "[+] phone push ",
-    icon: (
-      <svg {...iconBase} strokeLinecap="round" strokeLinejoin="round">
-        <rect x="7" y="2" width="10" height="20" rx="2.5" />
-        <path d="M11 18.5h2" />
-      </svg>
-    ),
+    title: "phone push",
+    icon: "phone",
     body: (
       <>
         Android &amp; iOS via ntfy — free, no account. All your agents&apos;
@@ -38,24 +22,21 @@ const features: { title: string; icon: ReactNode; body: ReactNode }[] = [
     ),
   },
   {
-    title: "[+] webhooks ",
-    icon: (
-      <svg {...iconBase} strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="18" cy="5" r="2.5" />
-        <circle cx="6" cy="12" r="2.5" />
-        <circle cx="18" cy="19" r="2.5" />
-        <path d="M8.2 10.9l7.6-4.4M8.2 13.1l7.6 4.4" />
-      </svg>
-    ),
+    title: "webhooks",
+    icon: "link",
     body: "Slack, Discord, Telegram, or any HTTP endpoint — with an optional auth header. Payload shaped per format.",
   },
   {
-    title: "[+] rich content ",
-    icon: (
-      <svg {...iconBase} strokeLinecap="round">
-        <path d="M4 6h16M4 10h16M4 14h10M4 18h7" />
-      </svg>
-    ),
+    title: "terminal bell",
+    icon: "terminal",
+    body: "An audible ding in the terminal that launched the agent. Works over SSH, in tmux, and in GNU screen.",
+  },
+];
+
+const extras: Feature[] = [
+  {
+    title: "rich content",
+    icon: "lines",
     body: (
       <>
         Toasts show what Claude actually said or asked — read from the
@@ -64,44 +45,18 @@ const features: { title: string; icon: ReactNode; body: ReactNode }[] = [
     ),
   },
   {
-    title: "[+] approval alerts ",
-    icon: (
-      <svg {...iconBase} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2l8 3.5V12c0 4.8-3.4 8.3-8 10-4.6-1.7-8-5.2-8-10V5.5z" />
-        <path d="M12 8v4.5" />
-        <path d="M12 15.5v.01" />
-      </svg>
-    ),
+    title: "approval alerts",
+    icon: "approval",
     body: "Get pinged the instant Codex asks permission to run a command — not twenty minutes later when you check back.",
   },
   {
-    title: "[+] terminal bell ",
-    icon: (
-      <svg {...iconBase} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 18V5l11-2v13" />
-        <circle cx="6.5" cy="18" r="2.5" />
-        <circle cx="17.5" cy="16" r="2.5" />
-      </svg>
-    ),
-    body: "An audible ding in the terminal that launched the agent. Works over SSH, in tmux, and in GNU screen.",
-  },
-  {
-    title: "[+] click-to-focus ",
-    icon: (
-      <svg {...iconBase} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 3l7.5 18 2.2-7.8L21.5 11z" />
-      </svg>
-    ),
+    title: "click-to-focus",
+    icon: "focus",
     body: "Click the toast to jump straight back to the terminal or VS Code window that fired it (Windows).",
   },
   {
-    title: "[+] zero dependencies ",
-    icon: (
-      <svg {...iconBase} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 8l-9-5-9 5v8l9 5 9-5z" />
-        <path d="M3 8l9 5 9-5M12 13v9" />
-      </svg>
-    ),
+    title: "zero dependencies",
+    icon: "cube",
     body: (
       <>
         Pure Node.js built-ins, no npm production packages. One shared config at{" "}
@@ -119,6 +74,18 @@ const features: { title: string; icon: ReactNode; body: ReactNode }[] = [
     ),
   },
 ];
+
+const titleStyle: React.CSSProperties = {
+  fontFamily: "var(--font-mono-stack)",
+  fontSize: "13px",
+  color: "#f4f4f6",
+};
+
+const bodyStyle: React.CSSProperties = {
+  fontSize: "14px",
+  lineHeight: 1.6,
+  color: "#9c9c9d",
+};
 
 export default function Features() {
   return (
@@ -149,38 +116,70 @@ export default function Features() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
+          gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
           gap: "16px",
         }}
       >
-        {features.map((f) => (
+        {channels.map((f) => (
           <div
             key={f.title}
-            className="hovCard"
+            className="hovBorder"
             style={{
               background: "#0d0d0d",
               border: "1px solid #242728",
-              borderRadius: "10px",
-              padding: "22px",
-              transition: "border-color 0.2s, transform 0.2s",
+              borderRadius: "12px",
+              padding: "24px",
+              transition: "border-color 0.2s",
             }}
           >
-            <div
+            <span
               style={{
-                fontFamily: "var(--font-mono-stack)",
-                fontSize: "13px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "44px",
+                height: "44px",
+                marginBottom: "20px",
                 color: "#59d499",
-                marginBottom: "10px",
+                background: "#101111",
+                border: "1px solid #242728",
+                borderRadius: "10px",
               }}
             >
-              {f.title}
-              {f.icon}
-            </div>
+              <BrandIcon name={f.icon} size={24} />
+            </span>
+            <div style={{ ...titleStyle, marginBottom: "8px" }}>{f.title}</div>
+            <div style={bodyStyle}>{f.body}</div>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
+          gap: "28px 32px",
+          marginTop: "40px",
+          paddingTop: "32px",
+          borderTop: "1px solid #17181b",
+        }}
+      >
+        {extras.map((f) => (
+          <div key={f.title}>
             <div
-              style={{ fontSize: "14px", lineHeight: 1.6, color: "#9c9c9d" }}
+              style={{
+                ...titleStyle,
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                marginBottom: "8px",
+              }}
             >
-              {f.body}
+              <span style={{ color: "#59d499", display: "flex" }}>
+                <BrandIcon name={f.icon} size={18} />
+              </span>
+              {f.title}
             </div>
+            <div style={bodyStyle}>{f.body}</div>
           </div>
         ))}
       </div>

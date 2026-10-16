@@ -136,33 +136,6 @@
     background-position: 0 60px;
   }
 }
-@keyframes orbFloat1 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(70px, -46px) scale(1.12);
-  }
-}
-@keyframes orbFloat2 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-60px, 44px) scale(1.1);
-  }
-}
-@keyframes orbFloat3 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(40px, 50px) scale(0.92);
-  }
-}
 @keyframes sndRing {
   0% {
     transform: scale(0.5);
@@ -189,8 +162,21 @@
   padding: 8px 16px;
 }
 .hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
   gap: 56px;
   padding: 72px 24px 96px;
+}
+/* A grid, not wrapping flex: the page streams in, and while the demo column
+   has not arrived yet a flex row gives the copy column the whole width, then
+   squeezes it when the demo lands (a 0.4 layout shift on a slow connection).
+   Here the copy column holds its width from the first paint. The first track is
+   what flex gave it (340px basis, 1:1.7 share of the free space). */
+@media (min-width: 964px) {
+  .hero {
+    grid-template-columns: calc((100% - 56px) / 2.7 + 21.48px) minmax(0, 1fr);
+  }
 }
 .heroInstall {
   gap: 14px;
@@ -264,10 +250,6 @@
 .hovSound:hover {
   border-color: #59d499;
   color: #ffffff;
-}
-.hovCard:hover {
-  border-color: #3a3d40;
-  transform: translateY(-2px);
 }
 .hovBorder:hover {
   border-color: #3a3d40;

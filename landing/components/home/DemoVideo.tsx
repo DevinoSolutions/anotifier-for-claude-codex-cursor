@@ -52,7 +52,7 @@ export default function DemoVideo() {
         style={{
           position: "relative",
           border: "1px solid #242728",
-          borderRadius: "16px",
+          borderRadius: "12px",
           overflow: "hidden",
           background: "#0d0d0d",
         }}

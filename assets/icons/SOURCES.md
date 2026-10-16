@@ -22,3 +22,23 @@ Marks used only on the site (`landing/`):
 | `landing/public/assets/icons/telegram.svg` | Telegram | https://telegram.org/img/t_logo.svg, unmodified |
 | `landing/components/GitHubIcon.tsx` | GitHub | simple-icons 16.34.0 `github` (CC0), https://cdn.jsdelivr.net/npm/simple-icons@16.34.0/icons/github.svg |
 | `landing/components/DiscordIcon.tsx` | Discord | simple-icons `discord` (CC0) |
+
+Home-page UI icons (`landing/components/home/BrandIcon.tsx`):
+[Heroicons](https://github.com/tailwindlabs/heroicons) v2.2.0 (repository
+commit `616b7a4dbbf3d011760af8066262cd5c6b3868f3`), by Tailwind Labs, MIT
+licence. The full licence text is in `assets/icons/LICENSE-heroicons.txt`. The
+paths are the unmodified `optimized/24/outline` SVGs; the page draws them with
+`currentColor` (brand green `#59d499`) at a 1.5 stroke. No third-party paid
+assets are in this repository.
+
+| Name in `BrandIcon.tsx` | Heroicons glyph | Used for |
+| --- | --- | --- |
+| `desktop` | `computer-desktop` | desktop toasts |
+| `phone` | `device-phone-mobile` | phone push |
+| `link` | `link` | webhooks |
+| `terminal` | `command-line` | terminal bell |
+| `lines` | `bars-3-bottom-left` | rich content |
+| `approval` | `hand-raised` | approval alerts |
+| `focus` | `cursor-arrow-rays` | click-to-focus |
+| `cube` | `cube` | zero dependencies, the npm install row |
+| `bell` | `bell-alert` | closing call to action |

@@ -1,10 +1,32 @@
+import BrandIcon, { type IconName } from "./BrandIcon";
+
 const traceLine: React.CSSProperties = { whiteSpace: "nowrap" };
 
-const channels = [
-  { title: "desktop toast", sub: "Win · mac · Linux · WSL", delay: undefined },
-  { title: "ntfy push", sub: "Android · iOS", delay: "0.2s" },
-  { title: "webhook", sub: "Slack · Discord · TG", delay: "0.4s" },
-  { title: "terminal bell", sub: "SSH · tmux · screen", delay: "0.6s" },
+const channels: {
+  title: string;
+  sub: string;
+  icon: IconName;
+  delay: string | undefined;
+}[] = [
+  {
+    title: "desktop toast",
+    sub: "Win · mac · Linux · WSL",
+    icon: "desktop",
+    delay: undefined,
+  },
+  { title: "ntfy push", sub: "Android · iOS", icon: "phone", delay: "0.2s" },
+  {
+    title: "webhook",
+    sub: "Slack · Discord · TG",
+    icon: "link",
+    delay: "0.4s",
+  },
+  {
+    title: "terminal bell",
+    sub: "SSH · tmux · screen",
+    icon: "terminal",
+    delay: "0.6s",
+  },
 ];
 
 const chipStyle: React.CSSProperties = {
@@ -50,7 +72,7 @@ export default function HowItWorks() {
         style={{
           background: "#0d0d0d",
           border: "1px solid #242728",
-          borderRadius: "16px",
+          borderRadius: "12px",
           padding: "clamp(22px,4vw,40px)",
         }}
       >
@@ -161,7 +183,16 @@ export default function HowItWorks() {
                 animationDelay: c.delay,
               }}
             >
-              <div style={{ fontWeight: 700, marginBottom: "3px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontWeight: 700,
+                  marginBottom: "3px",
+                }}
+              >
+                <BrandIcon name={c.icon} size={16} />
                 {c.title}
               </div>
               <div style={{ fontSize: "11px", color: "#9aa0a7" }}>{c.sub}</div>
