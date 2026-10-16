@@ -1,3 +1,4 @@
+import BrandIcon from "./BrandIcon";
 import CopyButton from "./CopyButton";
 import InstallStandaloneRow from "./InstallStandaloneRow";
 
@@ -85,15 +86,13 @@ export default function Install() {
                 justifyContent: "center",
                 width: "24px",
                 height: "24px",
-                background: "#cb3837",
+                color: "#59d499",
+                background: "#101111",
+                border: "1px solid #242728",
                 borderRadius: "5px",
-                fontFamily: "var(--font-mono-stack)",
-                fontSize: "7.5px",
-                fontWeight: 700,
-                color: "#ffffff",
               }}
             >
-              npm
+              <BrandIcon name="cube" size={16} />
             </span>
             <span
               style={{

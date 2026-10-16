@@ -42,17 +42,8 @@ const AppleIcon = () => (
 
 export default function Hero() {
   return (
-    <header
-      className="hero"
-      style={{
-        maxWidth: "1160px",
-        margin: "0 auto",
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",
-      }}
-    >
-      <div style={{ flex: "1 1 340px", minWidth: "300px" }}>
+    <header className="hero" style={{ maxWidth: "1160px", margin: "0 auto" }}>
+      <div style={{ minWidth: 0 }}>
         <div
           style={{
             fontFamily: "var(--font-mono-stack)",
@@ -213,10 +204,7 @@ export default function Hero() {
         </div>
       </div>
 
-      <div
-        className="heroMock"
-        style={{ flex: "1.7 1 520px", minWidth: "300px" }}
-      >
+      <div className="heroMock" style={{ minWidth: 0 }}>
         <HeroDemo />
         <div
           style={{

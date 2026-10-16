@@ -201,7 +201,7 @@ export default function TestChannels() {
         style={{
           background: "#0d0d0d",
           border: "1px solid #242728",
-          borderRadius: "16px",
+          borderRadius: "12px",
           overflow: "hidden",
         }}
       >
