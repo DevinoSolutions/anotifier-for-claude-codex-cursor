@@ -371,7 +371,7 @@ describe('CLI surface', () => {
   it('configFocus explains the delay and that away and idle are never suppressed', async () => {
     const { text } = await answered('n');
     assert.match(text, /adds about 1 s to each alert on Windows/);
-    assert.match(text, /idle reminder and `anotifier away` are never suppressed/);
+    assert.match(text, /idle reminder is never suppressed/);
   });
 
   it('`anotifier config focus` and the help text know the section', () => {

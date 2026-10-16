@@ -315,6 +315,16 @@ test("the Claude Code hub leads with the answer, explains the events, shows vali
   }
 });
 
+test("no page names the experimental approval flag", () => {
+  for (const [path, page] of pages) {
+    assert.doesNotMatch(
+      page.body,
+      /ANOTIFIER_EXPERIMENTAL/,
+      `${path} mentions an experimental flag`,
+    );
+  }
+});
+
 test("home: descriptive title and an h1 that reads as one sentence", () => {
   const home = pages.get("/");
   for (const name of ["Claude Code", "Codex", "Cursor", "Gemini"]) {

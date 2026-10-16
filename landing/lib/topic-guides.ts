@@ -308,7 +308,7 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "Does it work in WSL2?",
-        a: "Yes. Run npx anotifier@latest setup inside the WSL distribution where the agent runs. anotifier detects WSL and sends the toast through powershell.exe and Windows interop, which is on by default. The toast is plain: a title and a message under Windows PowerShell's name, with no agent icon, custom sound or click-to-focus.",
+        a: "Yes. Run npx anotifier@latest setup inside the WSL distribution where the agent runs. anotifier detects WSL and sends the toast through powershell.exe and Windows interop, which is on by default. The toast is plain: a title and a message under Windows PowerShell's name, with no agent icon or click-to-focus, and no sound unless `toastSound` is an audio file of your own (1.8.0 and later).",
       },
       {
         q: "Do I need wsl-notify-send or BurntToast inside WSL?",
@@ -768,7 +768,7 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "I get notifications, but only a generic message. Why?",
-        a: "anotifier shows what the agent said for Claude Code only, and only on the toast and webhook by default. ntfy stays generic unless you turn on ntfy.richContent, and Codex, Cursor and Gemini CLI always send generic text: my-app: Task complete for Codex and Gemini CLI, and just Task complete for Cursor, whose alerts carry no project name.",
+        a: "anotifier shows what the agent said for Claude Code only, and only on the toast and webhook by default. ntfy stays generic unless you turn on ntfy.richContent, and Codex, Cursor and Gemini CLI always send generic text: my-app: Task complete for Codex, Gemini CLI and Cursor (Cursor from 1.8.0; earlier versions sent just Task complete).",
       },
     ],
   },

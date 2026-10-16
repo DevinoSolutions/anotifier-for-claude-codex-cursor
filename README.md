@@ -135,7 +135,7 @@ All five tools are wired automatically by the setup wizard. No manual config edi
 
 ### VS Code Native Support
 
-Claude Code, Codex, and Cursor all run inside VS Code. **anotifier** hooks directly into each tool's native hook system -- no VS Code extension required. The setup wizard detects installed tools and patches their configs automatically. On Windows, click a notification toast to jump straight back to your VS Code window (Cursor alerts are the exception: anotifier doesn't read a project folder from Cursor's event). More on the [VS Code page](https://anotifier.io/vscode/).
+Claude Code, Codex, and Cursor all run inside VS Code. **anotifier** hooks directly into each tool's native hook system -- no VS Code extension required. The setup wizard detects installed tools and patches their configs automatically. On Windows, click a notification toast to jump straight back to your VS Code window (Cursor alerts too, from 1.8.0: the first workspace folder names the project). More on the [VS Code page](https://anotifier.io/vscode/).
 
 ## Installation
 
@@ -453,7 +453,7 @@ It takes the same `min` / `low` / `default` / `high` / `urgent` scale as `priori
 `toastSound` can also be the path of your own audio file, per event:
 
 ```json
-{ "events": { "task_complete": { "toastSound": "~/sounds/done.wav" }, "needs_input": { "toastSound": "C:\Sounds\ask.mp3" } } }
+{ "events": { "task_complete": { "toastSound": "~/sounds/done.wav" }, "needs_input": { "toastSound": "C:\\Sounds\\ask.mp3" } } }
 ```
 
 A value is read as a file, not a name, when it starts with `~/`, is an absolute path, contains a `/` or `\`, or ends in `.wav`, `.mp3`, `.aiff`, `.aif`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.opus` or `.flac`. `~` is your home folder, and a relative path is relative to `~/.anotifier`. A path containing a double quote is not used. The sound names above never match, so existing configs keep working.
@@ -511,9 +511,9 @@ Cursor's `beforeSubmitPrompt` hook can block a prompt unless it answers correctl
 
 Turn it on with `anotifier config focus` or by editing `~/.anotifier/config.json`. `anotifier status` shows it as `When focused`. A `projects` rule can turn it on or off for one folder.
 
-- **Opt-in, because it costs time.** Each alert waits for a short window probe before it is sent: about 1 s on Windows (a PowerShell call), a fraction of a second elsewhere. If the probe fails or takes too long, the alert is sent.
+- **Opt-in, because it costs time.** Each alert waits for a short window probe before it is sent: about 1 s on Windows and WSL (a PowerShell call), a fraction of a second on macOS and Linux. If the probe fails or takes too long, the alert is sent.
 - **Only a clear "yes, in front" skips.** When anotifier cannot tell, it sends as usual: under tmux, screen or zellij, over ssh, on Wayland (and XWayland), on Linux without `xdotool`, in a hidden Windows Terminal window, and for an editor on macOS, where window titles cannot be read without a permission prompt.
-- **How it decides.** It finds the first window up the agent's process tree and compares it with the foreground window. For VS Code, Cursor and Windsurf, whose windows share one process, the window title must also contain the project folder name. On macOS it compares the front application with the terminal named by `__CFBundleIdentifier` or `TERM_PROGRAM`. On WSL it asks Windows for the foreground window.
+- **How it decides.** It finds the first window up the agent's process tree and compares it with the foreground window. For VS Code, Cursor and Windsurf, whose windows share one process, the window title must also have the project folder name as one of its ` - `-separated parts. On macOS it compares the front application with the terminal named by `__CFBundleIdentifier` or `TERM_PROGRAM`. On WSL it asks Windows for the foreground window.
 - **Tabs and panes.** Another tab or pane of the same terminal window counts as in front, and so does another window of one multi-window app on macOS (iTerm2, JetBrains IDEs). On WSL any Windows Terminal window counts.
 - **Never suppressed.** The idle reminder always goes out, because a window left in front while you are away still counts as in front. The usage-limit and context warnings from the statusline and the update notice do not use this setting.
 
@@ -574,7 +574,7 @@ anotifier telemetry on
 
 | Event | Sent when | Properties |
 | --- | --- | --- |
-| `cli_command` | a CLI command finishes (not for `telemetry`) | `command` (`setup`, `status`, `test`, `config`, `doctor`, `snooze`, `uninstall`), `args` (a list; each is one of `--deep`, `--json`, `--strict`, `toast`, `ntfy`, `webhook`, `bell`, `both`, `sounds`, `events`, `sentry`, `off`, and anything else you typed -- a snooze duration, a typo -- is `other`), `exit_code`, `duration_ms` |
+| `cli_command` | a CLI command finishes (not for `telemetry`) | `command` (`setup`, `status`, `test`, `config`, `doctor`, `snooze`, `uninstall`), `args` (a list; each is one of `--deep`, `--json`, `--strict`, `toast`, `ntfy`, `webhook`, `bell`, `both`, `sounds`, `events`, `sentry`, `focus`, `off`, and anything else you typed -- a snooze duration, a typo -- is `other`), `exit_code`, `duration_ms` |
 | `cli_error` | a command throws | `command` (as above, or `other`), `error_name` (the error class name, clamped; `Error` if it does not fit), `error_code` (e.g. `ENOENT`, clamped; `null` if there is none). Never the error message. |
 | `setup_completed` | `setup` finishes | `tools_detected` (any of `claude`, `codex`, `cursor`, `gemini`, `antigravity`), `toast_backend_ready`, `icon_ready`, `config_rebuilt`, `ntfy_enabled` (booleans) |
 | `setup_failed` | `setup` finds no tool, or cannot patch one | `step` (`no_tools` or `patch`); for `patch` also `tools_detected` and `failed_tools` (same names as above) |
