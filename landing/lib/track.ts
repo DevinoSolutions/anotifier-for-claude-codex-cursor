@@ -36,7 +36,9 @@ const CONVERSIONS = new Set(["copy_command"]);
     init when it is true. Self-contained on purpose: PostHog.tsx and
     GoogleAnalytics.tsx inline its source into their bootstrap scripts. */
 export function isAutomated(): boolean {
-  if (typeof navigator === "undefined") return false;
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return false;
+  }
   return (
     navigator.webdriver === true ||
     /HeadlessChrome|anotifier-site-tests/.test(navigator.userAgent) ||

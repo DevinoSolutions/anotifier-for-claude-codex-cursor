@@ -93,4 +93,8 @@ test("isAutomated classifies browsers", () => {
     false,
   );
   assert.equal(run({}), false);
+  assert.equal(
+    run({ navigator: { userAgent: "node", webdriver: false } }),
+    false,
+  );
 });
