@@ -315,7 +315,7 @@ export const WSL_GUIDES: Guide[] = [
       },
       {
         q: "What does anotifier do in WSL?",
-        a: "It detects WSL, wires the agent hooks in your Linux home directory, and sends each toast through a bundled PowerShell script run via interop. status and doctor report WSL as its own platform, and a failed toast is logged to ~/.anotifier/errors.log. The toast has no icon or click-to-focus, and no sound unless `toastSound` is an audio file of your own (1.8.0 and later).",
+        a: "It detects WSL, wires the agent hooks in your Linux home directory, and sends each toast through a bundled PowerShell script run via interop. status and doctor report WSL as its own platform, and a failed toast is logged to ~/.anotifier/errors.log. The toast has no icon or click-to-focus, and no sound unless the toastSound setting is an audio file of your own (1.8.0 and later).",
       },
     ],
   },
