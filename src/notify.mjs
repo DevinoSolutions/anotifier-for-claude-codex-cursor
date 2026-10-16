@@ -133,7 +133,9 @@ async function main() {
 
     let raw;
     try {
-      raw = JSON.parse(stdinData);
+      // Cursor on Windows can prefix stdin with a UTF-8 BOM, which JSON.parse
+      // rejects, dropping the whole payload.
+      raw = JSON.parse(stdinData.replace(/^\uFEFF/, ''));
     } catch {
       raw = {};
       logHookError('stdin', new Error('malformed hook stdin JSON'), { source: args.source, bytes: stdinData.length });
@@ -188,6 +190,18 @@ async function main() {
     // is per-subagent by design, so neither may be gated on it.
     if (event.source === 'claude' && event.event === 'task_complete' && event.hasLiveBackgroundWork) {
       await countRun(config, { outcome: 'held_back', source: event.source, event: event.event });
+      await flushErrorReporting();
+      process.stdout.write(defaultResponseBody(event?.source));
+      process.exit(0);
+    }
+
+    // A Cursor run the user stopped themselves (status 'aborted'): they are at
+    // the keyboard and "Task complete" would be false. Same quiet exit as the
+    // held-back Stop above, for the same reasons (before the dedup lock, an
+    // expected outcome so nothing in errors.log). An errored run is NOT skipped:
+    // it goes out as "Task failed" (router.mjs).
+    if (event.event === 'task_complete' && event.runStatus === 'aborted') {
+      await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
       await flushErrorReporting();
       process.stdout.write(defaultResponseBody(event?.source));
       process.exit(0);

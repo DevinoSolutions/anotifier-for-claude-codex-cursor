@@ -65,14 +65,35 @@ function readNotificationType(value) {
   return value.trim().slice(0, 64);
 }
 
+// First element of an array when it is a string, else ''. Antigravity and Cursor
+// both send the workspace folders as an array; the first is the project.
+function firstString(value) {
+  return Array.isArray(value) && typeof value[0] === 'string' ? value[0] : '';
+}
+
+// How a Cursor run ended: the `status` of its stop hook (completed, aborted or
+// error) or the `reason` of its sessionEnd hook (those three plus window_close
+// and user_close, which say nothing about the run). Only 'aborted' and 'error'
+// are kept; absent, not a string, or any other value is '' and reads as a normal
+// completion, so an older or unfamiliar payload alerts exactly as before.
+// Cursor-only: no other agent sends these fields.
+function readRunStatus(raw, source, hookEvent) {
+  if (source !== 'cursor') return '';
+  const value = hookEvent === 'sessionEnd' ? raw.reason : raw.status;
+  return value === 'aborted' || value === 'error' ? value : '';
+}
+
 export function parseInput(raw, source, eventOverride) {
   // --event CLI arg takes priority (used by Codex/Cursor which don't send hook_event_name on stdin).
   // Claude and Gemini include hook_event_name in stdin JSON.
   const hookEvent = eventOverride || raw.hook_event_name || raw.hookEventName || '';
-  // Antigravity sends the workspace folders as an array; the first is the project.
-  const workspace = Array.isArray(raw.workspacePaths) && typeof raw.workspacePaths[0] === 'string'
-    ? raw.workspacePaths[0] : '';
-  const cwd = raw.cwd || workspace;
+  // The project folder: cwd, else the first workspace folder (workspacePaths for
+  // Antigravity, workspace_roots for Cursor). Each is used only when it is a
+  // string, so an odd payload reads as "no project" instead of crashing.
+  // workspace_roots is read for Cursor only, so other agents parse as before.
+  const workspace = firstString(raw.workspacePaths)
+    || (source === 'cursor' ? firstString(raw.workspace_roots) : '');
+  const cwd = (typeof raw.cwd === 'string' && raw.cwd) || workspace;
   const map = EVENT_MAP[source] || {};
 
   return {
@@ -80,7 +101,10 @@ export function parseInput(raw, source, eventOverride) {
     event: map[hookEvent] || 'unknown',
     cwd,
     projectName: cwd ? (cwd.split(/[\\/]/).filter(Boolean).pop() || '') : '',
-    sessionId: raw.session_id || raw.sessionId || raw.conversationId || '',
+    // Cursor names it conversation_id (stable across a chat's turns), which makes
+    // the dedup lock per conversation instead of global.
+    sessionId: raw.session_id || raw.sessionId || raw.conversationId
+      || (source === 'cursor' && typeof raw.conversation_id === 'string' ? raw.conversation_id : ''),
     // Codex names the turn on both its prompt and its Stop hook; the turn timer
     // refuses to pair a start and a finish that disagree.
     turnId: typeof raw.turn_id === 'string' ? raw.turn_id : '',
@@ -97,6 +121,10 @@ export function parseInput(raw, source, eventOverride) {
     // today's routing. Empty when absent (older Claude Code) or not a string,
     // which router.mjs treats exactly as before the field existed.
     notificationType: source === 'claude' ? readNotificationType(raw.notification_type) : '',
+    // 'aborted' or 'error' when a Cursor run did not finish normally, else ''.
+    // notify.mjs sends no alert for an abort (the user did it at the keyboard);
+    // router.mjs words an error "Task failed" instead of "Task complete".
+    runStatus: readRunStatus(raw, source, hookEvent),
     // True when this Stop fired with work still pending behind it — notify.mjs
     // holds the "Task complete" ping back rather than announcing a turn that
     // isn't over. See detectLiveBackgroundWork above.

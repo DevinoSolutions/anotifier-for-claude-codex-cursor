@@ -71,6 +71,8 @@ const CLAUDE_NOTIFICATION_TYPES = new Map([
   ['elicitation_response', { kind: 'skip', text: '' }],
   ['elicitation_complete', { kind: 'skip', text: '' }],
 ]);
+const FAILED_MESSAGE = 'Task failed';
+const FAILED_TAGS = 'warning';
 const UNKNOWN_NOTIFICATION = Object.freeze({ kind: 'input', text: 'Needs your attention' });
 const INFO_PRIORITY = 'default';
 const INFO_TAGS = 'information_source';
@@ -123,7 +125,10 @@ function isIdleReminder(event) {
 export function route(event, config) {
   const typed = classifyClaudeNotification(event);
   if (typed?.kind === 'skip') return null;
-  const messageTemplate = typed ? typed.text : EVENT_MESSAGES[event.event];
+  // A Cursor run that ended in an error is still a task_complete event (so the
+  // user's events.task_complete settings apply) but must not say "Task complete".
+  const failed = event.event === 'task_complete' && event.runStatus === 'error';
+  const messageTemplate = typed ? typed.text : (failed ? FAILED_MESSAGE : EVENT_MESSAGES[event.event]);
   if (!messageTemplate) return null;
 
   const eventConfig = config.events?.[event.event] || {};
@@ -162,6 +167,7 @@ export function route(event, config) {
   let ntfyTags = eventConfig.ntfyTags || '';
   if (idleReminder) ntfyTags = IDLE_REMINDER_TAGS;
   else if (info) ntfyTags = INFO_TAGS;
+  else if (failed) ntfyTags = FAILED_TAGS;
 
   // Only a completion carries a duration, and only when the turn timer knew it
   // (src/turn-timer.mjs). Unknown stays unsaid: no suffix, the message exactly
