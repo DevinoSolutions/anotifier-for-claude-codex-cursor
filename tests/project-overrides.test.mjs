@@ -102,6 +102,41 @@ describe('matchesProjectPath', () => {
       assert.equal(matchesProjectPath('/home/me/app', bad, LINUX), false);
     }
   });
+
+  it('a "/" rule matches everything, like any folder and what is inside it', () => {
+    assert.ok(matchesProjectPath('/', '/home/me/app', LINUX));
+    assert.ok(matchesProjectPath('/', '/', LINUX));
+    assert.ok(matchesProjectPath('/', '/C:/Users/me/app', WIN));
+    assert.ok(matchesProjectPath('\\', 'C:\\Users\\me\\app', WIN));
+  });
+
+  it('resolves . and .. segments in both the pattern and the workspace', () => {
+    assert.ok(matchesProjectPath('/h/app', '/h/x/../app', LINUX));
+    assert.ok(matchesProjectPath('/h/x/../app', '/h/app/src', LINUX));
+    assert.ok(matchesProjectPath('/h/./app', '/h/app', LINUX));
+    assert.ok(matchesProjectPath('C:/Users/me/side/*', 'C:\\Users\\me\\side\\old\\..\\app\\src', WIN));
+    assert.ok(!matchesProjectPath('/h/app', '/h/app/../other', LINUX));
+    assert.ok(!matchesProjectPath('/h/app', '/h/../app', LINUX));
+    assert.equal(normalizeProjectPath('/h/x/../app/', 'linux'), '/h/app');
+  });
+
+  it('many stars in one segment finish fast (no regex backtracking)', () => {
+    const stars = 'a*'.repeat(12) + 'b';
+    const text = 'a'.repeat(60);
+    const started = performance.now();
+    assert.equal(matchesProjectPath(`/h/${stars}`, `/h/${text}`, LINUX), false);
+    assert.equal(matchesProjectPath(`/h/${'*'.repeat(30)}`, `/h/${text}`, LINUX), true);
+    assert.equal(matchesProjectPath(`/h/${'a*'.repeat(12)}`, `/h/${text}/src`, LINUX), true);
+    assert.ok(performance.now() - started < 100, 'matching took too long');
+  });
+
+  it('matches a star in the middle of a segment', () => {
+    assert.ok(matchesProjectPath('/h/a*c', '/h/abc', LINUX));
+    assert.ok(matchesProjectPath('/h/a*c', '/h/ac', LINUX));
+    assert.ok(matchesProjectPath('/h/a*b*c', '/h/aXXbYYbZc', LINUX));
+    assert.ok(!matchesProjectPath('/h/a*c', '/h/abd', LINUX));
+    assert.ok(!matchesProjectPath('/h/a*c', '/h/a/c', LINUX));
+  });
 });
 
 describe('resolveProjectConfig', () => {
@@ -323,7 +358,7 @@ describe('project rule validation', () => {
     const [rule] = config.projects;
     assert.deepEqual(rule.ntfy, { enabled: false });
     assert.deepEqual(rule.events, { task_complete: { toastSound: 'Default' } });
-    assert.deepEqual(rule.quietHours, {});
+    assert.equal(rule.quietHours, undefined); // a bad time drops the whole override
   });
 
   it('reports excluded and unknown keys inside a rule and removes them', () => {
@@ -364,5 +399,125 @@ describe('project rule validation', () => {
     assert.equal(Object.getPrototypeOf(config.projects[0]), Object.prototype);
     assert.equal(config.projects[0].polluted, undefined);
     assert.equal(config.projects[0].ntfy.topic, 't');
+  });
+
+  it('a telegram rule inherits the top-level chatId, so it is not reported', () => {
+    const { config, problem } = load({
+      webhook: { format: 'telegram', chatId: '1', url: 'u' },
+      projects: [{ match: '/h', webhook: { format: 'telegram' } }],
+    });
+    assert.equal(problem, null);
+    assert.deepEqual(config.projects, [{ match: '/h', webhook: { format: 'telegram' } }]);
+    assert.equal(resolveProjectConfig(config, '/h/x', LINUX).webhook.chatId, '1');
+  });
+
+  it('a telegram rule whose merged webhook has no chatId is reported', () => {
+    for (const user of [
+      { projects: [{ match: '/h', webhook: { format: 'telegram' } }] },
+      { webhook: { url: 'u' }, projects: [{ match: '/h', webhook: { format: 'telegram', url: 'v' } }] },
+      { webhook: { format: 'slack', chatId: '1' }, projects: [{ match: '/h', webhook: { format: 'telegram', chatId: '' } }] },
+    ]) {
+      const { problem } = load(user);
+      assert.equal(problem?.type, 'validate');
+      assert.match(problem.message, /projects\[0\]: "webhook\.format" is "telegram" but "webhook\.chatId" is missing/);
+    }
+  });
+
+  it('a rule that does not touch the webhook does not repeat a top-level telegram problem', () => {
+    const { problem } = load({
+      webhook: { format: 'telegram' },
+      projects: [{ match: '/h', ntfy: { topic: 't' }, webhook: { url: 'u' } }],
+    });
+    assert.equal(problem.message.match(/chatId" is missing/g).length, 1);
+  });
+
+  it('a bad quiet-hours time in a rule says the override is ignored and drops all of it', () => {
+    const { config, problem } = load({
+      projects: [{ match: '/h', quietHours: { enabled: true, from: '25:00', to: '07:00' } }],
+    });
+    assert.equal(problem?.type, 'validate');
+    assert.match(problem.message, /projects\[0\]: "quietHours\.from" must be a "HH:MM" 24-hour time, got "25:00" — this rule's quietHours override is ignored/);
+    assert.doesNotMatch(problem.message, /quiet hours disabled/);
+    assert.deepEqual(config.projects, [{ match: '/h' }]);
+  });
+
+  it('the top-level quiet-hours message is unchanged', () => {
+    const { problem } = load({ quietHours: { from: '25:00' } });
+    assert.match(problem.message, /"quietHours\.from" must be a "HH:MM" 24-hour time, got "25:00" — quiet hours disabled/);
+  });
+
+  it('an unknown nested key inside a rule is reported and kept, as at the top level', () => {
+    const { config, problem } = load({
+      ntfy: { zzz: 1 },
+      projects: [{ match: '/h', ntfy: { zzz: 2, topic: 't' } }],
+    });
+    assert.match(problem.message, /unknown key "ntfy\.zzz"/);
+    assert.match(problem.message, /projects\[0\]: unknown key "ntfy\.zzz"/);
+    assert.deepEqual(config.projects[0].ntfy, { zzz: 2, topic: 't' });
+  });
+});
+
+describe('configs without projects are unchanged', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anotifier-pin-'));
+  after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const defaults = JSON.parse(fs.readFileSync(new URL('../config/default-config.json', import.meta.url), 'utf8'));
+  const clone = () => JSON.parse(JSON.stringify(defaults));
+  const load = (name, user) => {
+    const file = path.join(dir, name);
+    fs.writeFileSync(file, JSON.stringify(user));
+    return { file, ...loadConfigResult(file) };
+  };
+
+  it('{} yields the defaults and no problem', () => {
+    const { config, problem } = load('empty.json', {});
+    assert.deepEqual(config, defaults);
+    assert.equal(problem, null);
+    assert.ok(!('projects' in config));
+  });
+
+  it('a typical full config merges exactly as before', () => {
+    const { config, problem } = load('full.json', {
+      ntfy: { topic: 'mine', icon: 'https://example.com/i.png' },
+      toast: { clickToFocus: false },
+      webhook: { enabled: true, url: 'https://hooks.example.com/x', format: 'slack' },
+      quietHours: { enabled: true, from: '23:00', to: '07:30' },
+      usageAlerts: { thresholds: [50, 90] },
+      events: { task_complete: { priority: 'high', minDurationSeconds: 45 } },
+      sources: { claude: { label: 'CC' } },
+    });
+    const expected = clone();
+    expected.ntfy.topic = 'mine';
+    expected.ntfy.icon = 'https://example.com/i.png';
+    expected.toast.clickToFocus = false;
+    expected.webhook.enabled = true;
+    expected.webhook.url = 'https://hooks.example.com/x';
+    expected.webhook.format = 'slack';
+    expected.quietHours = { enabled: true, from: '23:00', to: '07:30' };
+    expected.usageAlerts.thresholds = [50, 90];
+    expected.events.task_complete.priority = 'high';
+    expected.events.task_complete.minDurationSeconds = 45;
+    expected.sources.claude.label = 'CC';
+    assert.deepEqual(config, expected);
+    assert.equal(problem, null);
+    assert.ok(!('projects' in config));
+  });
+
+  it('a bad-webhook config reports the same problem and keeps the same values', () => {
+    const { file, config, problem } = load('bad-webhook.json', {
+      webhook: { enabled: true, format: 'carrier-pigeon', url: 5 },
+      ntfy: { topic: 'kept', zzz: true },
+      mystery: 1,
+    });
+    const expected = clone();
+    expected.webhook.enabled = true;
+    expected.ntfy.topic = 'kept';
+    expected.ntfy.zzz = true;
+    expected.mystery = 1;
+    assert.deepEqual(config, expected);
+    assert.deepEqual(problem, {
+      type: 'validate',
+      message: `${file}: unknown key "ntfy.zzz"; "webhook.url" must be a string, got number; "webhook.format" must be one of generic|slack|discord|telegram, got "carrier-pigeon"; unknown key "mystery"`,
+    });
+    assert.ok(!('projects' in config));
   });
 });

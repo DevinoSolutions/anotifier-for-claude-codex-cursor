@@ -90,8 +90,12 @@ const PROJECT_KEYS = TOP_LEVEL_KEYS.filter((key) => !PROJECT_EXCLUDED_KEYS.inclu
 // overrides of one project rule). Same per-key rules for both.
 // Wrong-typed keys are DELETED from the object (defaults win) and reported, so
 // a bad value can never poison the runtime. Unknown keys are reported but kept
-// — they are usually typos.
-function validateSettings(user) {
+// — they are usually typos. That holds for nested keys inside a project rule
+// too (`ntfy.zzz` is reported and kept, as at the top level).
+// `inRule` switches the wording of messages that describe a fallback, and
+// `inheritedWebhook` (the top-level webhook over the defaults) lets the checks
+// that read a sibling key see what the rule inherits through the merge.
+function validateSettings(user, { inRule = false, inheritedWebhook = null } = {}) {
   const issues = [];
   const checkBlock = (blockName, spec) => {
     const block = user[blockName];
@@ -154,6 +158,13 @@ function validateSettings(user) {
   if (quiet && typeof quiet === 'object' && !Array.isArray(quiet)) {
     for (const key of ['from', 'to']) {
       if (quiet[key] !== undefined && parseHHMM(quiet[key]) === null) {
+        if (inRule) {
+          // A rule has no "disabled" fallback: the base quiet hours stay in
+          // force, so the whole override is dropped rather than half-applied.
+          issues.push(`"quietHours.${key}" must be a "HH:MM" 24-hour time, got ${JSON.stringify(quiet[key])} — this rule's quietHours override is ignored`);
+          delete user.quietHours;
+          break;
+        }
         issues.push(`"quietHours.${key}" must be a "HH:MM" 24-hour time, got ${JSON.stringify(quiet[key])} — quiet hours disabled`);
         delete quiet[key];
         delete quiet.enabled;
@@ -172,7 +183,12 @@ function validateSettings(user) {
       issues.push(`"webhook.format" must be one of ${FORMAT_VALUES.join('|')}, got "${webhook.format}"`);
       delete webhook.format;
     }
-    if (webhook.format === 'telegram' && !webhook.chatId) {
+    // In a rule the chatId may come from the top-level webhook through the
+    // merge, so check the merged result, and only when the rule touches either
+    // key (otherwise a top-level problem would be reported a second time).
+    const effective = inRule ? { ...inheritedWebhook, ...webhook } : webhook;
+    const touched = !inRule || 'format' in webhook || 'chatId' in webhook;
+    if (touched && effective.format === 'telegram' && !effective.chatId) {
       issues.push('"webhook.format" is "telegram" but "webhook.chatId" is missing');
     }
   }
@@ -259,10 +275,15 @@ function validateSettings(user) {
 // reported (prefixed with `projects[i]:`) and dropped exactly like a bad
 // top-level value. A malformed rule is dropped whole: one with no usable
 // `match` would otherwise apply to nothing, or to the wrong place.
-// Excluded and unknown keys are reported and also REMOVED from the rule,
-// unlike unknown top-level keys, so they can never reach the merged config.
+// Excluded and unknown keys at the rule's top level are reported and also
+// REMOVED from the rule, unlike unknown top-level keys, so they can never reach
+// the merged config. Unknown NESTED keys (`ntfy.zzz`) behave as at the top
+// level: reported and kept.
+// Checks that read a sibling key (the telegram chatId) run against the
+// top-level webhook merged with the rule, since that is what the rule yields.
 function validateProjects(user, issues) {
   if (user.projects === undefined) return;
+  const inheritedWebhook = { ...defaults.webhook, ...(user.webhook && typeof user.webhook === 'object' ? user.webhook : {}) };
   if (!Array.isArray(user.projects)) {
     issues.push('"projects" must be an array');
     delete user.projects;
@@ -294,7 +315,7 @@ function validateProjects(user, issues) {
       overrides.toast = { ...overrides.toast };
       delete overrides.toast.disabledBySetup;
     }
-    for (const issue of validateSettings(overrides)) issues.push(`${at}: ${issue}`);
+    for (const issue of validateSettings(overrides, { inRule: true, inheritedWebhook })) issues.push(`${at}: ${issue}`);
     const clean = { match: rule.match };
     for (const key of PROJECT_KEYS) {
       if (overrides[key] !== undefined) clean[key] = overrides[key];
@@ -322,44 +343,50 @@ function validateUserConfig(user) {
 // Objects merge deeply (deepMerge); arrays and scalars are replaced.
 
 // Forward slashes, no drive-letter lead slash (Cursor sends `/C:/Users/x/app`),
-// no duplicate or trailing slashes, and folded to lower case where the file
-// system is case-insensitive (win32, darwin).
+// `.` and `..` segments resolved, no duplicate or trailing slashes, and folded to
+// lower case where the file system is case-insensitive (win32, darwin).
 export function normalizeProjectPath(value, platform = process.platform) {
   let p = String(value).trim().replace(/\\/g, '/');
   if (/^\/[A-Za-z]:(\/|$)/.test(p)) p = p.slice(1);
-  p = p.replace(/\/{2,}/g, '/');
+  p = path.posix.normalize(p);
   if (p.length > 1) p = p.replace(/\/+$/, '');
   if (platform === 'win32' || platform === 'darwin') p = p.toLowerCase();
   return p;
 }
 
-// `*` matches within one path segment, `**` matches any number of segments
-// (including none). Everything else is literal. Compiled per call: rule lists
-// are tiny and the hook runs once per process.
-function projectPatternToRegExp(pattern) {
-  const segments = ('/' + pattern.replace(/^\//, '')).split('/').slice(1);
-  let source = '';
-  let lastWasGlobstar = false;
-  for (const segment of segments) {
-    if (segment === '**') {
-      if (!lastWasGlobstar) source += '(?:/[^/]+)*';
-      lastWasGlobstar = true;
-      continue;
+// One path segment against one pattern segment, where `*` matches any run of
+// characters (never a slash: segments have none). Classic two-pointer greedy
+// matcher: on a mismatch it backtracks only to the last star, so it is
+// O(pattern * text) at worst and never exponential, however many stars there are.
+function matchSegment(pattern, text) {
+  let p = 0;
+  let t = 0;
+  let star = -1;
+  let resume = 0;
+  while (t < text.length) {
+    if (p < pattern.length && pattern[p] === '*') {
+      star = p++;
+      resume = t;
+    } else if (p < pattern.length && pattern[p] === text[t]) {
+      p++;
+      t++;
+    } else if (star !== -1) {
+      p = star + 1;
+      t = ++resume;
+    } else {
+      return false;
     }
-    lastWasGlobstar = false;
-    const body = segment
-      .split('*')
-      .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
-      .join('[^/]*');
-    source += '/' + body;
   }
-  return source;
+  while (p < pattern.length && pattern[p] === '*') p++;
+  return p === pattern.length;
 }
 
 // Does `workspace` fall under the rule's `match`? One rule for every pattern,
 // glob or not: it matches the folder it names and anything inside it. A hook's
 // cwd can be a subfolder of the project, so `side/*` matches `side/app` and
-// `side/app/src`; `acme/**` matches `acme` and everything below it.
+// `side/app/src`; `acme/**` matches `acme` and everything below it; `/` matches
+// everything. `*` is within one segment, a whole `**` segment is any number of
+// segments (including none).
 export function matchesProjectPath(match, workspace, { platform = process.platform, home = os.homedir() } = {}) {
   if (typeof match !== 'string' || !match.trim()) return false;
   if (typeof workspace !== 'string' || !workspace.trim()) return false;
@@ -367,11 +394,26 @@ export function matchesProjectPath(match, workspace, { platform = process.platfo
   if (pattern === '~' || pattern.startsWith('~/') || pattern.startsWith('~\\')) {
     pattern = home.replace(/[\\/]+$/, '') + pattern.slice(1);
   }
-  pattern = normalizeProjectPath(pattern, platform);
-  const target = normalizeProjectPath(workspace, platform);
-  const source = projectPatternToRegExp(pattern);
-  const rooted = target.startsWith('/') ? target : '/' + target;
-  return new RegExp(`^${source}(?:/.*)?$`).test(rooted);
+  const toSegments = (value) => normalizeProjectPath(value, platform).split('/').filter((seg) => seg && seg !== '.');
+  const patternSegments = toSegments(pattern);
+  const target = toSegments(workspace);
+  // reach: every number of workspace segments the pattern consumed so far could
+  // have matched. The pattern matches when it is used up with any of them left
+  // over (the leftover is "anything inside it").
+  let reach = new Set([0]);
+  for (const seg of patternSegments) {
+    const next = new Set();
+    if (seg === '**') {
+      for (let j = Math.min(...reach); j <= target.length; j++) next.add(j);
+    } else {
+      for (const j of reach) {
+        if (j < target.length && matchSegment(seg, target[j])) next.add(j + 1);
+      }
+    }
+    if (!next.size) return false;
+    reach = next;
+  }
+  return true;
 }
 
 // Config for one workspace: a NEW object (the input is never mutated) with every
