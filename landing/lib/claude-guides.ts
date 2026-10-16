@@ -22,23 +22,34 @@ const asyncHook = (command: string, matcher?: string) => ({
 
 export const json = (value: unknown) => JSON.stringify(value, null, 2);
 
+const NEEDS_YOU_SCRIPT = `#!/bin/sh
+input=$(cat)
+type=$(printf '%s' "$input" | jq -r '.notification_type')
+msg=$(printf '%s' "$input" | jq -r '.message')
+case "$type" in
+  permission_prompt|elicitation_dialog|elicitation_url_dialog)
+    notify-send -u critical 'Claude Code needs you' "$msg" ;;
+  idle_prompt)
+    notify-send 'Claude Code is waiting' "$msg" ;;
+esac`;
+
 export const WINDOWS_SOUND = (file: string) =>
   `powershell.exe -NoProfile -Command "(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\${file}').PlaySync()"`;
 
 export const CLAUDE_GUIDES: Guide[] = [
   {
     slug: "claude-code-permission-notifications",
-    updated: "2026-10-15",
+    updated: "2026-10-16",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code permissions",
     icon: "/assets/icons/claude.png",
-    title: "Claude Code Notification When It Needs Permission or Input",
+    title: "Claude Code Permission Prompt Notification: Hook Setup",
     description:
-      "Add a Notification hook with the permission_prompt matcher to ~/.claude/settings.json; idle_prompt covers waiting for input. The JSON, timing and phone push.",
+      'Add a Notification hook with "matcher": "permission_prompt" to ~/.claude/settings.json. Also idle_prompt and MCP questions, timing, fixes and phone push.',
     h1: "Get notified when Claude Code needs your permission or input",
     intro:
-      "Add a `Notification` hook with the matcher `permission_prompt` to `~/.claude/settings.json`. Claude Code runs it when a tool approval has waited about six seconds. The `idle_prompt` matcher covers the other case: Claude finished about a minute ago and you haven't typed since. Below are the exact config, every notification type Claude Code sends, the timing rules, and how to get the alert on your phone. The [Claude Code notifier](/claude-code/) wires these hooks for you.",
+      "Add a `Notification` hook with the matcher `permission_prompt` to `~/.claude/settings.json`. Claude Code runs it when a tool approval has waited about six seconds. The `idle_prompt` matcher covers the other case: Claude finished about a minute ago and you haven't typed since. Below: [the exact config](#config), [every notification type Claude Code sends](#types), [one hook for everything that waits on you](#needs-input), [the timing rules](#timing), [your phone](#phone), and [fixes for a hook that never fires](#not-firing). The [Claude Code notifier](/claude-code/) wires these hooks for you.",
     sections: [
       {
         id: "config",
@@ -103,7 +114,7 @@ export const CLAUDE_GUIDES: Guide[] = [
             rows: [
               [
                 "`permission_prompt`",
-                "A tool approval, or a sandboxed command's network request, has waited about six seconds",
+                "A tool approval, or a sandboxed command's network request (v2.1.246+ in a terminal), has waited about six seconds",
                 "Yes",
               ],
               [
@@ -123,7 +134,7 @@ export const CLAUDE_GUIDES: Guide[] = [
               ],
               [
                 "`agent_needs_input`",
-                "A background session waits on you while agent view is open (v2.1.198+)",
+                "A background session waits on you while agent view is open (v2.1.198+), or a terminal session shows an agent team teammate's setup question (v2.1.248+) or auto mode's notice about classifier request charges, and you haven't typed for about six seconds",
                 "Yes",
               ],
               [
@@ -173,6 +184,56 @@ export const CLAUDE_GUIDES: Guide[] = [
         ],
       },
       {
+        id: "needs-input",
+        title: "One hook for everything that waits on you",
+        blocks: [
+          {
+            kind: "p",
+            text: "A matcher can list several notification types separated by `|`, so one entry covers approvals and MCP questions together. Claude Code treats a matcher made only of letters, digits, `_`, `-`, spaces, `,` and `|` as an exact list, not a regular expression:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              hooks: {
+                Notification: [
+                  hookEntry(
+                    osascript("Claude Code is waiting for you"),
+                    "permission_prompt|elicitation_dialog|elicitation_url_dialog",
+                  ),
+                ],
+              },
+            }),
+          },
+          {
+            kind: "p",
+            text: "To give each type its own banner from one script, read `notification_type` from stdin. This Linux script needs `jq` and `notify-send`; on macOS swap the `notify-send` lines for the `osascript` command above. Save it as `~/.claude/hooks/needs-you.sh`:",
+          },
+          {
+            kind: "code",
+            lang: "bash",
+            code: NEEDS_YOU_SCRIPT,
+          },
+          {
+            kind: "p",
+            text: "Register it under `Notification` with no matcher, so the script sees every type and ignores the ones it has no branch for, such as `auth_success`:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              hooks: {
+                Notification: [hookEntry("sh ~/.claude/hooks/needs-you.sh")],
+              },
+            }),
+          },
+          {
+            kind: "note",
+            text: 'For "Claude has stopped and wants my next prompt" the answer is `idle_prompt`, but it arrives about 60 seconds late. If you want to know the moment a turn ends, add a `Stop` hook; the [notifications guide](/guides/claude-code-notifications/) has it.',
+          },
+        ],
+      },
+      {
         id: "timing",
         title: "Why the alert arrives seconds (or a minute) later",
         blocks: [
@@ -213,6 +274,24 @@ export const CLAUDE_GUIDES: Guide[] = [
           {
             kind: "p",
             text: "Anyone who knows a public ntfy.sh topic can read it, so send generic text only. The [ntfy guide](/guides/ntfy-phone-notifications/) covers private topics and self-hosting.",
+          },
+        ],
+      },
+      {
+        id: "not-firing",
+        title: "The hook never fires: what to check",
+        blocks: [
+          {
+            kind: "ol",
+            items: [
+              '**Test the command by itself.** Pipe a sample event into it: `echo \'{"notification_type":"permission_prompt","message":"test"}\' | sh ~/.claude/hooks/needs-you.sh`. If no banner appears, the problem is the command (a missing `jq`, `notify-send` or Script Editor permission), not Claude Code.',
+              "**Confirm the hook is registered.** Type `/hooks` in Claude Code and select `Notification`. The matcher must be one of the [types above](#types), spelled exactly.",
+              "**You answered too fast.** `permission_prompt` only runs after the prompt has waited about six seconds, and an answer from you before that cancels it (in Claude Desktop and VS Code, an answer from a `PermissionRequest` hook does too). In a terminal, each keystroke while the prompt is open pushes the timer back again.",
+              "**You are in Claude Desktop or the VS Code extension.** They answer permission requests through the Agent SDK. The notification fires about six seconds after the request there, typing does not delay it, and before v2.1.233 it did not fire at all. Check that `CLAUDE_CODE_DISABLE_PERMISSION_PROMPT_NOTIFY_HOOKS` is not set to `1`.",
+              "**Another dialog is already open.** A permission request that arrives behind an open dialog keeps the six-second gate, timed from when it arrives, so its notification can reach you while the request still waits in the queue.",
+              "**It is a sandboxed command's network request.** The `permission_prompt` notification covers it, but a `PermissionRequest` hook does not run for it.",
+              "**Desktop notifications being off is not the cause.** Hooks run even when `preferredNotifChannel` is `notifications_disabled`; that setting only changes how Claude Code alerts you itself.",
+            ],
           },
         ],
       },
@@ -258,6 +337,26 @@ export const CLAUDE_GUIDES: Guide[] = [
           },
         ],
       },
+      {
+        id: "sources",
+        title: "Sources",
+        blocks: [
+          {
+            kind: "p",
+            text: "The Claude Code claims on this page come from the official docs, read on 2026-10-16 against Claude Code 2.1.301, the latest release at the time. Notification types, timings and version cut-offs change between releases, so confirm anything you rely on there.",
+          },
+          {
+            kind: "ul",
+            items: [
+              "Notification matchers and timing, `PermissionRequest`, matcher evaluation, `/hooks`: [Hooks reference](https://code.claude.com/docs/en/hooks)",
+              "Hook setup walkthrough: [Automate workflows with hooks](https://code.claude.com/docs/en/hooks-guide)",
+              "`preferredNotifChannel`: [Settings reference](https://code.claude.com/docs/en/settings-reference)",
+              "ntfy headers and topics: [Publishing](https://docs.ntfy.sh/publish/)",
+              "anotifier: the [README](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor#readme), the [docs](/docs/) and the [agent hooks guide](/guides/agent-hooks-explained/)",
+            ],
+          },
+        ],
+      },
     ],
     faqs: [
       {
@@ -279,6 +378,18 @@ export const CLAUDE_GUIDES: Guide[] = [
       {
         q: "Can I approve a permission prompt from my phone?",
         a: "Not with anotifier today: the push gets you back to the keyboard, and you answer in the session. A PermissionRequest hook can return allow or deny, which is what a remote-approval tool would build on.",
+      },
+      {
+        q: "How do I get notified when Claude Code is waiting for my response?",
+        a: "Use a Notification hook. permission_prompt runs when an approval has waited about six seconds, elicitation_dialog when an MCP server opens a form, and idle_prompt about 60 seconds after Claude finishes if you haven't typed. List several in one matcher with a pipe, such as permission_prompt|elicitation_dialog. For the moment a turn ends, use a Stop hook.",
+      },
+      {
+        q: "Can one Notification hook cover several types?",
+        a: 'Yes. A matcher of letters, digits and pipes is an exact list, so "permission_prompt|elicitation_dialog" runs for either. Or leave the matcher out and have the script read notification_type from stdin and branch on it.',
+      },
+      {
+        q: "Why does my permission_prompt hook never run?",
+        a: "Usually you answered within about six seconds, or you are in Claude Desktop or the VS Code extension on a version before v2.1.233, or CLAUDE_CODE_DISABLE_PERMISSION_PROMPT_NOTIFY_HOOKS is set to 1. Pipe a sample event into the command to rule out the command itself, and check /hooks.",
       },
     ],
   },
