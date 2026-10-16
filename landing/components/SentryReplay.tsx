@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { isAutomated } from "@/lib/track";
 
 /** Sentry session replay (the self-hosted instance, project 67).
 
@@ -33,7 +34,7 @@ export default function SentryReplay() {
   useEffect(() => {
     // Everything lives inside this branch: with no DSN the build drops it,
     // dynamic import() included, so no Sentry chunk is emitted at all.
-    if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+    if (process.env.NEXT_PUBLIC_SENTRY_DSN && !isAutomated()) {
       let cancelled = false;
       let idle: number | undefined;
       let timer: ReturnType<typeof setTimeout> | undefined;
