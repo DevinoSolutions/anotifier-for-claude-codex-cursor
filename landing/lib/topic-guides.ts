@@ -907,7 +907,7 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "ntfy can also protect a topic with a username and password or an access token (`Authorization: Bearer tk_…`). anotifier (as of 1.7.1) has no config key for either: it never sends an `Authorization` header to ntfy, so the server has to accept anonymous publishing to your topic. The pattern that keeps your messages private on your own server is to deny anonymous reads and allow anonymous writes to that one topic (`server.yml`, then the `ntfy` command), and to sign in to the server in the ntfy app as that user so your phone can read:",
+            text: "ntfy can also protect a topic with a username and password or an access token (`Authorization: Bearer tk_…`). anotifier (as of 1.8.0) has no config key for either: it never sends an `Authorization` header to ntfy, so the server has to accept anonymous publishing to your topic. The pattern that keeps your messages private on your own server is to deny anonymous reads and allow anonymous writes to that one topic (`server.yml`, then the `ntfy` command), and to sign in to the server in the ntfy app as that user so your phone can read:",
           },
           {
             kind: "code",
@@ -992,7 +992,7 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "Can I use an ntfy access token or password?",
-        a: "Not in anotifier (as of 1.7.1), which sends no Authorization header to ntfy. Use a server that allows anonymous writes to your topic and denies anonymous reads. Your own curl hook can send a Bearer token.",
+        a: "Not in anotifier (as of 1.8.0), which sends no Authorization header to ntfy. Use a server that allows anonymous writes to your topic and denies anonymous reads. Your own curl hook can send a Bearer token.",
       },
       {
         q: "Can I use my own ntfy server?",
@@ -1004,7 +1004,7 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "Can I approve a Codex or Claude Code permission from my phone?",
-        a: "Not with anotifier (as of 1.7.1). The urgent push gets you back to the keyboard fast; the decision itself stays in the terminal.",
+        a: "Not with anotifier (as of 1.8.0). The urgent push gets you back to the keyboard fast; the decision itself stays in the terminal.",
       },
     ],
   },
