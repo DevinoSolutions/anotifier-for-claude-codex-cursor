@@ -31,8 +31,8 @@ type PostHogClient = {
 const CONVERSIONS = new Set(["copy_command"]);
 
 /** True for traffic that is not a visitor: a WebDriver browser, a headless UA,
-    the site tests' UA, or the 800x600 screen our own stealth-browser checks
-    report (no real display is 800x600). PostHog, GA4 and Sentry replay skip
+    the site tests' UA, or an 800x600 screen with a wider viewport (our own stealth-browser
+    checks spoof the screen; a real 800x600 window stays counted). PostHog, GA4 and Sentry replay skip
     init when it is true. Self-contained on purpose: PostHog.tsx and
     GoogleAnalytics.tsx inline its source into their bootstrap scripts. */
 export function isAutomated(): boolean {
@@ -40,14 +40,15 @@ export function isAutomated(): boolean {
   return (
     navigator.webdriver === true ||
     /HeadlessChrome|anotifier-site-tests/.test(navigator.userAgent) ||
-    (screen.width === 800 && screen.height === 600)
+    (screen.width === 800 && screen.height === 600 && window.innerWidth > 800)
   );
 }
 
 export function track(name: string, params?: Record<string, string>): void {
   if (typeof window === "undefined") return;
   const w = window as { gtag?: Gtag; posthog?: PostHogClient };
-  if (typeof w.gtag === "function") w.gtag("event", name, { ...params, transport_type: "beacon" });
+  if (typeof w.gtag === "function")
+    w.gtag("event", name, { ...params, transport_type: "beacon" });
   if (typeof w.posthog?.capture === "function") {
     if (CONVERSIONS.has(name)) w.posthog.createPersonProfile?.();
     w.posthog.capture(name, params);
