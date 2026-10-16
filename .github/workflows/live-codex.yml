@@ -6,12 +6,14 @@ name: Live Codex
 # NOT provable here — non-interactive `codex exec` forces approval:never +
 # read-only sandbox — it is proven by the interactive TUI lane (TUI Proofs / F2,
 # scripts/tui/proof-codex-approval.mjs).
+# Pushes to main always run it. PRs that only touch landing/ skip it to save the
+# agents' API quotas (a day of SEO PRs exhausted the Gemini daily quota).
 on:
   push:
     branches: [main]
     paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
   pull_request:
-    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore', 'landing/**']
 
 concurrency:
   group: '${{ github.workflow }}-${{ github.ref }}'

@@ -3,12 +3,14 @@ name: Live Claude
 # Required (no continue-on-error) and runs unconditionally: the script hard-fails
 # if neither PROXYAI_API_KEY nor ANTHROPIC_API_KEY is set, so a deleted/renamed secret — or a fork PR
 # without secret access — turns the build red instead of skipping silently.
+# Pushes to main always run it. PRs that only touch landing/ skip it to save the
+# agents' API quotas (a day of SEO PRs exhausted the Gemini daily quota).
 on:
   push:
     branches: [main]
     paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
   pull_request:
-    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore', 'landing/**']
 
 concurrency:
   group: '${{ github.workflow }}-${{ github.ref }}'
