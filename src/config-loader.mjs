@@ -72,10 +72,30 @@ export function parseHHMM(value) {
   return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }
 
-// Shallow schema check. Wrong-typed keys are DELETED from the user object
-// (defaults win) and reported, so a bad value can never poison the runtime.
-// Unknown keys are reported but kept — they are usually typos.
-function validateUserConfig(user) {
+const TOP_LEVEL_KEYS = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'contextAlerts', 'quietHours', 'events', 'sources'];
+
+// Top-level keys a project rule may NOT override: machine- or account-wide
+// settings that make no sense per workspace. `sentry`, `updateCheck` and
+// `telemetry` are process-level (error reporting, the update check, opt-in
+// stats) and are read outside any workspace; `usageAlerts` is about the
+// account's plan quota, not a project; `projects` cannot nest. Everything else
+// (channels, sounds, priority, quiet hours, event overrides, min-duration,
+// context alerts, source labels) is allowed.
+// One nested key is excluded too: `toast.disabledBySetup` is a flag written by
+// `anotifier setup` for this machine, not a preference.
+const PROJECT_EXCLUDED_KEYS = ['sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'projects'];
+const PROJECT_KEYS = TOP_LEVEL_KEYS.filter((key) => !PROJECT_EXCLUDED_KEYS.includes(key));
+
+// Schema check for one settings object (the top-level user config, or the
+// overrides of one project rule). Same per-key rules for both.
+// Wrong-typed keys are DELETED from the object (defaults win) and reported, so
+// a bad value can never poison the runtime. Unknown keys are reported but kept
+// — they are usually typos. That holds for nested keys inside a project rule
+// too (`ntfy.zzz` is reported and kept, as at the top level).
+// `inRule` switches the wording of messages that describe a fallback, and
+// `inheritedWebhook` (the top-level webhook over the defaults) lets the checks
+// that read a sibling key see what the rule inherits through the merge.
+function validateSettings(user, { inRule = false, inheritedWebhook = null } = {}) {
   const issues = [];
   const checkBlock = (blockName, spec) => {
     const block = user[blockName];
@@ -138,6 +158,13 @@ function validateUserConfig(user) {
   if (quiet && typeof quiet === 'object' && !Array.isArray(quiet)) {
     for (const key of ['from', 'to']) {
       if (quiet[key] !== undefined && parseHHMM(quiet[key]) === null) {
+        if (inRule) {
+          // A rule has no "disabled" fallback: the base quiet hours stay in
+          // force, so the whole override is dropped rather than half-applied.
+          issues.push(`"quietHours.${key}" must be a "HH:MM" 24-hour time, got ${JSON.stringify(quiet[key])} — this rule's quietHours override is ignored`);
+          delete user.quietHours;
+          break;
+        }
         issues.push(`"quietHours.${key}" must be a "HH:MM" 24-hour time, got ${JSON.stringify(quiet[key])} — quiet hours disabled`);
         delete quiet[key];
         delete quiet.enabled;
@@ -156,7 +183,12 @@ function validateUserConfig(user) {
       issues.push(`"webhook.format" must be one of ${FORMAT_VALUES.join('|')}, got "${webhook.format}"`);
       delete webhook.format;
     }
-    if (webhook.format === 'telegram' && !webhook.chatId) {
+    // In a rule the chatId may come from the top-level webhook through the
+    // merge, so check the merged result, and only when the rule touches either
+    // key (otherwise a top-level problem would be reported a second time).
+    const effective = inRule ? { ...inheritedWebhook, ...webhook } : webhook;
+    const touched = !inRule || 'format' in webhook || 'chatId' in webhook;
+    if (touched && effective.format === 'telegram' && !effective.chatId) {
       issues.push('"webhook.format" is "telegram" but "webhook.chatId" is missing');
     }
   }
@@ -232,11 +264,202 @@ function validateUserConfig(user) {
     }
   }
 
-  const knownTop = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'contextAlerts', 'quietHours', 'events', 'sources'];
   for (const key of Object.keys(user)) {
-    if (!knownTop.includes(key)) issues.push(`unknown key "${key}"`);
+    if (key !== 'projects' && !TOP_LEVEL_KEYS.includes(key)) issues.push(`unknown key "${key}"`);
   }
   return issues;
+}
+
+// Per-project override rules: `projects: [{ match, ...overrides }]`. Each rule's
+// overrides go through validateSettings, so a bad value inside a rule is
+// reported (prefixed with `projects[i]:`) and dropped exactly like a bad
+// top-level value. A malformed rule is dropped whole: one with no usable
+// `match` would otherwise apply to nothing, or to the wrong place.
+// Excluded and unknown keys at the rule's top level are reported and also
+// REMOVED from the rule, unlike unknown top-level keys, so they can never reach
+// the merged config. Unknown NESTED keys (`ntfy.zzz`) behave as at the top
+// level: reported and kept.
+// Checks that read a sibling key (the telegram chatId) run against the
+// top-level webhook merged with the rule, since that is what the rule yields.
+// A rule's `match` must be anchored: a POSIX `/…`, a drive `C:/…` (or Cursor's
+// `/C:/…`), a UNC `//host/…`, or `~/…` (expanded to the home directory). A
+// relative pattern (`.`, `./`, `a/..`, `side/*`) has nothing to anchor to and
+// would normalise to something that matches every workspace.
+function isAbsoluteProjectMatch(value) {
+  if (typeof value !== 'string') return false;
+  const p = value.trim();
+  return /^[\\/]/.test(p) || /^[A-Za-z]:[\\/]/.test(p) || p === '~' || /^~[\\/]/.test(p);
+}
+
+function validateProjects(user, issues) {
+  if (user.projects === undefined) return;
+  const inheritedWebhook = { ...defaults.webhook, ...(user.webhook && typeof user.webhook === 'object' ? user.webhook : {}) };
+  if (!Array.isArray(user.projects)) {
+    issues.push('"projects" must be an array');
+    delete user.projects;
+    return;
+  }
+  const kept = [];
+  user.projects.forEach((rule, i) => {
+    const at = `projects[${i}]`;
+    if (typeof rule !== 'object' || rule === null || Array.isArray(rule)) {
+      issues.push(`"${at}" must be an object`);
+      return;
+    }
+    if (typeof rule.match !== 'string' || !rule.match.trim()) {
+      issues.push(`"${at}.match" must be a non-empty string`);
+      return;
+    }
+    if (!isAbsoluteProjectMatch(rule.match)) {
+      issues.push(`${at}: "match" must be an absolute path or start with ~/`);
+      return;
+    }
+    const overrides = {};
+    for (const key of Object.keys(rule)) {
+      if (key === 'match') continue;
+      if (UNSAFE_KEYS.has(key)) { issues.push(`${at}: unknown key "${key}"`); continue; }
+      if (PROJECT_EXCLUDED_KEYS.includes(key)) {
+        issues.push(`${at}: unknown key "${key}" (not allowed in a project rule)`);
+        continue;
+      }
+      overrides[key] = rule[key];
+    }
+    if (overrides.toast && typeof overrides.toast === 'object' && !Array.isArray(overrides.toast) && 'disabledBySetup' in overrides.toast) {
+      issues.push(`${at}: unknown key "toast.disabledBySetup" (not allowed in a project rule)`);
+      overrides.toast = { ...overrides.toast };
+      delete overrides.toast.disabledBySetup;
+    }
+    for (const issue of validateSettings(overrides, { inRule: true, inheritedWebhook })) issues.push(`${at}: ${issue}`);
+    const clean = { match: rule.match };
+    for (const key of PROJECT_KEYS) {
+      if (overrides[key] !== undefined) clean[key] = overrides[key];
+    }
+    kept.push(clean);
+  });
+  user.projects = kept;
+}
+
+function validateUserConfig(user) {
+  const issues = validateSettings(user);
+  validateProjects(user, issues);
+  return issues;
+}
+
+// ---- Per-project overrides ----
+//
+// Rules live ONLY in the user's own ~/.anotifier/config.json. There is
+// deliberately no per-repo file (.anotifier.json in the project): a cloned repo
+// could otherwise redirect alerts, with the prompt and message text, to its own
+// webhook or ntfy topic.
+//
+// Merge order, lowest to highest precedence:
+//   defaults  <  top-level user config  <  matching project rules, in array order
+// Objects merge deeply (deepMerge); arrays and scalars are replaced.
+
+// Forward slashes, no drive-letter lead slash (Cursor sends `/C:/Users/x/app`),
+// `.` and `..` segments resolved, no duplicate or trailing slashes, and folded to
+// lower case where the file system is case-insensitive (win32, darwin).
+export function normalizeProjectPath(value, platform = process.platform) {
+  let p = String(value).trim().replace(/\\/g, '/');
+  if (/^\/[A-Za-z]:(\/|$)/.test(p)) p = p.slice(1);
+  p = path.posix.normalize(p);
+  if (p.length > 1) p = p.replace(/\/+$/, '');
+  if (platform === 'win32' || platform === 'darwin') p = p.toLowerCase();
+  return p;
+}
+
+// One path segment against one pattern segment, where `*` matches any run of
+// characters (never a slash: segments have none). Classic two-pointer greedy
+// matcher: on a mismatch it backtracks only to the last star, so it is
+// O(pattern * text) at worst and never exponential, however many stars there are.
+function matchSegment(pattern, text) {
+  let p = 0;
+  let t = 0;
+  let star = -1;
+  let resume = 0;
+  while (t < text.length) {
+    if (p < pattern.length && pattern[p] === '*') {
+      star = p++;
+      resume = t;
+    } else if (p < pattern.length && pattern[p] === text[t]) {
+      p++;
+      t++;
+    } else if (star !== -1) {
+      p = star + 1;
+      t = ++resume;
+    } else {
+      return false;
+    }
+  }
+  while (p < pattern.length && pattern[p] === '*') p++;
+  return p === pattern.length;
+}
+
+// Does `workspace` fall under the rule's `match`? One rule for every pattern,
+// glob or not: it matches the folder it names and anything inside it. A hook's
+// cwd can be a subfolder of the project, so `side/*` matches `side/app` and
+// `side/app/src`; `acme/**` matches `acme` and everything below it; `/` matches
+// everything. `*` is within one segment, a whole `**` segment is any number of
+// segments (including none).
+export function matchesProjectPath(match, workspace, { platform = process.platform, home = os.homedir() } = {}) {
+  if (typeof match !== 'string' || !match.trim()) return false;
+  if (typeof workspace !== 'string' || !workspace.trim()) return false;
+  let pattern = match.trim();
+  if (pattern === '~' || pattern.startsWith('~/') || pattern.startsWith('~\\')) {
+    pattern = home.replace(/[\\/]+$/, '') + pattern.slice(1);
+  }
+  // Backstop for a config that skipped validation: a relative pattern never matches.
+  if (!isAbsoluteProjectMatch(pattern)) return false;
+  const toSegments = (value) => normalizeProjectPath(value, platform).split('/').filter((seg) => seg && seg !== '.');
+  const patternSegments = toSegments(pattern);
+  const target = toSegments(workspace);
+  // reach: every number of workspace segments the pattern consumed so far could
+  // have matched. The pattern matches when it is used up with any of them left
+  // over (the leftover is "anything inside it").
+  let reach = new Set([0]);
+  for (const seg of patternSegments) {
+    const next = new Set();
+    if (seg === '**') {
+      for (let j = Math.min(...reach); j <= target.length; j++) next.add(j);
+    } else {
+      for (const j of reach) {
+        if (j < target.length && matchSegment(seg, target[j])) next.add(j + 1);
+      }
+    }
+    if (!next.size) return false;
+    reach = next;
+  }
+  return true;
+}
+
+// Config for one workspace: a NEW object (the input is never mutated) with every
+// matching rule applied and the `projects` key removed. An empty or non-string
+// workspace, or no rules, yields the config as-is minus `projects`. Never throws.
+// Excluded keys (and toast.disabledBySetup) are skipped here too, so a config
+// that skipped the loader's validation cannot override a machine-level setting.
+export function resolveProjectConfig(config, workspace, options = {}) {
+  if (!config || typeof config !== 'object') return config;
+  let out;
+  try {
+    out = JSON.parse(JSON.stringify(config));
+    delete out.projects;
+    if (typeof workspace !== 'string' || !workspace.trim() || !Array.isArray(config.projects)) return out;
+    for (const rule of config.projects) {
+      if (!rule || typeof rule !== 'object' || Array.isArray(rule)) continue;
+      if (!matchesProjectPath(rule.match, workspace, options)) continue;
+      const overrides = {};
+      for (const key of PROJECT_KEYS) {
+        if (rule[key] !== undefined) overrides[key] = JSON.parse(JSON.stringify(rule[key]));
+      }
+      if (overrides.toast && typeof overrides.toast === 'object') delete overrides.toast.disabledBySetup;
+      deepMerge(out, overrides);
+    }
+    return out;
+  } catch {
+    if (out) return out;
+    const { projects, ...rest } = config;
+    return rest;
+  }
 }
 
 // Load defaults + user config, reporting exactly what is wrong with the user
