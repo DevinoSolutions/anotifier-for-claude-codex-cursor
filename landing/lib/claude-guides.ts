@@ -1720,7 +1720,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
         blocks: [
           {
             kind: "p",
-            text: "anotifier is a set of hooks, so it should pass the same audit. This section follows the source of anotifier 1.7.1: [src/notify.mjs](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/blob/main/src/notify.mjs) and [setup/patch-config.mjs](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/blob/main/setup/patch-config.mjs). `npx anotifier setup` edits your user-level files only, never a project's settings:",
+            text: "anotifier is a set of hooks, so it should pass the same audit. This section follows the source of anotifier 1.8.0: [src/notify.mjs](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/blob/main/src/notify.mjs) and [setup/patch-config.mjs](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/blob/main/setup/patch-config.mjs). `npx anotifier setup` edits your user-level files only, never a project's settings:",
           },
           {
             kind: "table",
@@ -1729,25 +1729,25 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
               [
                 "Claude Code",
                 "`~/.claude/settings.json`",
-                "`Notification`, `Stop`, and the `statusLine` command",
+                "`Notification`, `Stop`, `UserPromptSubmit` (a turn timer, 1.8.0 and later), and the `statusLine` command",
               ],
               [
                 "Codex CLI",
                 "`~/.codex/hooks.json` and `~/.codex/config.toml`",
-                "`Stop`, `SessionStart`, `PermissionRequest`",
+                "`Stop`, `SessionStart`, `PermissionRequest`, `UserPromptSubmit` (1.8.0 and later)",
               ],
               ["Cursor", "`~/.cursor/hooks.json`", "`stop`"],
               [
                 "Gemini CLI",
                 "`~/.gemini/settings.json`",
-                "`AfterAgent`, `Notification`",
+                "`AfterAgent`, `Notification`, `BeforeAgent` (1.8.0 and later)",
               ],
               ["Antigravity CLI", "`~/.gemini/config/hooks.json`", "`Stop`"],
             ],
           },
           {
             kind: "p",
-            text: 'Every entry runs `node "<path>/src/notify.mjs" --source <agent>`, a local script in the anotifier package. For Claude Code, setup also points `statusLine` at `src/statusline.mjs`, which drives the usage and context warnings. If you already had a statusline, anotifier wraps it and still prints your line. `disableAllHooks` switches this statusline off too. Installed as a Claude Code plugin instead, the same `Notification` and `Stop` hooks come from the plugin\'s `hooks/hooks.json`.',
+            text: 'Every entry runs `node "<path>/src/notify.mjs" --source <agent>`, a local script in the anotifier package. For Claude Code, setup also points `statusLine` at `src/statusline.mjs`, which drives the usage and context warnings. If you already had a statusline, anotifier wraps it and still prints your line. `disableAllHooks` switches this statusline off too. Installed as a Claude Code plugin instead, the same `Notification`, `Stop` and `UserPromptSubmit` hooks come from the plugin\'s `hooks/hooks.json`.',
           },
           {
             kind: "p",
@@ -1760,10 +1760,12 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
           {
             kind: "ul",
             items: [
-              "Reads the event JSON from stdin and your settings from `~/.anotifier/config.json`.",
+              "Reads the event JSON from stdin and your settings from `~/.anotifier/config.json`, including any per-folder `projects` rules (1.8.0 and later). Those rules live only in your own config file, never in a repository, so a cloned project cannot redirect your alerts.",
+              "On `UserPromptSubmit` (and `BeforeAgent` for Gemini CLI) it only writes the time the turn started to `~/.anotifier/turns.json`, prints `{}` and exits: no config, no toast, no network. The hook has a 5-second timeout and ignores every error.",
               "For Claude Code, it can read the session transcript so a toast or webhook shows Claude's last message. That is the `richContent` setting: on for toast and webhook, off for ntfy. Other agents get generic text.",
-              "Shows a desktop toast by running a local program: PowerShell 7 with BurntToast on Windows, `osascript` on macOS, `notify-send` on Linux, and PowerShell through Windows interop on WSL.",
-              "Writes small lock files and an `errors.log` under `~/.anotifier/`, and always exits 0 so it can't fail your agent's turn.",
+              "Shows a desktop toast by running a local program: PowerShell 7 with BurntToast on Windows, `osascript` on macOS, `notify-send` on Linux, and PowerShell through Windows interop on WSL. If you set an event's `toastSound` to the path of an audio file (1.8.0 and later), it also starts a local player for that file: Windows sound playback, `afplay`, `pw-play`, `paplay` or `aplay`.",
+              "Only if you turn on `suppressWhenFocused` (off by default), it asks your operating system which window is in front before each alert, by running a local helper: PowerShell on Windows and WSL, `xdotool` and `ps` on Linux, `lsappinfo` on macOS. Nothing about the window leaves your machine.",
+              "Writes small lock files, `turns.json` and an `errors.log` under `~/.anotifier/`, and always exits 0 so it can't fail your agent's turn.",
             ],
           },
           {
@@ -1826,7 +1828,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
           {
             kind: "ul",
             items: [
-              "`uninstall` asks first, backs up each file to `~/.anotifier/backups/`, and removes only anotifier's entries, its Codex trust hashes and its statusline wrapper, which restores your own statusline. It keeps `~/.anotifier/`, so delete that folder by hand if you want it gone. On Windows it also removes the `agentfocus://` click-to-focus protocol that the first toast registers.",
+              "`uninstall` asks first, backs up each file to `~/.anotifier/backups/`, and removes only anotifier's entries (the turn timing hook included, with `turns.json`), its Codex trust hashes and its statusline wrapper, which restores your own statusline. It keeps `~/.anotifier/`, so delete that folder by hand if you want it gone. On Windows it also removes the `agentfocus://` click-to-focus protocol that the first toast registers.",
               "A plugin install is separate: remove it from Claude Code's `/plugin` menu. `uninstall` doesn't touch it.",
               "`/hooks` in Claude Code and Codex, `/hooks panel` in Gemini CLI, and the Hooks tab in Cursor show the entries too.",
             ],
@@ -1891,7 +1893,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
   },
   {
     slug: "ccnotify",
-    updated: "2026-10-15",
+    updated: "2026-10-16",
     kind: "topic",
     agentSlug: "claude-code",
     name: "ccnotify",
@@ -2047,7 +2049,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
         blocks: [
           {
             kind: "p",
-            text: "A dash means the project's README doesn't mention it, which isn't proof it can't. The anotifier row follows the code and [docs](/docs/) for version 1.7.1.",
+            text: "A dash means the project's README doesn't mention it, which isn't proof it can't. The anotifier row follows the code and [docs](/docs/) for version 1.8.0.",
           },
           {
             kind: "table",
@@ -2068,7 +2070,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
                 "Windows, macOS, Linux, WSL",
                 "Desktop toast, ntfy, Slack, Discord, Telegram or generic webhook, terminal bell",
                 "Yes, through ntfy (Android and iOS)",
-                "Per-event toast sounds (Windows names, mapped on macOS), terminal bell",
+                "Per-event toast sounds (Windows names, mapped on macOS) or your own audio file (1.8.0 and later), terminal bell",
                 "Windows only",
                 "No, not in a release",
               ],
@@ -2151,11 +2153,11 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
           {
             kind: "ul",
             items: [
-              "**dmxj/ccnotify** lets you approve or deny a tool call from the notification card. anotifier 1.7.1 only alerts you; there is no approval feature in a release.",
+              "**dmxj/ccnotify** lets you approve or deny a tool call from the notification card. anotifier 1.8.0 only alerts you; there is no approval feature in a release.",
               "**Helmi/CCNotify** speaks, and it watches tool use (`PreToolUse`, `PostToolUse`) for risky commands and errors. anotifier plays a sound or rings the bell but never speaks, and it alerts on turn end and needs-input only.",
-              "**dazuiba/CCNotify** puts how long the task took in the banner, and its click opens the project in VS Code on macOS. anotifier shows no duration, and its click-to-focus works on Windows only.",
+              "**dazuiba/CCNotify** puts how long the task took in the banner, and its click opens the project in VS Code on macOS. anotifier 1.8.0 and later also shows the turn length for Claude Code, Codex CLI and Gemini CLI, but its click-to-focus works on Windows only.",
               "**tez-Szymon, daniil4545 and dmxj** return you to the terminal when you click a macOS banner. tez-Szymon does the same on Windows and sends iPhone alerts through a web app, so you don't need the ntfy app, and it waits until your computer has been idle for 15 seconds before it forwards one.",
-              "**daniil4545/ccnotify** can mute permission and idle banners while the window is focused. anotifier has no foreground-window muting; it has [snooze and quiet hours](/docs/), which silence every channel.",
+              "**daniil4545/ccnotify** can mute permission and idle banners while the window is focused. anotifier's opt-in `suppressWhenFocused` (1.8.0 and later) skips \"task complete\" and needs-input alerts while the agent's window is in front, with no per-kind choice and never the idle reminder. It also has [snooze and quiet hours](/docs/), which silence every channel.",
             ],
           },
           {
