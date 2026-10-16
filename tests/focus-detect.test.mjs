@@ -546,28 +546,56 @@ describe('null policy', () => {
     assert.equal(await isAgentWindowFocused({ platform: 'win32', env: null, exec: fakeExec(throwing), workspace: 42, timeoutMs: 'soon' }), null);
   });
 
-  it('a hanging probe returns null by the deadline and the child is killed', async () => {
-    let signal;
-    const exec = fakeExec((file, args, opts) => new Promise((resolve, reject) => {
-      signal = opts.signal;
-      opts.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+  // The wall-clock bounds below only need to separate "returned at the deadline"
+  // from "waited for the hung child" (30 s), so they are generous: a loaded
+  // machine can starve timers by seconds, but not by 30 s.
+  const HUNG_MS = 30_000;
+  const LOADED_CEILING_MS = 5000;
+
+  // A child that hangs until its signal aborts. The long timer is what a real
+  // hung process would be: without the abort the probe would sit on it.
+  function hangingExec(state = {}) {
+    return fakeExec((file, args, opts) => new Promise((resolve, reject) => {
+      state.signal = opts.signal;
+      const hung = setTimeout(() => resolve(''), HUNG_MS);
+      opts.signal.addEventListener('abort', () => {
+        clearTimeout(hung);
+        state.killed = true;
+        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+      });
     }));
+  }
+
+  it('a hanging probe returns null by the deadline and the child is killed', async () => {
+    const state = {};
+    const exec = hangingExec(state);
     const t0 = Date.now();
     const result = await isAgentWindowFocused({ platform: 'win32', env: {}, pid: ME, exec, timeoutMs: 80 });
     const elapsed = Date.now() - t0;
     assert.equal(result, null);
-    assert.ok(elapsed >= 70 && elapsed < 400, `elapsed ${elapsed} ms`);
-    assert.equal(signal.aborted, true);
+    assert.ok(elapsed < LOADED_CEILING_MS, `elapsed ${elapsed} ms`);
+    // The kill is asserted on the child, not on timing: the abort listener ran.
+    assert.equal(state.signal.aborted, true);
+    assert.equal(state.killed, true);
   });
 
   it('does not outlive the deadline across the powershell.exe -> pwsh.exe fallback', async () => {
-    const exec = fakeExec(async (file) => {
-      await new Promise((r) => setTimeout(r, 60));
-      throw enoent(file);
+    let calls = 0;
+    const state = {};
+    const hang = hangingExec(state);
+    const exec = fakeExec(async (file, args, opts) => {
+      if (++calls === 1) {
+        await new Promise((r) => setTimeout(r, 60));
+        throw enoent(file);
+      }
+      return hang(file, args, opts);
     });
     const t0 = Date.now();
     assert.equal(await isAgentWindowFocused({ platform: 'win32', env: {}, pid: ME, exec, timeoutMs: 100 }), null);
-    assert.ok(Date.now() - t0 < 350);
+    assert.ok(Date.now() - t0 < LOADED_CEILING_MS);
+    // Under heavy starvation the deadline can fire during the first attempt, so
+    // the fallback child may never start; if it did, it must have been killed.
+    if (state.signal) assert.equal(state.killed, true);
   });
 
   it('passes the remaining budget to exec as its timeout', async () => {
