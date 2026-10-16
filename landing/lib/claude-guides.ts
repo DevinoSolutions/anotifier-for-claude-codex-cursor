@@ -303,7 +303,7 @@ export const CLAUDE_GUIDES: Guide[] = [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: "Setup registers one `Notification` hook with an empty matcher, plus a `Stop` hook, in `~/.claude/settings.json`. Every notification becomes a needs-input alert on your desktop, your phone (if you turn on ntfy), and your webhook, with the project in the title (`my-app · Claude Code`) and, in the toast and webhook, the question Claude asked.",
+            text: "Setup registers one `Notification` hook with an empty matcher, plus a `Stop` hook (and, from 1.8.0, a `UserPromptSubmit` timing hook that sends nothing), in `~/.claude/settings.json`. Every notification becomes a needs-input alert on your desktop, your phone (if you turn on ntfy), and your webhook, with the project in the title (`my-app · Claude Code`) and, in the toast and webhook, the question Claude asked.",
           },
           {
             kind: "table",
@@ -791,7 +791,7 @@ export const CLAUDE_GUIDES: Guide[] = [
             items: [
               "**Windows** takes the notification sound names `Default`, `IM`, `Mail`, `Reminder`, `SMS`, and `Alarm`.",
               "**macOS** maps those names to built-in sounds (`Mail` to Purr, `SMS` to Tink, `Alarm` to Sosumi), and also accepts any of the 14 built-in names directly.",
-              "**Linux** ignores sound names; urgent events are sent at critical urgency instead.",
+              "**Linux** ignores sound names; urgent events are sent at critical urgency instead. From 1.8.0 an audio file path as `toastSound` plays on Linux too, through `pw-play`, `paplay` or `aplay` (`aplay` plays `.wav` only).",
               "`anotifier config sounds` changes them interactively.",
             ],
           },
@@ -1761,7 +1761,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
             kind: "ul",
             items: [
               "Reads the event JSON from stdin and your settings from `~/.anotifier/config.json`, including any per-folder `projects` rules (1.8.0 and later). Those rules live only in your own config file, never in a repository, so a cloned project cannot redirect your alerts.",
-              "On `UserPromptSubmit` (and `BeforeAgent` for Gemini CLI) it only writes the time the turn started to `~/.anotifier/turns.json`, prints `{}` and exits: no config, no toast, no network. The hook has a 5-second timeout and ignores every error.",
+              "On `UserPromptSubmit` (and `BeforeAgent` for Gemini CLI) it only writes the turn's start time (keyed by the session id) to `~/.anotifier/turns.json`, prints `{}` and exits: no config, no toast, no network. The hook has a 5-second timeout and logs and ignores every error.",
               "For Claude Code, it can read the session transcript so a toast or webhook shows Claude's last message. That is the `richContent` setting: on for toast and webhook, off for ntfy. Other agents get generic text.",
               "Shows a desktop toast by running a local program: PowerShell 7 with BurntToast on Windows, `osascript` on macOS, `notify-send` on Linux, and PowerShell through Windows interop on WSL. If you set an event's `toastSound` to the path of an audio file (1.8.0 and later), it also starts a local player for that file: Windows sound playback, `afplay`, `pw-play`, `paplay` or `aplay`.",
               "Only if you turn on `suppressWhenFocused` (off by default), it asks your operating system which window is in front before each alert, by running a local helper: PowerShell on Windows and WSL, `xdotool` and `ps` on Linux, `lsappinfo` on macOS. Nothing about the window leaves your machine.",
@@ -2219,7 +2219,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
           },
           {
             kind: "p",
-            text: "Restart Claude Code afterwards so it reads the new hooks. Setup adds its own `Notification` and `Stop` entries to `~/.claude/settings.json` (after backing the file up) and leaves your other hooks alone.",
+            text: "Restart Claude Code afterwards so it reads the new hooks. Setup adds its own `Notification` and `Stop` entries, and from 1.8.0 a `UserPromptSubmit` entry that only records when a turn started and sends nothing (so it doesn't clash with ccnotify's), to `~/.claude/settings.json` (after backing the file up) and leaves your other hooks alone.",
           },
           {
             kind: "p",

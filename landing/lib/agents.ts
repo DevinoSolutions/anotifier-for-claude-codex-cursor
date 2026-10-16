@@ -180,7 +180,7 @@ export const AGENTS: Agent[] = [
               ],
               [
                 "**anotifier**",
-                "One command wires `Stop` and `Notification` hooks. Desktop toasts on Windows, macOS, Linux and WSL, phone push over [ntfy](/phone/) with no account, [Slack](/slack/), [Discord](/discord/), [Telegram](/telegram/) or any webhook, and the same config for [Codex CLI](/codex/), [Cursor](/cursor/) and [Gemini CLI](/gemini-cli/). Free and open source (AGPL-3.0).",
+                "One command wires `Stop` and `Notification` hooks (plus a `UserPromptSubmit` timing hook, 1.8.0 and later). Desktop toasts on Windows, macOS, Linux and WSL, phone push over [ntfy](/phone/) with no account, [Slack](/slack/), [Discord](/discord/), [Telegram](/telegram/) or any webhook, and the same config for [Codex CLI](/codex/), [Cursor](/cursor/) and [Gemini CLI](/gemini-cli/). Free and open source (AGPL-3.0).",
                 "A command-line tool with no menu bar app or GUI. It alerts you; you answer Claude in the terminal. Click-to-focus works on Windows only.",
               ],
             ],
@@ -366,7 +366,7 @@ export const AGENTS: Agent[] = [
       {
         q: "Does it work on Windows and WSL?",
         aHtml:
-          '<p>Yes. On Windows the toast needs PowerShell 7 and the BurntToast module; <code>anotifier setup</code> installs BurntToast for your user. Inside WSL the toast goes to Windows through interop, as a plainer banner without the agent icon, a custom sound or click-to-focus, so run anotifier from the WSL shell where your Claude Code settings live. macOS and Linux work too, with <code>osascript</code> and <code>notify-send</code>. See the <a href="/guides/windows-wsl-notifications/">Windows and WSL guide</a>.</p>',
+          '<p>Yes. On Windows the toast needs PowerShell 7 and the BurntToast module; <code>anotifier setup</code> installs BurntToast for your user. Inside WSL the toast goes to Windows through interop, as a plainer banner without the agent icon or click-to-focus, and with no sound unless `toastSound` is an audio file of your own (1.8.0 and later), so run anotifier from the WSL shell where your Claude Code settings live. macOS and Linux work too, with <code>osascript</code> and <code>notify-send</code>. See the <a href="/guides/windows-wsl-notifications/">Windows and WSL guide</a>.</p>',
       },
       {
         q: "Can anotifier warn me before Claude Code auto-compacts?",
@@ -995,7 +995,7 @@ export const AGENTS: Agent[] = [
               ],
               [
                 "Clicking the toast does nothing useful",
-                "No window title contains the project folder, or the alert is from Cursor (anotifier gets no project folder for it), macOS, Linux or WSL.",
+                "No window title contains the project folder, or the alert is from macOS, Linux or WSL.",
                 "Open the folder itself in VS Code so its name appears in the title. See the order above.",
               ],
             ],
