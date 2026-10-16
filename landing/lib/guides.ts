@@ -962,10 +962,10 @@ const AGENT_GUIDES: Guide[] = [
           {
             kind: "ul",
             items: [
-              "**One alert per finished run,** titled `Cursor` and saying `Task complete`, as a toast, a phone push and a webhook message (whichever you enabled). A second `stop` within 1.5 seconds is dropped, because Cursor can fire the hook twice in quick succession.",
-              "**No project name.** Cursor's docs list `workspace_roots` in the hook input, but anotifier reads `cwd` and `workspacePaths` and not `workspace_roots`, so every Cursor alert looks the same. With several windows open, the hand-written script above is the way to name the project.",
-              "**No status.** anotifier doesn't read `status`, so a run you stopped or one that ended in an error says `Task complete` too.",
-              "**No click-to-focus.** The Windows toast jumps to a window by project folder, and a Cursor alert has none, so there is no click action.",
+              "**One alert per finished run,** titled `my-app · Cursor` and saying `my-app: Task complete` (just `Cursor` and `Task complete` before 1.8.0), as a toast, a phone push and a webhook message (whichever you enabled). A second `stop` for the same conversation within 1.5 seconds is dropped, because Cursor can fire the hook twice in quick succession.",
+              "**Project name from 1.8.0.** Cursor's docs list `workspace_roots` in the hook input, and anotifier 1.8.0 and later names the project from the first one. Before 1.8.0 every Cursor alert looked the same and the hand-written script above was the way to name the project.",
+              "**Status from 1.8.0.** anotifier 1.8.0 and later reads `status`: a run that ended in an error says `Task failed`, and a run you aborted sends no alert. Before 1.8.0 both said `Task complete`.",
+              "**Click-to-focus on Windows from 1.8.0.** The Windows toast jumps to a window by project folder, which a Cursor alert now has. Before 1.8.0 it had none, so there was no click action.",
               '**Only `stop`.** There is no alert for "waiting for approval". Leave Cursor\'s own OS notification on for that.',
               "**Not driven by a live Cursor.** CI checks that setup writes and removes the hook correctly; it doesn't run a real Cursor agent end to end.",
             ],
@@ -988,7 +988,7 @@ const AGENT_GUIDES: Guide[] = [
           { kind: "code", lang: "json", code: CURSOR_HOOK_NTFY },
           {
             kind: "p",
-            text: "With anotifier, answer yes to the ntfy question during setup. It creates a random topic, you subscribe to it in the app, and `anotifier test ntfy` should buzz your phone. The push is titled `Cursor` with the body `Task complete`. The full walkthrough is in the [phone push guide](/guides/ntfy-phone-notifications/).",
+            text: "With anotifier, answer yes to the ntfy question during setup. It creates a random topic, you subscribe to it in the app, and `anotifier test ntfy` should buzz your phone. The push is titled `my-app · Cursor` with the body `my-app: Task complete` (1.8.0 and later; earlier versions say just `Cursor` and `Task complete`). The full walkthrough is in the [phone push guide](/guides/ntfy-phone-notifications/).",
           },
           {
             kind: "p",

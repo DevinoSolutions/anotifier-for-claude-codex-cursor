@@ -42,7 +42,7 @@ export const TOPIC_GUIDES: Guide[] = [
               [
                 "A WSL distribution",
                 "`powershell.exe` (or `pwsh.exe`) reached through Windows interop, running `toast-wsl.ps1`",
-                "A plain toast with the title and message, shown under Windows PowerShell's name: no agent icon, custom sound or click-to-focus",
+                "A plain toast with the title and message, shown under Windows PowerShell's name: no agent icon or click-to-focus, and no sound unless `toastSound` is an audio file of your own (1.8.0 and later)",
                 "Interop on, and PowerShell reachable through `/mnt/c` or the PATH",
               ],
             ],
@@ -73,7 +73,7 @@ export const TOPIC_GUIDES: Guide[] = [
           {
             kind: "ul",
             items: [
-              "Writes the hooks for each agent it finds: `Stop` and `Notification` for Claude Code in `~/.claude/settings.json`, and `Stop`, `PermissionRequest` and `SessionStart` for Codex in `%USERPROFILE%\\.codex\\hooks.json`. Each hook is one `node` command that runs anotifier's `notify.mjs`. Claude Code runs a hook command with Git Bash on Windows, or with PowerShell when Git Bash is not installed.",
+              "Writes the hooks for each agent it finds: `Stop` and `Notification` for Claude Code in `~/.claude/settings.json`, and `Stop`, `PermissionRequest` and `SessionStart` for Codex in `%USERPROFILE%\\.codex\\hooks.json`, plus (1.8.0 and later) a small `UserPromptSubmit` timing hook for both. Each hook is one `node` command that runs anotifier's `notify.mjs`. Claude Code runs a hook command with Git Bash on Windows, or with PowerShell when Git Bash is not installed.",
               "Checks for `pwsh`. If it is there, it installs BurntToast for your user with `Install-Module BurntToast -Scope CurrentUser` when the module is missing. Nothing is installed while a hook runs.",
               "If `pwsh` is missing, or the BurntToast install fails, it turns the toast channel off and prints the `winget` command. `status` then shows `toast: off, no backend`. Phone push and webhooks stay on. Run `setup` again once PowerShell 7 is installed and the toast comes back on; a toast you switched off yourself stays off.",
             ],
@@ -137,7 +137,7 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "The result is deliberately simple: the title and the message, with no per-agent icon, custom sound or click-to-focus. Each attempt has 7 seconds. A failure is logged to `~/.anotifier/errors.log` as `toast:wsl`; when none of the four works, the entry lists each one it tried.",
+            text: "The result is deliberately simple: the title and the message, with no per-agent icon or click-to-focus, and no sound unless `toastSound` is the path of an audio file of your own (1.8.0 and later). Each attempt has 7 seconds. A failure is logged to `~/.anotifier/errors.log` as `toast:wsl`; when none of the four works, the entry lists each one it tried.",
           },
           {
             kind: "ul",
@@ -330,7 +330,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "macos-linux-notifications",
-    updated: "2026-09-25",
+    updated: "2026-10-16",
     kind: "topic",
     name: "macOS & Linux",
     title: "Claude Code & Codex Notifications on macOS and Linux",
@@ -383,7 +383,7 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "Priority becomes urgency. Approvals and questions go out `critical`, which the notification spec says should stay on screen until you dismiss it; finished tasks go out `low`. Sound names are ignored on Linux.",
+            text: "Priority becomes urgency. Approvals and questions go out `critical`, which the notification spec says should stay on screen until you dismiss it; finished tasks go out `low`. Sound names are ignored on Linux; a `toastSound` that is the path of your own audio file does play there (1.8.0 and later).",
           },
           {
             kind: "p",
@@ -435,7 +435,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "agent-hooks-explained",
-    updated: "2026-10-12",
+    updated: "2026-10-16",
     kind: "topic",
     name: "Agent hooks",
     title: "Agent Hooks Explained: Claude Code, Codex, Cursor, Gemini",
@@ -489,7 +489,7 @@ export const TOPIC_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "Every hook runs the same script, `src/notify.mjs` from the installed package, with `--source` naming the agent. This is the Claude Code entry setup writes under both `Stop` and `Notification`:",
+            text: "Every hook runs the same script, `src/notify.mjs` from the installed package, with `--source` naming the agent. This is the Claude Code entry setup writes under both `Stop` and `Notification` (the 1.8.0 timing hook under `UserPromptSubmit` is the same command with a 5-second timeout):",
           },
           {
             kind: "code",
@@ -552,7 +552,7 @@ export const TOPIC_GUIDES: Guide[] = [
               "Before changing a file that already exists, setup copies it to `~/.anotifier/backups/<file>.<timestamp>.backup`.",
               "anotifier recognises its own entries by the marker or by the `notify.mjs` command path, so re-running setup replaces them in place and leaves your own hooks alone.",
               "`anotifier uninstall` asks for confirmation, backs up each file, and removes only anotifier's entries (plus any hook arrays that end up empty) and its Codex trust hashes, and restores your Claude Code statusline (1.5.0 and later). It keeps `~/.anotifier/` with your config and backups, and leaves Codex's `hooks = true` flag set.",
-              "The Claude Code plugin registers the same `Stop` and `Notification` hooks from inside the plugin. `anotifier uninstall` doesn't touch those; remove the plugin from Claude Code's `/plugin` menu.",
+              "The Claude Code plugin registers the same hooks (`Stop`, `Notification` and, from 1.8.0, `UserPromptSubmit`) from inside the plugin. `anotifier uninstall` doesn't touch those; remove the plugin from Claude Code's `/plugin` menu.",
             ],
           },
         ],

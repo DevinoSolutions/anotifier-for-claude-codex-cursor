@@ -548,7 +548,7 @@ export const AGENTS: Agent[] = [
       {
         event: "stop",
         what: "The Cursor agent run ended",
-        how: "A toast titled `Cursor` that says `Task complete`, or the same words by phone push or webhook. anotifier doesn't read the project or the run's status from Cursor's event, so every Cursor alert looks the same, however the run ended.",
+        how: "A toast titled `my-app · Cursor` that says `my-app: Task complete`, or the same words by phone push or webhook. From 1.8.0 anotifier reads the first workspace folder and the run's `status` from Cursor's event: a run that ended in an error says `Task failed`, and a run you aborted sends no alert. Earlier versions titled every Cursor alert just `Cursor`.",
       },
     ],
     sections: [
@@ -588,7 +588,7 @@ export const AGENTS: Agent[] = [
             kind: "ul",
             items: [
               "**Finished runs only.** anotifier registers `stop`, so it tells you a run is over, not that the agent is waiting on you.",
-              "**No project name, so no click-to-focus.** anotifier reads `cwd`, not `workspace_roots`, from Cursor's event, so a Cursor alert has no project folder. Click-to-focus (Windows only) finds the window by that folder.",
+              "**Project name and click-to-focus from 1.8.0.** anotifier reads `workspace_roots` from Cursor's event, so an alert is titled `my-app · Cursor` and a Windows click on the toast can focus the window with that folder. Before 1.8.0 a Cursor alert had no project folder, so no project name and no click action.",
               "**Usually no bell.** The bell rings in the terminal the agent runs in, and the Cursor editor normally has none.",
               "**Cursor CLI.** Whether the hook fires under `cursor-agent` is untested.",
               "**How it's tested.** CI checks that setup writes and removes the Cursor hook correctly. Unlike Claude Code, Codex and Gemini CLI, a real Cursor run isn't driven end to end.",
@@ -606,7 +606,7 @@ export const AGENTS: Agent[] = [
       {
         q: "What does a Cursor notification look like?",
         aHtml:
-          "<p>A toast titled <code>Cursor</code> with the text <code>Task complete</code>, or the same words by phone push or webhook. It doesn't name the project or list the edited files.</p>",
+          "<p>A toast titled <code>my-app &middot; Cursor</code> with the text <code>my-app: Task complete</code> (from 1.8.0; earlier versions titled it just <code>Cursor</code>), or the same words by phone push or webhook. A run that ended in an error says <code>Task failed</code>. It doesn't list the edited files.</p>",
       },
       {
         q: "Will I get an alert when the Cursor agent needs approval?",
@@ -875,7 +875,7 @@ export const AGENTS: Agent[] = [
       {
         event: "Cursor",
         what: "Agent stop hook",
-        how: "Cursor is a VS Code fork with its own hook file. Its alert is titled `Cursor` and says `Task complete`.",
+        how: "Cursor is a VS Code fork with its own hook file. Its alert is titled `my-app · Cursor` (just `Cursor` before 1.8.0) and says `my-app: Task complete`.",
       },
       {
         event: "Codex CLI · Gemini CLI",
@@ -901,7 +901,7 @@ export const AGENTS: Agent[] = [
                 "Claude Code",
                 "`~/.claude/settings.json` exists",
                 "`~/.claude/settings.json`",
-                "`Stop`, `Notification`",
+                "`Stop`, `Notification`, `UserPromptSubmit` (1.8.0 and later)",
               ],
               [
                 "Cursor",
@@ -913,13 +913,13 @@ export const AGENTS: Agent[] = [
                 "Codex CLI",
                 "`~/.codex` exists",
                 "`~/.codex/hooks.json`, plus trust in `config.toml`",
-                "`Stop`, `PermissionRequest`, `SessionStart`",
+                "`Stop`, `PermissionRequest`, `SessionStart`, `UserPromptSubmit` (1.8.0 and later)",
               ],
               [
                 "Gemini CLI",
                 "`~/.gemini` exists and isn't only Antigravity's",
                 "`~/.gemini/settings.json`",
-                "`AfterAgent`, `Notification`",
+                "`AfterAgent`, `Notification`, `BeforeAgent` (1.8.0 and later)",
               ],
             ],
           },
@@ -936,7 +936,7 @@ export const AGENTS: Agent[] = [
         blocks: [
           {
             kind: "p",
-            text: "The title is the project and the agent, such as `my-app · Claude Code`. The project is the name of the folder the agent was started in, so two VS Code windows on different folders read differently at a glance. For Claude Code the body is the start of Claude's last reply, up to 180 characters, or its own message when it needs you; phone push says `my-app: Task complete` instead. Codex CLI and Gemini CLI send `my-app: Task complete` or `my-app: Needs your input`. anotifier doesn't read a project folder from Cursor's event, so its alert is just `Cursor` and `Task complete`.",
+            text: "The title is the project and the agent, such as `my-app · Claude Code`. The project is the name of the folder the agent was started in, so two VS Code windows on different folders read differently at a glance. For Claude Code the body is the start of Claude's last reply, up to 180 characters, or its own message when it needs you; phone push says `my-app: Task complete` instead. Codex CLI and Gemini CLI send `my-app: Task complete` or `my-app: Needs your input`. Cursor sends its workspace folders instead of a working directory, and from 1.8.0 anotifier names the project from the first one, so a Cursor alert reads `my-app · Cursor` and `my-app: Task complete`. From 1.8.0 a Claude Code, Codex CLI or Gemini CLI completion also ends with the turn length when it is known, such as `(took 4m 12s)`.",
           },
           {
             kind: "p",
@@ -965,7 +965,7 @@ export const AGENTS: Agent[] = [
           },
           {
             kind: "p",
-            text: "Cursor alerts carry no folder for anotifier, so their toasts have no click action at all, and neither do macOS, Linux and WSL toasts. To turn it off on Windows, set `toast.clickToFocus` to `false` in `~/.anotifier/config.json`.",
+            text: "From 1.8.0 Cursor alerts carry the first workspace folder, so a Cursor toast on Windows can focus its window like any other; earlier versions had no folder and so no click action. macOS, Linux and WSL toasts have no click action. To turn it off on Windows, set `toast.clickToFocus` to `false` in `~/.anotifier/config.json`.",
           },
         ],
       },
@@ -1016,7 +1016,7 @@ export const AGENTS: Agent[] = [
       {
         q: "What is click-to-focus?",
         aHtml:
-          "<p>On Windows, clicking a toast brings forward the window whose title contains the project folder, preferring a terminal, then VS Code, then Cursor. anotifier gets no project folder for Cursor alerts, so they can't do it, and macOS, Linux and WSL toasts have no click action.</p>",
+          "<p>On Windows, clicking a toast brings forward the window whose title contains the project folder, preferring a terminal, then VS Code, then Cursor. From 1.8.0 Cursor alerts carry the first workspace folder, so they can do it too (earlier versions had none); macOS, Linux and WSL toasts have no click action.</p>",
       },
       {
         q: "Which agents does it cover inside VS Code?",

@@ -145,18 +145,18 @@ export const DOCS: DocSection[] = [
           [
             "Claude Code",
             "`~/.claude/settings.json`",
-            "`Stop`, `Notification`",
+            "`Stop`, `Notification`, `UserPromptSubmit` (1.8.0 and later)",
           ],
           [
             "Codex CLI",
             "`~/.codex/hooks.json` (+ `hooks = true` under `[features]` in `~/.codex/config.toml`)",
-            "`Stop`, `PermissionRequest`, `SessionStart`",
+            "`Stop`, `PermissionRequest`, `SessionStart`, `UserPromptSubmit` (1.8.0 and later)",
           ],
           ["Cursor", "`~/.cursor/hooks.json`", "`stop`"],
           [
             "Gemini CLI",
             "`~/.gemini/settings.json`",
-            "`AfterAgent`, `Notification`",
+            "`AfterAgent`, `Notification`, `BeforeAgent` (1.8.0 and later)",
           ],
         ],
       },
@@ -168,6 +168,10 @@ export const DOCS: DocSection[] = [
         kind: "p",
         text: "Each hook runs `node <path>/src/notify.mjs --source <agent>` with the agent's event JSON on stdin. The agent gives the hook 10 seconds (Claude Code, Codex) or 30 (Gemini CLI); inside that, every channel runs in parallel with its own shorter timeout (5 to 7 seconds), and the hook always exits successfully, so a broken channel can never stall the agent.",
       },
+      {
+        kind: "p",
+        text: 'From 1.8.0, setup also adds a small timing hook to Claude Code, Codex CLI and Gemini CLI (`UserPromptSubmit` or `BeforeAgent`, the last entry in the table above). It only records when a turn started, in `~/.anotifier/turns.json`, so a "task complete" alert can say how long the turn took. It prints only `{}`, has a 5-second timeout and ignores every error. Re-run `npx anotifier setup` once after upgrading to add it; until then nothing is timed. `anotifier uninstall` removes it and deletes `turns.json`.',
+      },
     ],
   },
   {
@@ -178,7 +182,7 @@ export const DOCS: DocSection[] = [
       {
         kind: "code",
         lang: "text",
-        code: "anotifier setup            # First-time setup wizard\nanotifier status           # Wired tools, config summary, recent hook errors\nanotifier test [channel]   # Fire a test notification (toast | ntfy | webhook | bell | both)\nanotifier config [section] # Interactive settings (ntfy | webhook | sounds | events | sentry)\nanotifier doctor [--deep]  # Diagnose delivery per channel (--deep verifies real delivery)\nanotifier snooze [dur]     # Silence every channel (30m | 2h | 90s | 45 = 45 minutes)\nanotifier snooze off       # Cancel the snooze early\nanotifier uninstall        # Remove anotifier's hooks from every agent\nanotifier --version        # Version, plus an update notice if one is available",
+        code: "anotifier setup            # First-time setup wizard\nanotifier status           # Wired tools, config summary, recent hook errors\nanotifier test [channel]   # Fire a test notification (toast | ntfy | webhook | bell | both)\nanotifier config [section] # Interactive settings (ntfy | webhook | sounds | events | sentry | focus)\nanotifier doctor [--deep]  # Diagnose delivery per channel (--deep verifies real delivery)\nanotifier snooze [dur]     # Silence every channel (30m | 2h | 90s | 45 = 45 minutes)\nanotifier snooze off       # Cancel the snooze early\nanotifier uninstall        # Remove anotifier's hooks from every agent\nanotifier --version        # Version, plus an update notice if one is available",
       },
       {
         kind: "table",
@@ -191,7 +195,7 @@ export const DOCS: DocSection[] = [
           ],
           [
             "`status`",
-            "Shows version, platform, toast backend, Sentry, snooze, quiet hours, usage alerts, context alerts (1.6.0 and later) and whether the Claude Code statusline is wired (1.5.0 and later), ntfy URL, webhook origin, wired tools with their events, per-event toggles, and the last 8 hook errors from `~/.anotifier/errors.log`.",
+            "Shows version, platform, toast backend, Sentry, snooze, quiet hours, usage alerts, context alerts (1.6.0 and later) and whether the Claude Code statusline is wired (1.5.0 and later), the minimum duration filter as `Min duration` and the focus setting as `When focused` (both 1.8.0 and later), ntfy URL, webhook origin, wired tools with their events, per-event toggles, and the last 8 hook errors from `~/.anotifier/errors.log`.",
             "1 if the config file is invalid.",
           ],
           [
@@ -201,7 +205,7 @@ export const DOCS: DocSection[] = [
           ],
           [
             "`config [section]`",
-            "Interactive editor for `ntfy`, `webhook`, `sounds`, `events`, or `sentry`. Writes once at the end; Ctrl+C saves nothing.",
+            "Interactive editor for `ntfy`, `webhook`, `sounds`, `events`, `sentry`, or `focus` (1.8.0 and later). Writes once at the end; Ctrl+C saves nothing. It edits your top-level settings; per-project rules are edited in the config file.",
             "1 when not run in a terminal.",
           ],
           [
@@ -281,7 +285,7 @@ export const DOCS: DocSection[] = [
       },
       {
         kind: "p",
-        text: "Every notification is titled `<project> · <agent>` (for example `my-app · Claude Code`), where the project is the name of the working directory the agent runs in. The body is `<project>: Task complete` or `<project>: Needs your input`, unless rich content replaces it (see below).",
+        text: "Every notification is titled `<project> · <agent>` (for example `my-app · Claude Code`), where the project is the name of the working directory the agent runs in. The body is `<project>: Task complete` or `<project>: Needs your input`, unless rich content replaces it (see below). From 1.8.0 a `task_complete` body ends with the turn length when it is known, for example `<project>: Task complete (took 4m 12s)` (see the turn length section).",
       },
       {
         kind: "note",
@@ -320,12 +324,12 @@ export const DOCS: DocSection[] = [
               [
                 "Linux",
                 "notify-send (libnotify)",
-                "Event priority maps to `notify-send` urgency. Sound names are ignored.",
+                "Event priority maps to `notify-send` urgency. Sound names are ignored; a `toastSound` that is the path of your own audio file plays through `pw-play`, `paplay` or `aplay` (1.8.0 and later).",
               ],
               [
                 "WSL",
                 "PowerShell interop",
-                "Detected automatically; toasts cross to the Windows host instead of needing a Linux notification daemon.",
+                "Detected automatically; toasts cross to the Windows host instead of needing a Linux notification daemon. Your own sound file (1.8.0 and later) is played by Windows.",
               ],
             ],
           },
@@ -436,7 +440,7 @@ export const DOCS: DocSection[] = [
     blocks: [
       {
         kind: "p",
-        text: "A `needs_input` notification carries Claude's own question; a `task_complete` notification carries the last assistant message. Both are collapsed to one line and trimmed to about 180 characters. Session-start notifications stay generic. anotifier reads the transcript for Claude Code only, so Codex, Cursor, and Gemini CLI always get `<project>: Task complete` style text. The project name stays in the title on every channel, so a rich body never hides which repo finished. Cursor is the exception: anotifier doesn't read a project folder from its `stop` event, so Cursor alerts are titled just `Cursor`.",
+        text: "A `needs_input` notification carries Claude's own question; a `task_complete` notification carries the last assistant message. Both are collapsed to one line and trimmed to about 180 characters. Session-start notifications stay generic. anotifier reads the transcript for Claude Code only, so Codex, Cursor, and Gemini CLI always get `<project>: Task complete` style text. The project name stays in the title on every channel, so a rich body never hides which repo finished. Cursor names the project from the first of its workspace folders (1.8.0 and later; earlier versions titled Cursor alerts just `Cursor`). On a `task_complete` the turn length is added to the end of the message, rich or generic.",
       },
       {
         kind: "table",
@@ -462,7 +466,7 @@ export const DOCS: DocSection[] = [
       {
         kind: "code",
         lang: "json",
-        code: '{\n  "ntfy": { "enabled": true, "server": "https://ntfy.sh", "topic": "", "click": "", "richContent": false },\n  "toast": { "enabled": true, "clickToFocus": true, "richContent": true },\n  "terminalBell": { "enabled": true },\n  "webhook": { "enabled": false, "url": "", "format": "generic", "richContent": true },\n  "sentry": { "enabled": false, "dsn": "" },\n  "updateCheck": { "enabled": true },\n  "usageAlerts": { "enabled": true, "thresholds": [70, 85, 95] },\n  "contextAlerts": { "enabled": true, "threshold": 85 },\n  "quietHours": { "enabled": false, "from": "22:00", "to": "08:00" },\n  "events": {\n    "task_complete": { "toastSound": "IM", "priority": "default", "ntfyTags": "white_check_mark" },\n    "needs_input": { "toastSound": "Reminder", "priority": "urgent", "ntfyTags": "bell,warning" },\n    "session_start": {\n      "toastSound": "Default", "priority": "low", "ntfyTags": "rocket",\n      "toastEnabled": false, "ntfyEnabled": false, "terminalBellEnabled": false, "webhookEnabled": false\n    }\n  },\n  "sources": {\n    "claude": { "label": "Claude Code", "icon": "https://…/claude-app-icon.png" },\n    "codex": { "label": "Codex", "icon": "https://openai.com/favicon.ico" },\n    "gemini": { "label": "Gemini", "icon": "https://…/gemini_sparkle.svg" },\n    "cursor": { "label": "Cursor", "icon": "https://cursor.com/apple-touch-icon.png" }\n  }\n}',
+        code: '{\n  "ntfy": { "enabled": true, "server": "https://ntfy.sh", "topic": "", "click": "", "richContent": false },\n  "toast": { "enabled": true, "clickToFocus": true, "richContent": true },\n  "terminalBell": { "enabled": true },\n  "webhook": { "enabled": false, "url": "", "format": "generic", "richContent": true },\n  "sentry": { "enabled": false, "dsn": "" },\n  "updateCheck": { "enabled": true },\n  "usageAlerts": { "enabled": true, "thresholds": [70, 85, 95] },\n  "contextAlerts": { "enabled": true, "threshold": 85 },\n  "quietHours": { "enabled": false, "from": "22:00", "to": "08:00" },\n  "suppressWhenFocused": false,\n  "events": {\n    "task_complete": { "toastSound": "IM", "priority": "default", "ntfyTags": "white_check_mark", "minDurationSeconds": 0 },\n    "needs_input": { "toastSound": "Reminder", "priority": "urgent", "ntfyTags": "bell,warning" },\n    "session_start": {\n      "toastSound": "Default", "priority": "low", "ntfyTags": "rocket",\n      "toastEnabled": false, "ntfyEnabled": false, "terminalBellEnabled": false, "webhookEnabled": false\n    }\n  },\n  "sources": {\n    "claude": { "label": "Claude Code", "icon": "https://…/claude-app-icon.png" },\n    "codex": { "label": "Codex", "icon": "https://openai.com/favicon.ico" },\n    "gemini": { "label": "Gemini", "icon": "https://…/gemini_sparkle.svg" },\n    "cursor": { "label": "Cursor", "icon": "https://cursor.com/apple-touch-icon.png" }\n  }\n}',
       },
       {
         kind: "table",
@@ -587,6 +591,18 @@ export const DOCS: DocSection[] = [
             "Percentage above 0 and at most 100 of the auto-compact window at which a chat warns once. An invalid value is reported and 85 applies.",
           ],
           [
+            "`suppressWhenFocused`",
+            "boolean",
+            "`false`",
+            "1.8.0 and later. Send nothing while the window running the agent is the one in front. See the focus section.",
+          ],
+          [
+            "`projects`",
+            "list",
+            "unset",
+            "1.8.0 and later. Per-folder rules, each with a `match` and the settings it overrides. See the per-project section.",
+          ],
+          [
             "`quietHours.enabled`",
             "boolean",
             "`false`",
@@ -602,7 +618,13 @@ export const DOCS: DocSection[] = [
             "`events.<event>.toastSound`",
             "string",
             "per event",
-            "Windows BurntToast sound name; mapped on macOS, ignored on Linux.",
+            "Windows BurntToast sound name, mapped on macOS and ignored on Linux; or (1.8.0 and later) the path of your own audio file, see the sound files section.",
+          ],
+          [
+            "`events.task_complete.minDurationSeconds`",
+            "number",
+            "`0`",
+            '1.8.0 and later. A turn shorter than this many seconds sends no "task complete" alert; `0` is off. Rejected on any other event.',
           ],
           [
             "`events.<event>.priority`",
@@ -663,6 +685,118 @@ export const DOCS: DocSection[] = [
       {
         kind: "note",
         text: "A corrupt config never silences you by accident. An invalid JSON file makes `status` and `config` exit 1 with the parse problem, `setup` offers to rebuild it, and a malformed quiet-hours time disables just that block and is reported by `status`.",
+      },
+    ],
+  },
+  {
+    id: "turn-length",
+    title: "How long did the turn take, and can I skip short ones?",
+    lead: 'Version 1.8.0 and later ends a "task complete" alert with the turn length, and events.task_complete.minDurationSeconds skips turns shorter than that many seconds.',
+    blocks: [
+      {
+        kind: "p",
+        text: "A \"task complete\" notification says how long the turn took when anotifier knows it, for example `app: Task complete (took 4m 12s)`. With Claude Code's rich content on, the same `(took ...)` is added to the assistant's own words. The notification title is never changed, and when the length is not known the message is exactly what it was before.",
+      },
+      {
+        kind: "code",
+        lang: "json",
+        code: '{ "events": { "task_complete": { "minDurationSeconds": 30 } } }',
+      },
+      {
+        kind: "ul",
+        items: [
+          '`minDurationSeconds` (default `0`, off) skips the "task complete" alert for a turn shorter than that many seconds, on every channel. A turn of exactly the threshold is sent.',
+          "Only completions are filtered. Permission prompts and every other needs-input notification are always sent, a turn of unknown length is never skipped, and the key is rejected on any event other than `task_complete`.",
+          "Set it in `anotifier config events` or in `~/.anotifier/config.json`. `anotifier status` shows it as `Min duration`.",
+          "A turn's clock starts at its first prompt; a prompt sent while the turn is still open does not restart it. Claude Code sends no `Stop` for a turn you interrupt with Esc, so the next prompt counts from the interrupted turn's start and its length can read longer than it was. That only ever errs toward sending the alert.",
+          "Re-run `npx anotifier setup` once after upgrading: it adds the timing hook described in the setup section. Until then nothing is timed and nothing is filtered.",
+        ],
+      },
+      {
+        kind: "table",
+        head: [
+          "Agent",
+          "Turn starts at",
+          "Turn ends at",
+          "Length shown and filter applied",
+        ],
+        rows: [
+          ["Claude Code", "`UserPromptSubmit`", "`Stop`", "Yes"],
+          [
+            "Codex CLI",
+            "`UserPromptSubmit`",
+            "`Stop` (paired by `turn_id`)",
+            "Yes",
+          ],
+          ["Gemini CLI", "`BeforeAgent`", "`AfterAgent`", "Yes"],
+          ["Cursor", "none used", "`stop`", "No"],
+          ["Antigravity CLI", "none used", "`Stop`", "No"],
+        ],
+      },
+    ],
+  },
+  {
+    id: "focus",
+    title: "Can I skip alerts while I am looking at the agent?",
+    lead: "Yes, from 1.8.0: set suppressWhenFocused to true and no alert is sent while the window running the agent is the one in front. It is off by default.",
+    blocks: [
+      {
+        kind: "code",
+        lang: "json",
+        code: '{ "suppressWhenFocused": true }',
+      },
+      {
+        kind: "ul",
+        items: [
+          'Turn it on with `anotifier config focus` or in `~/.anotifier/config.json`. When it is on, "task complete" and needs-input alerts send nothing on any channel (toast, ntfy, webhook, bell). `anotifier status` shows it as `When focused`, and a `projects` rule can turn it on or off for one folder.',
+          "It is opt-in because every alert waits for a short window probe: about 1 s on Windows, a fraction of a second elsewhere. If the probe fails or takes too long, the alert is sent.",
+          'Only a clear "yes, in front" skips. When anotifier cannot tell it sends as usual: under tmux, screen or zellij, over ssh, on Wayland, on Linux without `xdotool`, and for an editor on macOS.',
+          "It compares the foreground window with the first window up the agent's process tree. For VS Code, Cursor and Windsurf, whose windows share one process, the window title must also contain the project folder name.",
+          "Another tab or pane of the same terminal window counts as in front. The idle reminder is never suppressed, and the usage-limit and context warnings and the update notice do not use this setting.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "sound-files",
+    title: "Can I use my own sound file?",
+    lead: "Yes, from 1.8.0: set an event's toastSound to the path of an audio file and it plays instead of the toast's own sound.",
+    blocks: [
+      {
+        kind: "code",
+        lang: "json",
+        code: '{ "events": { "task_complete": { "toastSound": "~/sounds/done.wav" } } }',
+      },
+      {
+        kind: "ul",
+        items: [
+          "A value is read as a file, not a sound name, when it starts with `~/`, is an absolute path, contains a `/` or backslash, or ends in `.wav`, `.mp3`, `.aiff`, `.aif`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.opus` or `.flac`. Existing sound names keep working.",
+          "The file plays in the background and the toast itself is silent, so you hear one sound. Windows plays `.wav` directly and other formats through Windows Media, capped at 30 seconds; macOS uses `afplay`; Linux uses the first of `pw-play`, `paplay` and `aplay` that starts (Linux toasts have no other sound); WSL has Windows play it.",
+          "A missing file leaves the default sound on Windows and macOS, and a player that cannot start is logged, both without the path. `anotifier config sounds` checks the file exists, `anotifier test toast` plays it, and `anotifier doctor` warns about a missing one.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "project-overrides",
+    title: "Can one project have its own settings?",
+    lead: "Yes, from 1.8.0: a projects list in ~/.anotifier/config.json gives a folder its own channels, topic, sounds, quiet hours and more.",
+    blocks: [
+      {
+        kind: "code",
+        lang: "json",
+        code: '{\n  "projects": [\n    {\n      "match": "~/work/acme",\n      "ntfy": { "topic": "acme-alerts" },\n      "events": { "task_complete": { "toastSound": "Alarm", "minDurationSeconds": 60 } },\n      "quietHours": { "enabled": true, "from": "18:00", "to": "09:00" }\n    }\n  ]\n}',
+      },
+      {
+        kind: "ul",
+        items: [
+          "`match` is an absolute path or one starting with `~/`. A rule applies to that folder and everything inside it, `*` stands for any text within one folder name and `**` for any number of folders (`~/work/*/app`, `~/clients/**`). A relative path matches nothing.",
+          "A rule can override `ntfy`, `toast`, `terminalBell`, `webhook`, `quietHours`, `suppressWhenFocused`, `events` (including `minDurationSeconds`), `contextAlerts` and `sources`. `sentry`, `updateCheck`, `telemetry`, `usageAlerts` and `projects` are machine-wide and rejected inside a rule.",
+          "Settings combine as defaults, then your top-level config, then every matching rule in list order, so a later rule wins. Objects merge key by key; a list or a single value is replaced.",
+          "The folder is the `cwd` the agent sends with the hook (for Cursor and Antigravity CLI, the first workspace folder). With no folder, or no matching rule, nothing changes. Rules live only in your own config file, never in a per-repo file, so a cloned repository cannot redirect your alerts.",
+          "The Claude Code statusline warnings read the folder from the statusline input (`workspace.current_dir`, then `workspace.project_dir`, then `cwd`). A matching rule changes the context warning for that session and how both warnings are delivered. The usage-limit warning belongs to your account, so its thresholds and on/off switch stay global.",
+          "`anotifier status`, `doctor` and `config` show your top-level settings only, and snooze is not per project.",
+        ],
       },
     ],
   },
@@ -797,7 +931,7 @@ export const DOCS: DocSection[] = [
       },
       {
         kind: "p",
-        text: "Codex trust hashes that anotifier added under `[hooks.state]` in `~/.codex/config.toml` are removed too. Original configs remain at `~/.anotifier/backups/` for you to keep or delete, along with `~/.anotifier/config.json`.",
+        text: "Codex trust hashes that anotifier added under `[hooks.state]` in `~/.codex/config.toml` are removed too. Original configs remain at `~/.anotifier/backups/` for you to keep or delete, along with `~/.anotifier/config.json`. From 1.8.0 it also removes the turn timing hook and deletes `~/.anotifier/turns.json`.",
       },
     ],
   },
@@ -847,7 +981,7 @@ export const DOCS_FAQ: DocFaq[] = [
   },
   {
     q: "How do I stop getting a notification for one event?",
-    a: "Set the per-event switch, for example events.session_start.toastEnabled: false, or events.task_complete.webhookEnabled: false. Use snooze or quiet hours to silence everything for a while.",
+    a: 'Set the per-event switch, for example events.session_start.toastEnabled: false, or events.task_complete.webhookEnabled: false. To skip only short "task complete" alerts, set events.task_complete.minDurationSeconds (1.8.0 and later). Use snooze or quiet hours to silence everything for a while.',
   },
   {
     q: "Is anotifier free?",
