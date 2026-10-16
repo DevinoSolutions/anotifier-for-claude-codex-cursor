@@ -436,7 +436,7 @@ export const DOCS: DocSection[] = [
     blocks: [
       {
         kind: "p",
-        text: "A `needs_input` notification carries Claude's own question; a `task_complete` notification carries the last assistant message. Both are collapsed to one line and trimmed to about 180 characters. Session-start notifications stay generic. anotifier reads the transcript for Claude Code only, so Codex, Cursor, and Gemini CLI always get `<project>: Task complete` style text. The project name stays in the title on every channel, so a rich body never hides which repo finished. Cursor is the exception: its `stop` event carries no working directory, so Cursor alerts are titled just `Cursor`.",
+        text: "A `needs_input` notification carries Claude's own question; a `task_complete` notification carries the last assistant message. Both are collapsed to one line and trimmed to about 180 characters. Session-start notifications stay generic. anotifier reads the transcript for Claude Code only, so Codex, Cursor, and Gemini CLI always get `<project>: Task complete` style text. The project name stays in the title on every channel, so a rich body never hides which repo finished. Cursor is the exception: anotifier doesn't read a project folder from its `stop` event, so Cursor alerts are titled just `Cursor`.",
       },
       {
         kind: "table",
@@ -810,7 +810,7 @@ export const DOCS: DocSection[] = [
         kind: "ul",
         items: [
           "Unit and integration suites run on Linux, macOS, and Windows for every change.",
-          "End-to-end lanes install the real Claude, Codex, Gemini, and Cursor CLIs from npm, drive them, and assert a real ntfy.sh push round-trips.",
+          "End-to-end lanes install the real Claude, Codex, and Gemini CLIs from npm, drive them, and assert a real ntfy.sh push round-trips. The Cursor lane checks the config wiring only.",
           "Toast lanes fire the real backend, then read the record back from dunst history plus an OCR of the on-screen banner (Linux), Notification Center's SQLite database (macOS), and `wpndatabase.db` (Windows). A silently dropped toast turns CI red.",
           "A tmux lane drives the real Codex TUI through an approval modal and proves the `PermissionRequest` alert fires.",
           "Every lane is required and hard-fails; live status badges are on the [GitHub README](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor#testing).",

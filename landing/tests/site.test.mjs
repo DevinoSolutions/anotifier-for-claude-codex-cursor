@@ -93,21 +93,17 @@ test("agent pages target the product, guides the how-to, and link to each other"
   }
 });
 
-test("/claude-code/ compares the options, shows the hand-written hooks, and keeps FAQ schema in step", () => {
-  const { body } = pages.get("/claude-code/");
-  for (const id of ["options", "by-hand"]) {
-    assert.ok(body.includes(`id="${id}"`), `/claude-code/ lacks #${id}`);
-  }
-  assert.ok(
-    body.includes('<th scope="col">'),
-    "/claude-code/ comparison table has no column headers",
-  );
+const decodeEntities = (t) =>
+  t
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 
-  const decode = (t) =>
-    t
-      .replace(/&#x27;|&#39;/g, "'")
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, "&");
+// The visible FAQ questions and the FAQPage JSON-LD questions of a rendered
+// page, so a test can check that the two stay in step.
+function faqQuestions(body) {
   const ld = [
     ...body.matchAll(
       /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g,
@@ -126,8 +122,22 @@ test("/claude-code/ compares the options, shows the hand-written hooks, and keep
     return s;
   };
   const visibleQs = [...body.matchAll(/<summary>([\s\S]*?)<\/summary>/g)].map(
-    (m) => decode(stripTags(m[1])),
+    (m) => decodeEntities(stripTags(m[1])),
   );
+  return { schemaQs, visibleQs };
+}
+
+test("/claude-code/ compares the options, shows the hand-written hooks, and keeps FAQ schema in step", () => {
+  const { body } = pages.get("/claude-code/");
+  for (const id of ["options", "by-hand"]) {
+    assert.ok(body.includes(`id="${id}"`), `/claude-code/ lacks #${id}`);
+  }
+  assert.ok(
+    body.includes('<th scope="col">'),
+    "/claude-code/ comparison table has no column headers",
+  );
+
+  const { schemaQs, visibleQs } = faqQuestions(body);
   assert.ok(visibleQs.length > 0, "/claude-code/ shows no FAQ questions");
   for (const q of visibleQs) {
     assert.ok(schemaQs.includes(q), `FAQ "${q}" is missing from the JSON-LD`);
@@ -141,6 +151,62 @@ test("/claude-code/ compares the options, shows the hand-written hooks, and keep
       pages.get(guide).body,
       /<a[^>]+href="\/claude-code\/"[^>]*>\s*Claude Code notifier\s*<\/a>/,
       `${guide} has no "Claude Code notifier" link to /claude-code/`,
+    );
+  }
+});
+
+test("the Cursor guide leads with the answer, shows valid hooks.json examples, and keeps FAQ schema in step", () => {
+  const g = pages.get("/guides/cursor-agent-notifications/");
+  assert.match(g.title, /^Cursor Notification When Done/, "guide title");
+  for (const id of [
+    "built-in",
+    "hook",
+    "hook-os",
+    "anotifier",
+    "phone",
+    "windows",
+    "troubleshooting",
+    "mute",
+    "faq",
+  ]) {
+    assert.ok(g.body.includes(`id="${id}"`), `Cursor guide lacks #${id}`);
+  }
+
+  // The paragraph under the h1 is the direct answer.
+  const sub = g.body.match(/<p class="sub">([\s\S]*?)<\/p>/)?.[1] ?? "";
+  assert.match(sub, /sound/, "intro does not mention the built-in sound");
+  assert.match(sub, /hooks\.json/, "intro does not mention hooks.json");
+
+  // Every hooks.json example parses and has the shape Cursor documents.
+  const hookFiles = [
+    ...g.body.matchAll(/<pre data-lang="json"><code>([\s\S]*?)<\/code>/g),
+  ]
+    .map((m) => JSON.parse(decodeEntities(m[1])))
+    .filter((j) => j.hooks);
+  assert.ok(
+    hookFiles.length >= 4,
+    `only ${hookFiles.length} hooks.json examples`,
+  );
+  for (const file of hookFiles) {
+    assert.equal(file.version, 1, "hooks.json example without version 1");
+    assert.deepEqual(Object.keys(file.hooks), ["stop"]);
+    for (const entry of file.hooks.stop) {
+      assert.equal(typeof entry.command, "string", "stop entry has no command");
+    }
+  }
+
+  const { schemaQs, visibleQs } = faqQuestions(g.body);
+  assert.ok(visibleQs.length >= 4, `only ${visibleQs.length} FAQ questions`);
+  assert.deepEqual(schemaQs, visibleQs, "FAQ JSON-LD differs from the page");
+
+  for (const href of [
+    "/cursor/",
+    "/guides/notifications-not-working/",
+    "/guides/ntfy-phone-notifications/",
+  ]) {
+    assert.ok(
+      g.body.includes(`href="${href}`),
+      `Cursor guide does not link ${href}`,
     );
   }
 });

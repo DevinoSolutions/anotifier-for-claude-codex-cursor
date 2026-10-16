@@ -143,12 +143,17 @@ const WHAT_ANOTIFIER_ADDS: Block[] = [
   },
 ];
 
-/** Cursor's stop event carries no working directory and anotifier hooks only
-    `stop`, so three of the shared rows don't hold for Cursor. */
-const CURSOR_ROWS: Record<string, string> = {
-  "Names the project": "No, the title is `Cursor`",
-  "Urgent for approvals, calm for done": "No, finished runs only",
-  "Click to focus the window": "No",
+/** anotifier reads no project folder from Cursor's stop event and hooks only
+    `stop`, so three of the shared rows don't hold for Cursor. Cursor also has
+    its own OS notification (cursor.com/changelog/1-5), so the desktop toast row
+    changes in the Built-in column too. */
+const CURSOR_ROWS: Record<string, { builtIn?: string; anotifier?: string }> = {
+  "Desktop toast": { builtIn: "Yes, Cursor's OS notification setting" },
+  "Names the project": { anotifier: "No, the title is `Cursor`" },
+  "Urgent for approvals, calm for done": {
+    anotifier: "No, finished runs only",
+  },
+  "Click to focus the window": { anotifier: "No" },
 };
 
 const WHAT_ANOTIFIER_ADDS_CURSOR: Block[] = WHAT_ANOTIFIER_ADDS.map((block) =>
@@ -157,12 +162,46 @@ const WHAT_ANOTIFIER_ADDS_CURSOR: Block[] = WHAT_ANOTIFIER_ADDS.map((block) =>
         ...block,
         rows: block.rows.map((row) =>
           row[0] in CURSOR_ROWS
-            ? [...row.slice(0, 3), CURSOR_ROWS[row[0]]]
+            ? [
+                row[0],
+                CURSOR_ROWS[row[0]].builtIn ?? row[1],
+                row[2],
+                CURSOR_ROWS[row[0]].anotifier ?? row[3],
+              ]
             : row,
         ),
       }
     : block,
 );
+
+const cursorStopHook = (command: string) =>
+  json({ version: 1, hooks: { stop: [{ command }] } });
+
+const CURSOR_HOOK_SCRIPT = cursorStopHook("./hooks/notify.sh");
+const CURSOR_HOOK_LINUX = cursorStopHook(
+  'notify-send "Cursor" "Agent finished"',
+);
+const CURSOR_HOOK_MAC = cursorStopHook(
+  `osascript -e 'display notification "Agent finished" with title "Cursor"'`,
+);
+const CURSOR_HOOK_WINDOWS = cursorStopHook(
+  'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:/Users/you/.cursor/win-toast.ps1" -Title Cursor -Message "Agent finished"',
+);
+const CURSOR_HOOK_NTFY = cursorStopHook(
+  'curl -s -d "Cursor agent finished" ntfy.sh/your-secret-topic',
+);
+const CURSOR_SLACK_CONFIG = json({
+  webhook: {
+    enabled: true,
+    url: "https://hooks.slack.com/services/...",
+    format: "slack",
+  },
+});
+const CURSOR_NOTIFY_SH = `#!/bin/bash
+input=$(cat)
+status=$(echo "$input" | jq -r '.status')
+project=$(basename "$(echo "$input" | jq -r '.workspace_roots[0]')")
+notify-send "Cursor · $project" "Agent $status"`;
 
 const AGENT_GUIDES: Guide[] = [
   {
@@ -532,72 +571,282 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "cursor-agent-notifications",
-    updated: "2026-10-06",
+    updated: "2026-10-15",
     kind: "agent",
     agentSlug: "cursor",
     name: "Cursor",
     icon: "/assets/icons/cursor.png",
-    title: "Cursor Notification When Done: Agent Finish Alerts",
+    title: "Cursor Notification When Done: Sound, Hooks & Phone Alerts",
     description:
-      "Turn on Cursor's completion sound, or add a stop hook to ~/.cursor/hooks.json for a desktop toast, phone push, or Slack message when the agent finishes.",
+      "Get a Cursor notification when the agent is done: the built-in sound and OS alert, a stop hook in hooks.json for a toast, phone push or Slack, and fixes.",
     h1: "How to get notified when the Cursor agent finishes",
     intro:
-      "You kick off a Cursor agent, switch to a browser tab, and check back either too early or twenty minutes late. Cursor exposes an agent lifecycle hook system that fires the instant the agent loop ends, which is all you need to be told rather than to keep checking.",
+      "Cursor can play a sound and raise an OS notification when the agent finishes, but both only reach the computer running Cursor. For your own text, a phone push or a Slack message, add a `stop` hook to `~/.cursor/hooks.json`, which Cursor runs when the agent loop ends, or let `npx anotifier@latest setup` write it. This guide covers each option, the exact hook format, and what to check when nothing arrives.",
     sections: [
       {
         id: "built-in",
-        title: "Option 1: Cursor's own completion sound",
+        title: "Cursor's built-in completion sound and notifications",
         blocks: [
           {
             kind: "p",
-            text: "Cursor's settings include an option to play a sound when the agent completes. It is a sound on the same machine: no banner with the project name, nothing when you have headphones off or have walked away, and nothing in Slack.",
+            text: "Cursor has two settings of its own, both in the app's Settings:",
+          },
+          {
+            kind: "ul",
+            items: [
+              "**A sound.** Version 0.48 added a beta option to play a sound when a chat is ready for review. The [0.48 changelog](https://cursor.com/changelog/0-48-x) gave the path as Settings → Features → Chat → Play sound on finish. Cursor's settings have changed since, so if you don't find it there, search the settings for `sound`.",
+              '**An OS notification.** The [1.5 changelog](https://cursor.com/changelog/1-5) says: "Get native OS notifications when an agent run finishes or when input is required." The example it gives is approving a command that is not allowlisted. It says to enable them from Settings, without naming the setting.',
+            ],
+          },
+          {
+            kind: "p",
+            text: "Both happen on the computer running Cursor and use Cursor's fixed wording. Neither reaches your phone, Slack or a second machine, and you can't change the text, so for those you need a hook (next sections). They are still the cheapest answer to \"ding when it's done\": try them first.",
+          },
+          {
+            kind: "p",
+            text: "The Cursor CLI (`cursor-agent`) is separate. Its [CLI changelog](https://cursor.com/docs/cli/changelog) lists desktop notifications from April 2026 for a finished turn and for the agent being blocked on approvals, questions or sudo, in iTerm2, Ghostty, Warp, Kitty and Terminal.app. It doesn't say how to turn them on.",
           },
         ],
       },
       {
         id: "hook",
-        title: "Option 2: a stop hook in ~/.cursor/hooks.json",
+        title: "Cursor hooks by hand: the stop hook in hooks.json",
         blocks: [
           {
             kind: "p",
-            text: "Cursor reads agent hooks from `~/.cursor/hooks.json` (and from `.cursor/hooks.json` inside a project). The `stop` event runs when the agent loop ends. Each entry is a command Cursor executes with the event JSON on stdin:",
+            text: "Cursor hooks run a command of yours at points in the agent loop. Put them in `~/.cursor/hooks.json` for every project (`%USERPROFILE%\\.cursor\\hooks.json` on Windows) or in `.cursor/hooks.json` inside one project. Cursor runs the matching hooks from every file and reloads the files when they change. This is the shape of the file. The `command` can be any shell string or script; the next section has working ones:",
+          },
+          { kind: "code", lang: "json", code: CURSOR_HOOK_SCRIPT },
+          {
+            kind: "p",
+            text: "What [Cursor's hooks docs](https://cursor.com/docs/hooks) say about it:",
           },
           {
-            kind: "code",
-            lang: "json",
-            code: '{\n  "version": 1,\n  "hooks": {\n    "stop": [\n      { "command": "notify-send \\"Cursor\\" \\"Agent finished\\"" }\n    ]\n  }\n}',
+            kind: "ul",
+            items: [
+              "`version` is `1`. Each key under `hooks` is an event name holding a list of entries. An entry needs `command`; `timeout` (seconds), `matcher` and `failClosed` are optional.",
+              "`stop` fires when the agent loop ends. It gets JSON on stdin with `status` (`completed`, `aborted` or `error`) and `loop_count`, plus the fields every hook gets, among them `conversation_id`, `generation_id`, `hook_event_name` and `workspace_roots`.",
+              "Exit code `0` means success, `2` blocks the action, and any other code is a failure that lets the agent carry on. A notification hook that fails therefore fails silently.",
+              'A `stop` hook can print `{"followup_message": "..."}`, and Cursor sends that as the next message, up to `loop_limit` times (5 by default). A notification hook should print nothing or `{}`; a `followup_message` field would be sent as the next prompt.',
+              "For user hooks, relative `command` paths resolve from `~/.cursor/`, so `./hooks/notify.sh` means `~/.cursor/hooks/notify.sh`. Project hooks run from the project root.",
+              "To debug, open the Hooks tab under Customize or the Hooks output channel. If a new hook still doesn't load, restart Cursor.",
+            ],
           },
           {
             kind: "p",
-            text: "On macOS use `osascript -e 'display notification ...'`; on Windows a PowerShell script with BurntToast. Cursor can fire `stop` twice for a single run, so a hand-written hook may notify twice unless you de-duplicate.",
+            text: "Cursor's documented events cover prompts, tool and shell calls, file edits, subagents and sessions, but none for \"waiting for your approval\". For that, Cursor's own OS notification above is the option.",
+          },
+        ],
+      },
+      {
+        id: "hook-os",
+        title: "A stop hook for macOS, Linux and Windows",
+        blocks: [
+          {
+            kind: "p",
+            text: "Each `hooks.json` below shows a banner with a fixed message and ignores the event JSON. **Linux** (needs `notify-send`, from libnotify):",
+          },
+          { kind: "code", lang: "json", code: CURSOR_HOOK_LINUX },
+          { kind: "p", text: "**macOS:**" },
+          { kind: "code", lang: "json", code: CURSOR_HOOK_MAC },
+          {
+            kind: "p",
+            text: "**Windows.** Cursor's docs don't say which shell runs a hook command, so call PowerShell explicitly and use an absolute path with forward slashes. Save the toast script from the [Codex guide](/guides/codex-cli-notifications/#windows) (it takes a title and a message, and needs no module) as `C:/Users/you/.cursor/win-toast.ps1`, then:",
+          },
+          { kind: "code", lang: "json", code: CURSOR_HOOK_WINDOWS },
+          {
+            kind: "p",
+            text: "To put the status and project name in the message, read the event JSON in a script. This one needs `jq`; save it as `~/.cursor/hooks/notify.sh`, run `chmod +x` on it, and point the hook's `command` at `./hooks/notify.sh` as in the first example:",
+          },
+          { kind: "code", lang: "bash", code: CURSOR_NOTIFY_SH },
+          {
+            kind: "p",
+            text: 'On macOS swap the last line for `osascript -e "display notification \\"Agent $status\\" with title \\"Cursor · $project\\""`. `workspace_roots` is the list of folders open in the window, so `[0]` is the first. Test it before trusting it: `echo \'{"status":"completed","loop_count":0,"workspace_roots":["/home/you/my-app"]}\' | ~/.cursor/hooks/notify.sh`.',
           },
         ],
       },
       {
         id: "anotifier",
-        title: "Option 3: anotifier",
+        title: "anotifier setup for Cursor",
         blocks: [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: "The wizard detects `~/.cursor`, adds the `stop` hook (backing up `hooks.json` first), and routes the event to your desktop, phone, and webhook. Duplicate `stop` fires within 1.5 seconds collapse into one notification through an atomic lock. The alert is titled `Cursor` and says `Task complete`: Cursor's `stop` event carries no working directory, so the project name isn't in it and a click on the Windows toast can't find the window, and anotifier doesn't read the event's `status`, so an aborted run says the same. anotifier hooks only `stop`, so it doesn't tell you when the agent is waiting for you.",
+            text: "Setup wires Cursor when a `~/.cursor` folder exists. It copies `hooks.json` to `~/.anotifier/backups/`, sets `version` to `1`, and adds one entry under `stop` that runs anotifier's `notify.mjs` with `--source cursor --event stop`. Your other hooks stay; running setup again replaces anotifier's own entry instead of adding a second. Cursor reloads the file by itself.",
+          },
+          {
+            kind: "p",
+            text: "What you get, and what you don't:",
+          },
+          {
+            kind: "ul",
+            items: [
+              "**One alert per finished run,** titled `Cursor` and saying `Task complete`, as a toast, a phone push and a webhook message (whichever you enabled). A second `stop` within 1.5 seconds is dropped, because Cursor can fire the hook twice in quick succession.",
+              "**No project name.** Cursor's docs list `workspace_roots` in the hook input, but anotifier reads `cwd` and `workspacePaths` and not `workspace_roots`, so every Cursor alert looks the same. With several windows open, the hand-written script above is the way to name the project.",
+              "**No status.** anotifier doesn't read `status`, so a run you stopped or one that ended in an error says `Task complete` too.",
+              "**No click-to-focus.** The Windows toast jumps to a window by project folder, and a Cursor alert has none, so there is no click action.",
+              '**Only `stop`.** There is no alert for "waiting for approval". Leave Cursor\'s own OS notification on for that.',
+              "**Not driven by a live Cursor.** CI checks that setup writes and removes the hook correctly; it doesn't run a real Cursor agent end to end.",
+            ],
           },
           ...WHAT_ANOTIFIER_ADDS_CURSOR,
+          {
+            kind: "p",
+            text: "More on the [Cursor page](/cursor/), and what setup writes for every agent in [Agent hooks explained](/guides/agent-hooks-explained/).",
+          },
+        ],
+      },
+      {
+        id: "phone",
+        title: "Phone push (ntfy) and Slack when Cursor finishes",
+        blocks: [
+          {
+            kind: "p",
+            text: "By hand, a hook can post to [ntfy](https://ntfy.sh). Install the ntfy app, subscribe to a topic nobody could guess (anyone who knows a public topic name can read it), and use it here:",
+          },
+          { kind: "code", lang: "json", code: CURSOR_HOOK_NTFY },
+          {
+            kind: "p",
+            text: "With anotifier, answer yes to the ntfy question during setup. It creates a random topic, you subscribe to it in the app, and `anotifier test ntfy` should buzz your phone. The push is titled `Cursor` with the body `Task complete`. The full walkthrough is in the [phone push guide](/guides/ntfy-phone-notifications/).",
+          },
+          {
+            kind: "p",
+            text: "For Slack, create an incoming webhook and put it in `~/.anotifier/config.json`. Every Cursor finish then posts one message to the channel:",
+          },
+          { kind: "code", lang: "json", code: CURSOR_SLACK_CONFIG },
+          {
+            kind: "p",
+            text: "See the [Slack page](/slack/) for the webhook steps. Discord and Telegram use a different `format`.",
+          },
+        ],
+      },
+      {
+        id: "windows",
+        title: "Cursor notifications on Windows and WSL",
+        blocks: [
+          {
+            kind: "ul",
+            items: [
+              "**Windows.** The user hooks file is `%USERPROFILE%\\.cursor\\hooks.json`. Run setup in PowerShell, not in WSL. Setup also checks for PowerShell 7 (`pwsh`) and installs the BurntToast module for your user, so a toast arrives with the Cursor icon and a Windows notification sound. If `pwsh` is missing it prints `winget install --id Microsoft.PowerShell --source winget`. `anotifier test toast` confirms the toast works.",
+              "**Hand-written hooks on Windows** can't use `notify-send`. Use the PowerShell toast above, and if nothing appears check that Do not disturb (Focus Assist) is off.",
+              "**WSL.** Setup only looks in the home folder of the shell it runs in. If you run Cursor on Windows, run setup in PowerShell on Windows. If you run Cursor's agent from inside WSL, run it inside WSL, where the toast goes out through Windows interop. Cursor's hooks docs don't say which side runs a hook when a window is connected to WSL, so check with a real run: if the alert doesn't arrive, run `anotifier status` on both sides to see which one has the hook.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "Details for both are in [Agent notifications on Windows and WSL](/guides/windows-wsl-notifications/) and [Windows toast from WSL](/guides/wsl-notify-send/).",
+          },
+        ],
+      },
+      {
+        id: "troubleshooting",
+        title: "Cursor notification not showing? Fixes by symptom",
+        blocks: [
+          {
+            kind: "table",
+            head: ["Symptom", "Likely cause", "What to do"],
+            rows: [
+              [
+                "Nothing at all after a run",
+                "The hook isn't in the file Cursor reads, or didn't load",
+                "Run `anotifier status` and look for Cursor IDE `wired`. Open the Hooks tab under Customize and the Hooks output channel for errors; restart Cursor if the hook still doesn't load",
+              ],
+              [
+                "`anotifier test toast` works, real runs are silent",
+                "The problem is between Cursor and anotifier",
+                "Check `~/.cursor/hooks.json` has a `stop` entry, then check `anotifier status` for snooze and quiet hours, which silence every channel on purpose",
+              ],
+              [
+                "The Hooks output channel says `node` was not found",
+                "anotifier's hook command starts with `node`, so Cursor's hook environment has to find Node",
+                "Start Cursor from a terminal where `node -v` works, or put Node on the system PATH, and restart Cursor",
+              ],
+              [
+                "My own hook never shows a banner",
+                "The command exits with a code other than 0, and Cursor lets the agent carry on without telling you",
+                'Run it by hand from `~/.cursor` with a sample payload: `echo \'{"status":"completed","loop_count":0,"workspace_roots":["/home/you/my-app"]}\' | ./hooks/notify.sh`, and fix whatever it prints',
+              ],
+              [
+                "Two notifications for one run",
+                "The same hook is in `~/.cursor/hooks.json` and in a project's `.cursor/hooks.json`; Cursor runs both",
+                "Keep it in one file. anotifier also drops a second `stop` within 1.5 seconds, but a hand-written hook doesn't",
+              ],
+              [
+                "`Task complete` after I stopped the agent or it errored",
+                "anotifier doesn't read the event's `status`",
+                "Use the script above, which prints `completed`, `aborted` or `error`",
+              ],
+              [
+                "Toast works, phone doesn't",
+                "ntfy skipped in setup, or a wrong topic in the app",
+                "`anotifier test ntfy`, then the [phone push troubleshooting](/guides/ntfy-phone-notifications/#trouble)",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "The order of checks that works for any agent is in the [troubleshooting guide](/guides/notifications-not-working/).",
+          },
+        ],
+      },
+      {
+        id: "mute",
+        title: "Turn off Cursor notifications",
+        blocks: [
+          {
+            kind: "table",
+            head: ["To stop", "Do this"],
+            rows: [
+              [
+                "Cursor's own sound or OS notification",
+                "Turn off the matching option in Cursor's Settings (see the first section)",
+              ],
+              [
+                "A hand-written hook",
+                "Delete its entry from `hooks.json`; Cursor reloads the file",
+              ],
+              [
+                "anotifier for a while",
+                "`anotifier snooze 2h` silences every channel until it expires; `anotifier snooze off` cancels it. Quiet hours (`quietHours.enabled` in `~/.anotifier/config.json`, off by default) do the same every night",
+              ],
+              [
+                "anotifier's Cursor alert only",
+                "Delete the `stop` entry whose command contains `--source cursor`. Running setup again puts it back",
+              ],
+              ["anotifier for good", "`npx anotifier@latest uninstall`"],
+            ],
+          },
+          {
+            kind: "note",
+            text: "`uninstall` asks for confirmation, then removes anotifier's hooks from every agent it wired, not just Cursor, after backing up each file. It leaves your own hooks and your settings in `~/.anotifier`. Snooze and quiet hours silence anotifier only; Cursor's own sound and notifications keep going until you change them.",
+          },
         ],
       },
     ],
     faqs: [
       {
-        q: "Does this need a Cursor extension?",
-        a: "No. Cursor's hook system is read from a JSON file; nothing is installed into the editor.",
+        q: "Does Cursor have a built-in notification when the agent finishes?",
+        a: "Yes, two. Cursor 0.48 added an option to play a sound when a chat is ready for review, and Cursor 1.5 added native OS notifications for a finished agent run or when input is required. Both stay on the computer running Cursor and use Cursor's own wording; for a phone push, Slack or your own text, add a stop hook.",
       },
       {
-        q: "Can I get Cursor alerts on my phone?",
-        a: "Yes, through ntfy: install the app, let anotifier setup create a topic, subscribe, and your phone buzzes when the agent finishes.",
+        q: "How do I get a Cursor notification on my phone when the agent is done?",
+        a: 'Add a stop hook to ~/.cursor/hooks.json that posts to ntfy, for example curl -s -d "Cursor agent finished" ntfy.sh/your-secret-topic, and subscribe to that topic in the ntfy app. npx anotifier@latest setup does the same with a random private topic and also covers Slack, Discord and Telegram.',
       },
       {
-        q: "Why did I get two notifications for one run?",
-        a: "Cursor can emit the stop event twice. anotifier drops a repeat of the same event from the same session within 1.5 seconds; a hand-written hook needs its own guard.",
+        q: "What is the Cursor stop hook and what does it receive?",
+        a: "stop is the hooks.json event that fires when the agent loop ends. Its stdin JSON carries status (completed, aborted or error) and loop_count, plus common fields such as conversation_id, generation_id and workspace_roots. Exit 0 and print nothing or {} for a plain notification; a followup_message field would be sent as the next prompt.",
+      },
+      {
+        q: "Why did I get two Cursor notifications for one run?",
+        a: "Cursor runs the matching hooks from every hooks.json, so the same hook in ~/.cursor and in a project's .cursor folder fires twice. Cursor can also fire a hook twice in quick succession for one run; anotifier de-duplicates a repeat of the same event within 1.5 seconds, but a hand-written hook needs its own guard.",
+      },
+      {
+        q: "Does the Cursor CLI (cursor-agent) notify when it finishes?",
+        a: "Cursor's CLI changelog lists desktop notifications from April 2026 for a finished turn and for approvals, questions and sudo prompts, in iTerm2, Ghostty, Warp, Kitty and Terminal.app, and it added hooks in January 2026. anotifier's tests don't run the Cursor CLI, so whether its stop hook fires there is untested.",
+      },
+      {
+        q: "How do I turn Cursor notifications off?",
+        a: "Turn off the sound and notification options in Cursor's Settings for the built-in ones, delete a hand-written entry from hooks.json, run anotifier snooze 2h to pause anotifier, or run npx anotifier@latest uninstall to remove it from every agent.",
       },
     ],
   },

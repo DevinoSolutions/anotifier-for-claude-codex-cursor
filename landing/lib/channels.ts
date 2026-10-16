@@ -202,7 +202,7 @@ export const CHANNELS: Channel[] = [
               [
                 "Cursor finished",
                 "`Cursor`",
-                "`Task complete`. Cursor sends no project folder, so there is no project name.",
+                "`Task complete`. anotifier doesn't read a project folder from Cursor's event, so there is no project name.",
               ],
               [
                 "Usage-limit and context warnings, update notice",

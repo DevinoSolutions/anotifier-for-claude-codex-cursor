@@ -588,9 +588,9 @@ export const AGENTS: Agent[] = [
             kind: "ul",
             items: [
               "**Finished runs only.** anotifier registers `stop`, so it tells you a run is over, not that the agent is waiting on you.",
-              "**No project name, so no click-to-focus.** Click-to-focus (Windows only) finds the window by the project folder, and Cursor alerts don't carry one.",
+              "**No project name, so no click-to-focus.** anotifier reads `cwd`, not `workspace_roots`, from Cursor's event, so a Cursor alert has no project folder. Click-to-focus (Windows only) finds the window by that folder.",
               "**Usually no bell.** The bell rings in the terminal the agent runs in, and the Cursor editor normally has none.",
-              "**Cursor's editor agent.** The README lists the Cursor CLI as unsupported.",
+              "**Cursor CLI.** Whether the hook fires under `cursor-agent` is untested.",
               "**How it's tested.** CI checks that setup writes and removes the Cursor hook correctly. Unlike Claude Code, Codex and Gemini CLI, a real Cursor run isn't driven end to end.",
             ],
           },
@@ -935,7 +935,7 @@ export const AGENTS: Agent[] = [
         blocks: [
           {
             kind: "p",
-            text: "The title is the project and the agent, such as `my-app · Claude Code`. The project is the name of the folder the agent was started in, so two VS Code windows on different folders read differently at a glance. For Claude Code the body is the start of Claude's last reply, up to 180 characters, or its own message when it needs you; phone push says `my-app: Task complete` instead. Codex CLI and Gemini CLI send `my-app: Task complete` or `my-app: Needs your input`. Cursor sends no project folder, so its alert is just `Cursor` and `Task complete`.",
+            text: "The title is the project and the agent, such as `my-app · Claude Code`. The project is the name of the folder the agent was started in, so two VS Code windows on different folders read differently at a glance. For Claude Code the body is the start of Claude's last reply, up to 180 characters, or its own message when it needs you; phone push says `my-app: Task complete` instead. Codex CLI and Gemini CLI send `my-app: Task complete` or `my-app: Needs your input`. anotifier doesn't read a project folder from Cursor's event, so its alert is just `Cursor` and `Task complete`.",
           },
           {
             kind: "p",
@@ -964,7 +964,7 @@ export const AGENTS: Agent[] = [
           },
           {
             kind: "p",
-            text: "Cursor alerts carry no folder, so their toasts have no click action at all, and neither do macOS, Linux and WSL toasts. To turn it off on Windows, set `toast.clickToFocus` to `false` in `~/.anotifier/config.json`.",
+            text: "Cursor alerts carry no folder for anotifier, so their toasts have no click action at all, and neither do macOS, Linux and WSL toasts. To turn it off on Windows, set `toast.clickToFocus` to `false` in `~/.anotifier/config.json`.",
           },
         ],
       },
@@ -994,7 +994,7 @@ export const AGENTS: Agent[] = [
               ],
               [
                 "Clicking the toast does nothing useful",
-                "No window title contains the project folder, or the alert is from Cursor, macOS, Linux or WSL.",
+                "No window title contains the project folder, or the alert is from Cursor (anotifier gets no project folder for it), macOS, Linux or WSL.",
                 "Open the folder itself in VS Code so its name appears in the title. See the order above.",
               ],
             ],
@@ -1015,7 +1015,7 @@ export const AGENTS: Agent[] = [
       {
         q: "What is click-to-focus?",
         aHtml:
-          "<p>On Windows, clicking a toast brings forward the window whose title contains the project folder, preferring a terminal, then VS Code, then Cursor. Cursor alerts carry no project folder, so they can't do it, and macOS, Linux and WSL toasts have no click action.</p>",
+          "<p>On Windows, clicking a toast brings forward the window whose title contains the project folder, preferring a terminal, then VS Code, then Cursor. anotifier gets no project folder for Cursor alerts, so they can't do it, and macOS, Linux and WSL toasts have no click action.</p>",
       },
       {
         q: "Which agents does it cover inside VS Code?",
