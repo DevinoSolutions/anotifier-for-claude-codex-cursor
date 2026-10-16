@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { getConfigDir, loadConfigResult } from './config-loader.mjs';
+import { getConfigDir, loadConfigResult, resolveProjectConfig } from './config-loader.mjs';
 import { sendNtfy } from './ntfy.mjs';
 import { sendWebhook } from './webhook.mjs';
 import { resolveToastBackend } from './platforms/index.mjs';
@@ -252,6 +252,32 @@ export function checkUsage(payload, config, { statePath = STATE_PATH, now = Date
   }
 }
 
+// The config for one statusline session: the loaded config with the matching
+// `projects` rules applied for `workspace` (see resolveProjectConfig). Used by
+// the statusline tap (quiet hours, the context threshold) and by the detached
+// delivery child (channels), so both see the same answer.
+//
+// Which keys a rule changes here is whatever the rule may override at all
+// (PROJECT_EXCLUDED_KEYS in config-loader.mjs), and `usageAlerts` is excluded
+// from every rule. So for the account-wide usage warning the threshold list,
+// the enabled switch and the shared state file stay global, and a rule cannot
+// silence or retune it for other projects; it only changes HOW the warning is
+// delivered (toast, ntfy, webhook) and quiet hours. `contextAlerts` is
+// per-session, so a rule's threshold and enabled flag apply to that session.
+// With no rules or no workspace the config is returned untouched (no clone on
+// the statusline's hot path). A resolver failure is logged and falls back to
+// the config as loaded. Never throws.
+export function projectConfigFor(config, workspace, { resolve = resolveProjectConfig } = {}) {
+  if (!Array.isArray(config?.projects) || !config.projects.length) return config;
+  if (typeof workspace !== 'string' || !workspace.trim()) return config;
+  try {
+    return resolve(config, workspace);
+  } catch (err) {
+    logHookError('statusline:projects', err);
+    return config;
+  }
+}
+
 // Fan the warnings out over the channels the user has on. No terminal bell: a
 // statusline has no terminal of its own to ring.
 export async function sendUsageNotifications(config, notifications, {
@@ -273,9 +299,16 @@ export async function sendUsageNotifications(config, notifications, {
 // A statusline must print and exit fast, and Claude Code cancels a run that is
 // still going when the next refresh fires. So delivery happens in a detached
 // child that outlives the statusline: node usage-alert.mjs --deliver <base64>.
-export function spawnDelivery(notifications, { spawnImpl = spawn, scriptPath = fileURLToPath(import.meta.url) } = {}) {
+// The child reads the config itself (secrets never ride on the command line)
+// and applies the project rules for `workspace`, passed as
+// `--workspace <base64>`, so a rule's channels carry the alert.
+export function spawnDelivery(notifications, { spawnImpl = spawn, scriptPath = fileURLToPath(import.meta.url), workspace } = {}) {
   const arg = Buffer.from(JSON.stringify(notifications), 'utf8').toString('base64');
-  const child = spawnImpl(process.execPath, [scriptPath, '--deliver', arg], {
+  const args = [scriptPath, '--deliver', arg];
+  if (typeof workspace === 'string' && workspace.trim()) {
+    args.push('--workspace', Buffer.from(workspace, 'utf8').toString('base64'));
+  }
+  const child = spawnImpl(process.execPath, args, {
     detached: true,
     stdio: 'ignore',
     windowsHide: true,
@@ -293,11 +326,12 @@ export function isEntry(argv1, moduleUrl) {
   return real(argv1) === real(fileURLToPath(moduleUrl));
 }
 
-async function deliverMain(arg) {
+async function deliverMain(arg, workspaceArg) {
   try {
     const notifications = JSON.parse(Buffer.from(arg, 'base64').toString('utf8'));
     if (Array.isArray(notifications) && notifications.length) {
-      await sendUsageNotifications(loadConfigResult().config, notifications);
+      const workspace = workspaceArg ? Buffer.from(workspaceArg, 'base64').toString('utf8') : '';
+      await sendUsageNotifications(projectConfigFor(loadConfigResult().config, workspace), notifications);
     }
   } catch (err) {
     logHookError('usage-alert:deliver', err);
@@ -308,5 +342,6 @@ async function deliverMain(arg) {
 
 if (isEntry(process.argv[1], import.meta.url)) {
   const i = process.argv.indexOf('--deliver');
-  if (i !== -1 && process.argv[i + 1]) deliverMain(process.argv[i + 1]);
+  const w = process.argv.indexOf('--workspace');
+  if (i !== -1 && process.argv[i + 1]) deliverMain(process.argv[i + 1], w !== -1 ? process.argv[w + 1] : '');
 }
