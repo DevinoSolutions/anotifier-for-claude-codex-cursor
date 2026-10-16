@@ -569,3 +569,68 @@ describe('configs without projects are unchanged', () => {
     assert.ok(!('projects' in config));
   });
 });
+
+// Backslash form of a forward-slash path, built without writing a backslash literal.
+const win = (p) => p.split('/').join(String.fromCharCode(92));
+
+describe('non-absolute paths never match', () => {
+  it('ignores a relative rule key, even when the cwd ends with it', () => {
+    for (const match of ['foo', './foo', 'work/foo', '../foo', 'C:foo', '*', '**']) {
+      assert.equal(matchesProjectPath(match, '/home/me/foo', LINUX), false, match);
+      assert.equal(matchesProjectPath(match, win('C:/work/foo'), WIN), false, match);
+    }
+  });
+
+  it('does not resolve a relative key against process.cwd()', () => {
+    assert.equal(matchesProjectPath(path.basename(process.cwd()), process.cwd(), { platform: process.platform }), false);
+  });
+
+  it('matches nothing for a relative or home-relative event cwd', () => {
+    for (const cwd of ['foo', './foo', '../foo', 'work/foo', 'C:foo', '~/foo', '~']) {
+      assert.equal(matchesProjectPath('/**', cwd, LINUX), false, cwd);
+      assert.equal(matchesProjectPath('**', cwd, LINUX), false, cwd);
+      assert.equal(matchesProjectPath('~/foo', cwd, LINUX), false, cwd);
+    }
+  });
+
+  it('still matches absolute Windows, POSIX and UNC paths', () => {
+    assert.equal(matchesProjectPath('C:/work/app', win('C:/work/app/src'), WIN), true);
+    assert.equal(matchesProjectPath(win('C:/work/app'), 'C:/work/app', WIN), true);
+    assert.equal(matchesProjectPath('C:/work/app', '/C:/work/app', WIN), true);
+    assert.equal(matchesProjectPath('/home/me/app', '/home/me/app/src', LINUX), true);
+    assert.equal(matchesProjectPath('/mnt/c/work/app', '/mnt/c/work/app', LINUX), true);
+    assert.equal(matchesProjectPath(win('//srv/share/app'), win('//srv/share/app/src'), WIN), true);
+    assert.equal(matchesProjectPath('//srv/share/app', win('//srv/share/app'), WIN), true);
+    assert.equal(matchesProjectPath('~/app', '/home/me/app', LINUX), true);
+  });
+
+  it('resolveProjectConfig leaves the base config for a relative cwd or key', () => {
+    const config = { ntfy: { enabled: true }, projects: [{ match: 'foo', ntfy: { enabled: false } }, { match: '/**', ntfy: { enabled: false } }] };
+    assert.equal(resolveProjectConfig(config, 'foo', LINUX).ntfy.enabled, true);
+    assert.equal(resolveProjectConfig(config, '/home/me/foo', LINUX).ntfy.enabled, false);
+    assert.equal(resolveProjectConfig({ ntfy: { enabled: true }, projects: [{ match: 'foo', ntfy: { enabled: false } }] }, '/home/me/foo', LINUX).ntfy.enabled, true);
+  });
+});
+
+describe('resolveProjectConfig error path', () => {
+  it('logs to errors.log, returns the base config and prints nothing to stdout', () => {
+    const logPath = path.join(os.homedir(), '.anotifier', 'errors.log');
+    fs.rmSync(logPath, { force: true });
+    let reads = 0;
+    const rule = { ntfy: { enabled: false } };
+    // Readable for the deep copy, throws when the matcher reads it.
+    Object.defineProperty(rule, 'match', { enumerable: true, get() { if (++reads > 1) throw new Error('boom'); return '/**'; } });
+    const config = { ntfy: { enabled: true }, projects: [rule] };
+    const writes = [];
+    const realWrite = process.stdout.write;
+    process.stdout.write = (chunk) => { writes.push(String(chunk)); return true; };
+    let out;
+    try { out = resolveProjectConfig(config, '/home/me/app', LINUX); } finally { process.stdout.write = realWrite; }
+    assert.deepEqual(writes, []);
+    assert.equal(out.ntfy.enabled, true);
+    assert.ok(!('projects' in out));
+    const entry = JSON.parse(fs.readFileSync(logPath, 'utf8').trim().split('\n').pop());
+    assert.equal(entry.context, 'config:projects');
+    assert.equal(entry.message, 'boom');
+  });
+});
