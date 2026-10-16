@@ -742,7 +742,7 @@ export const CLAUDE_GUIDES: Guide[] = [
   },
   {
     slug: "claude-code-usage-limit-notifications",
-    updated: "2026-10-09",
+    updated: "2026-10-16",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code usage limits",
@@ -1382,7 +1382,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
   },
   {
     slug: "claude-code-hooks-security",
-    updated: "2026-10-11",
+    updated: "2026-10-12",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code hooks security",
@@ -1752,7 +1752,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
   },
   {
     slug: "ccnotify",
-    updated: "2026-10-12",
+    updated: "2026-10-15",
     kind: "topic",
     agentSlug: "claude-code",
     name: "ccnotify",

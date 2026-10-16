@@ -413,7 +413,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "codex",
-    updated: "2026-10-09",
+    updated: "2026-10-15",
     name: "Codex CLI",
     title: "Codex CLI Notifier — Desktop, Phone & Approval Alerts",
     description:
@@ -535,7 +535,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "cursor",
-    updated: "2026-10-09",
+    updated: "2026-10-16",
     name: "Cursor",
     title: "Cursor Agent Notifier — Desktop, Phone & Slack Alerts",
     description:
@@ -856,7 +856,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "vscode",
-    updated: "2026-10-15",
+    updated: "2026-10-16",
     name: "VS Code",
     title: "VS Code AI Agent Notifier — Claude Code & Cursor Alerts",
     description:
