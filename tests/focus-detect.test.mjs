@@ -76,7 +76,7 @@ describe('titleHasWorkspace', () => {
     assert.equal(t('App - Visual Studio Code', '/w/app', { ignoreCase: true }), true);
   });
 
-  it('Cursor em-dash titles fail safe: false, never a wrong true', () => {
+  it('a custom or macOS-style em-dash separator fails safe: false, never a wrong true', () => {
     assert.equal(t('a.js — proj — Cursor', '/w/proj'), false);
   });
 
