@@ -44,7 +44,7 @@ const hook = (command: string, extra: Record<string, unknown> = {}) => ({
 export const WSL_GUIDES: Guide[] = [
   {
     slug: "wsl-notify-send",
-    updated: "2026-10-09",
+    updated: "2026-10-16",
     kind: "topic",
     name: "WSL Windows toast",
     title: "wsl-notify-send: Windows Toast from WSL, or Without It",
@@ -279,7 +279,7 @@ export const WSL_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "On native Windows the toast is richer (agent icon, sound, click-to-focus) because it uses PowerShell 7 and BurntToast. See [Windows & WSL notifications](/guides/windows-wsl-notifications/) for the full comparison, or the [troubleshooting guide](/guides/notifications-not-working/) if nothing appears.",
+            text: "On native Windows the toast is richer (agent icon, sound, click-to-focus) because it uses PowerShell 7 and BurntToast. See [Claude Code and Codex notifications on Windows and WSL](/guides/windows-wsl-notifications/#which) for the full comparison, or its [fixes by symptom](/guides/windows-wsl-notifications/#not-working) if nothing appears.",
           },
         ],
       },

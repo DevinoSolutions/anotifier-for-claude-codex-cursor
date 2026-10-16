@@ -284,7 +284,7 @@ export const CLAUDE_GUIDES: Guide[] = [
   },
   {
     slug: "claude-code-notification-sound",
-    updated: "2026-10-15",
+    updated: "2026-10-16",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code sounds",
@@ -510,7 +510,7 @@ export const CLAUDE_GUIDES: Guide[] = [
             items: [
               "`SoundPlayer` plays `.wav` files only. Those in `C:\\Windows\\Media` are fine; an `.mp3` needs a different player.",
               "In Windows Terminal, `preferredNotifChannel` set to `terminal_bell` makes the bell do whatever its `bellStyle` says: `audible` is the default and `none` is silent. With `all`, the sound plays only while the window has focus; otherwise only the taskbar icon flashes. `bellSound` picks the file.",
-              "[Windows and WSL notifications](/guides/windows-wsl-notifications/) covers the toast side, which takes a different road on each.",
+              "[Windows and WSL toast notifications](/guides/windows-wsl-notifications/#which) covers the toast side, which takes a different road on each.",
             ],
           },
         ],
