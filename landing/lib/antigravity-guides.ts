@@ -140,7 +140,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "What you get: an alert on the machine running the CLI. Google's docs give no setting for the wording, the sound or a phone push, so for those use a hook. If you run both the setting and a hook, you get two alerts when a run finishes.",
+            text: "What you get: an alert on the machine running the CLI. Google's docs give no setting for the wording, the sound or a phone push, so for those use a hook. If you run both the setting and a hook, you get two alerts when a run finishes. Separately, CLI 1.4.0 (16 Oct 2026) added terminal status reporting over OSC 7501: in terminals that support it, the tab or window shows whether the CLI is working, waiting for your input, done or failed. It is a status display, not a notification, and `AGY_CLI_OSC7501=off` turns it off.",
           },
         ],
       },
@@ -150,7 +150,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "Google's hooks docs let Antigravity CLI read hooks from three places: `.agents/hooks.json` at your project root, `~/.gemini/config/hooks.json` for every project, or the `hooks.json` inside an installed plugin. The global hooks can also sit inside `~/.gemini/antigravity-cli/settings.json`. The docs write every path with `~` and give no separate Windows path, so on Windows it is the same path under your home folder. This guide uses `~/.gemini/config/hooks.json`. Type `/hooks` inside the CLI to see what it loaded.",
+            text: "Google's hooks docs let Antigravity CLI read hooks from three places: `.agents/hooks.json` at your project root, `~/.gemini/config/hooks.json` for every project, or the `hooks.json` inside an installed plugin. The global hooks can also sit inside `~/.gemini/antigravity-cli/settings.json`, but the docs don't show the key layout there, so this guide uses `hooks.json`. The docs write every path with `~` and give no separate Windows path, so on Windows it is the same path under your home folder. This guide uses `~/.gemini/config/hooks.json`. Type `/hooks` inside the CLI to see what it loaded.",
           },
           {
             kind: "p",
@@ -188,7 +188,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
             kind: "ul",
             items: [
               "`terminationReason` says why the run stopped. Google's examples are `model_stop`, `max_steps_exceeded` and `error`, so treat the list as open. `error` is present when a system error ended the run.",
-              "`fullyIdle` is `true` only when the agent is completely finished and every background command or async task has completed, and `false` while background work is still running. A script can skip the alert when it is `false`.",
+              "`fullyIdle` is `true` only when the agent is completely finished and every background command or async task has completed, and `false` while background work is still running. A script can read it, but Google doesn't say whether another `Stop` follows when it is `false`, so skipping the alert on `false` may lose it for good. That is why anotifier alerts on every `Stop`.",
               "`workspacePaths` lists the project folders, so a script can put the project name in the alert.",
             ],
           },
@@ -198,7 +198,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
           },
           {
             kind: "note",
-            text: "Google's hooks page documents no exit codes, says nothing about what happens when a handler exits non-zero, prints invalid JSON or times out, and doesn't say which shell runs the `command` on Windows. Don't rely on any of it. Keep the command to a single program call with no `;`, `&&` or `||`, make the script swallow its own errors, and have it always end with the `stop` answer and exit 0. Hooks run with your user permissions, and a project's `.agents/hooks.json` can ship commands, so put alert hooks in the global file and read a cloned repository's before you open it in the CLI.",
+            text: "Google's hooks page documents no exit codes, says nothing about what happens when a handler exits non-zero, prints invalid JSON or times out, and doesn't say which shell runs the `command` on Windows. Don't rely on any of it. Keep the command to a single program call with no `;`, `&&` or `||`, make the script swallow its own errors, and have it always end with the `stop` answer and exit 0. Treat a hook command like any script you run. A project's `.agents/hooks.json` can contain commands, and Google doesn't document whether workspace hooks need your trust first, so put alert hooks in the global file and read a cloned repository's before you open it in the CLI.",
           },
         ],
       },
@@ -308,7 +308,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
               ["Finished run", "Yes", "Yes", "Yes"],
               [
                 "Permission prompt or question",
-                "Yes (CLI 1.3.1 and later)",
+                "Yes (questions since CLI 1.3.1)",
                 "No such event",
                 "No such event, so turn the setting on as well",
               ],
@@ -389,7 +389,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
               ],
               [
                 "It fires in the CLI but not in the IDE or app",
-                "Google says all three read `~/.gemini/config/hooks.json`, and you manage hooks in Settings > Customizations > Hooks. A forum report from August 2026 describes `Stop` hooks in `.agents/hooks.json` never running in the Windows IDE, with no fix in the thread, so test the global file.",
+                "Google says all three read `~/.gemini/config/hooks.json`, and you manage hooks under Settings > Customizations > Hooks in the app, or the \"...\" menu's Customizations > Hooks in the IDE's agent side panel. A forum report from August 2026 describes `Stop` hooks in `.agents/hooks.json` never running in the Windows IDE, with no confirmed fix (a Google staff reply on 2026-08-14 suggested updating to 2.5.5), so test the global file.",
               ],
               [
                 "The toast works in a terminal but not from the hook",
@@ -482,7 +482,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
             items: [
               "Hooks: file locations, events, handler fields, the `Stop` payload and answer, and the `/hooks` command: [antigravity.google/docs/hooks](https://antigravity.google/docs/hooks?tab=cli)",
               "The `notifications` setting and the location of `settings.json`: Google's [settings](https://antigravity.google/docs/settings/) and [CLI commands reference](https://antigravity.google/docs/cli/reference/) pages (type and default are in the reference)",
-              "Question alerts under the `notifications` setting (CLI 1.3.1): the [antigravity-cli release notes](https://github.com/google-antigravity/antigravity-cli/releases)",
+              "Question alerts under the `notifications` setting (CLI 1.3.1) and terminal status reporting (CLI 1.4.0): the [antigravity-cli release notes](https://github.com/google-antigravity/antigravity-cli/releases)",
               "The `agy` command: Google's [Antigravity CLI codelab](https://codelabs.developers.google.com/antigravity-cli-hands-on)",
               "Gemini CLI and Antigravity CLI: Google's [transition announcement](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli)",
               "Hooks not firing in the IDE on Windows: a [Google AI Developers Forum report](https://discuss.ai.google.dev/t/stop-and-posttooluse-hooks-in-agents-hooks-json-never-fire-antigravity-ide-1-107-0-windows/178288) from August 2026, unresolved",
@@ -515,7 +515,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
       },
       {
         q: "Do hooks work in the Antigravity 2.0 app and the IDE?",
-        a: "Google's docs say the app and the IDE read the same global ~/.gemini/config/hooks.json as the CLI, and you manage them under Settings > Customizations > Hooks. One forum report from August 2026 says Stop hooks in a project's .agents/hooks.json never ran in the Windows IDE. npx anotifier setup only wires Antigravity when ~/.gemini/antigravity-cli exists, and neither app has been tested.",
+        a: "Google's docs say the app and the IDE read the same global ~/.gemini/config/hooks.json as the CLI, and you manage them under Settings > Customizations > Hooks in the app, or the ... menu's Customizations > Hooks in the IDE's agent side panel. One forum report from August 2026 says Stop hooks in a project's .agents/hooks.json never ran in the Windows IDE. npx anotifier setup only wires Antigravity when ~/.gemini/antigravity-cli exists, and neither app has been tested.",
       },
       {
         q: "Does anotifier work with Antigravity CLI?",
