@@ -57,7 +57,7 @@ const seoLinks = [
   },
   {
     href: "/guides/claude-code-auto-compact-warning/",
-    label: "Claude Code auto-compact warning",
+    label: "Claude Code auto-compact",
   },
   {
     href: "/guides/claude-code-hooks-security/",
