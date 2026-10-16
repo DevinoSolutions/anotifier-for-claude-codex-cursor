@@ -308,7 +308,7 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "Does it work in WSL2?",
-        a: "Yes. Run npx anotifier@latest setup inside the WSL distribution where the agent runs. anotifier detects WSL and sends the toast through powershell.exe and Windows interop, which is on by default. The toast is plain: a title and a message under Windows PowerShell's name, with no agent icon or click-to-focus, and no sound unless `toastSound` is an audio file of your own (1.8.0 and later).",
+        a: "Yes. Run npx anotifier@latest setup inside the WSL distribution where the agent runs. anotifier detects WSL and sends the toast through powershell.exe and Windows interop, which is on by default. The toast is plain: a title and a message under Windows PowerShell's name, with no agent icon or click-to-focus, and no sound unless the toastSound setting is an audio file of your own (1.8.0 and later).",
       },
       {
         q: "Do I need wsl-notify-send or BurntToast inside WSL?",
