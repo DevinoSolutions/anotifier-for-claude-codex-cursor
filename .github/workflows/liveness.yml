@@ -1,0 +1,63 @@
+# Liveness — is production answering at all?
+#
+# A cheap check every 15 minutes, separate from the daily "Landing (live site)"
+# test suite. It exists because a host reboot can leave a container stopped
+# with nothing to restart it (2026-10-16: anotifier.io and the fleet's ntfy
+# server stayed down for an hour or more before anyone looked). A failed run
+# is the alert: GitHub notifies on a failed scheduled workflow.
+#
+# Extra URLs that should not be named in this public repo come from the
+# LIVENESS_EXTRA_URLS secret (whitespace-separated). They are logged only by
+# their position in that list.
+name: Liveness
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: '${{ github.workflow }}'
+  cancel-in-progress: false
+
+jobs:
+  up:
+    name: Production answers
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check URLs
+        env:
+          EXTRA_URLS: ${{ secrets.LIVENESS_EXTRA_URLS }}
+        run: |
+          set -uf
+          # One URL is up when it answers 200 within 15 s, on one of 3 tries
+          # 20 s apart (a deploy that is rolling the container is not an outage).
+          check() {
+            url="$1"; label="$2"
+            for try in 1 2 3; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' -m 15 "$url" || true)
+              if [ "$code" = "200" ]; then
+                echo "up   $label (try $try)"
+                return 0
+              fi
+              echo "     $label answered ${code:-nothing} (try $try)"
+              [ "$try" -lt 3 ] && sleep 20
+            done
+            echo "::error::DOWN $label"
+            return 1
+          }
+
+          failed=0
+          check "https://anotifier.io/" "https://anotifier.io/" || failed=1
+          check "https://anotifier.io/sitemap.xml" "https://anotifier.io/sitemap.xml" || failed=1
+
+          n=0
+          for url in ${EXTRA_URLS:-}; do
+            n=$((n + 1))
+            check "$url" "extra URL #$n" || failed=1
+          done
+
+          exit "$failed"
