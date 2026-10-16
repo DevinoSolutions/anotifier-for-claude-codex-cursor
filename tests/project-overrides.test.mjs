@@ -614,22 +614,35 @@ describe('non-absolute paths never match', () => {
 
 describe('resolveProjectConfig error path', () => {
   it('logs to errors.log, returns the base config and prints nothing to stdout', () => {
-    const logPath = path.join(os.homedir(), '.anotifier', 'errors.log');
-    fs.rmSync(logPath, { force: true });
+    // Own temp home, so the log is read from (and written to) a throwaway dir.
+    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'anotifier-proj-test-'));
+    const logPath = path.join(tmpHome, '.anotifier', 'errors.log');
+    const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
     let reads = 0;
     const rule = { ntfy: { enabled: false } };
-    // Readable for the deep copy, throws when the matcher reads it.
+    // Readable for the deep copy, throws on every later read (the matcher's).
     Object.defineProperty(rule, 'match', { enumerable: true, get() { if (++reads > 1) throw new Error('boom'); return '/**'; } });
     const config = { ntfy: { enabled: true }, projects: [rule] };
     const writes = [];
     const realWrite = process.stdout.write;
     process.stdout.write = (chunk) => { writes.push(String(chunk)); return true; };
     let out;
-    try { out = resolveProjectConfig(config, '/home/me/app', LINUX); } finally { process.stdout.write = realWrite; }
+    let entry;
+    process.env.HOME = tmpHome;
+    process.env.USERPROFILE = tmpHome;
+    try {
+      out = resolveProjectConfig(config, '/home/me/app', LINUX);
+      entry = JSON.parse(fs.readFileSync(logPath, 'utf8').trim().split(String.fromCharCode(10)).pop());
+    } finally {
+      process.stdout.write = realWrite;
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k]; else process.env[k] = v;
+      }
+      fs.rmSync(tmpHome, { recursive: true, force: true });
+    }
     assert.deepEqual(writes, []);
     assert.equal(out.ntfy.enabled, true);
     assert.ok(!('projects' in out));
-    const entry = JSON.parse(fs.readFileSync(logPath, 'utf8').trim().split('\n').pop());
     assert.equal(entry.context, 'config:projects');
     assert.equal(entry.message, 'boom');
   });
