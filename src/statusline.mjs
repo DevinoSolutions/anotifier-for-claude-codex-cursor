@@ -20,7 +20,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadConfigResult } from './config-loader.mjs';
 import { isSuppressed } from './suppress.mjs';
-import { checkUsage, spawnDelivery, isEntry, WINDOWS } from './usage-alert.mjs';
+import { checkUsage, spawnDelivery, projectConfigFor, hasChannel, isEntry, WINDOWS } from './usage-alert.mjs';
 import { checkContext as checkContextUsage } from './context-alert.mjs';
 import { logHookError } from './error-log.mjs';
 
@@ -101,6 +101,20 @@ function runWrapped(command, input) {
   });
 }
 
+// The folder this session works in, for the `projects` rules. Claude Code's
+// statusline JSON has `workspace.current_dir` (and `cwd`, the same value) for the
+// working directory and `workspace.project_dir` for where Claude Code was
+// launched (https://code.claude.com/docs/en/statusline). current_dir first, as the
+// docs prefer it; a rule matches a folder and anything inside it, so a session
+// in a subfolder still matches. The first non-empty string wins; a relative
+// one matches no rule (matchesProjectPath). Null when the payload has none.
+export function statuslineWorkspace(payload) {
+  for (const value of [payload?.workspace?.current_dir, payload?.workspace?.project_dir, payload?.cwd]) {
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return null;
+}
+
 // Config problems are NOT logged here: the statusline refreshes constantly,
 // so a typo in config.json would flood errors.log. Hooks and `status` report
 // it already.
@@ -112,6 +126,7 @@ export function tapUsage(raw, {
   check = checkUsage,
   checkContext = checkContextUsage,
   deliver = spawnDelivery,
+  resolve = projectConfigFor,
 } = {}) {
   try {
     const payload = JSON.parse(raw);
@@ -121,8 +136,15 @@ export function tapUsage(raw, {
     const wantUsage = Boolean(payload?.rate_limits);
     const wantContext = Boolean(payload?.context_window);
     if (!wantUsage && !wantContext) return [];
-    const config = load();
-    const doUsage = wantUsage && config?.usageAlerts?.enabled !== false;
+    // The project rules for this session's folder, applied to the one config
+    // load this tap already does. `usageAlerts` is never overridable, so the
+    // usage threshold and state stay account-wide; see projectConfigFor.
+    const workspace = statuslineWorkspace(payload);
+    const config = resolve(load(), workspace);
+    // The usage warning is shared by every chat and recorded as sent, so it is
+    // only taken on when this folder's settings can deliver it: a rule that turns
+    // every channel off must leave the warning to a chat that can announce it.
+    const doUsage = wantUsage && config?.usageAlerts?.enabled !== false && hasChannel(config);
     const doContext = wantContext && config?.contextAlerts?.enabled !== false;
     if (!doUsage && !doContext) return [];
     // While snoozed or in quiet hours nothing is recorded either, so a
@@ -134,7 +156,7 @@ export function tapUsage(raw, {
       if (!wanted) continue;
       try { notifications.push(...run(payload, config)); } catch (err) { logHookError(label, err); }
     }
-    if (notifications.length) deliver(notifications);
+    if (notifications.length) deliver(notifications, { workspace });
     return notifications;
   } catch (err) {
     if (raw && raw.trim()) logHookError('statusline', err);
