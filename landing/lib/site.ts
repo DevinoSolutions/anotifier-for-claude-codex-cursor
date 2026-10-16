@@ -19,8 +19,8 @@ export const CONTENT_UPDATED = "2026-10-15";
     their own `updated` field. Bump only the page you changed — one shared date
     on every URL tells Google the lastmod values mean nothing. */
 export const PAGE_UPDATED = {
-  home: "2026-10-09",
-  docs: "2026-10-10",
+  home: "2026-10-15",
+  docs: "2026-10-15",
   compare: "2026-10-09",
   privacy: "2026-10-15",
 } as const;
