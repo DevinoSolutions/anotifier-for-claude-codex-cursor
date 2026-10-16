@@ -53,15 +53,14 @@ test("every CopyButton and StarButton usage names its placement", () => {
 
 function loadIsAutomated() {
   const src = read("lib/track.ts");
-  const m = src.match(/export function isAutomated[sS]*?
-}
-/);
-  assert.ok(m, "isAutomated not found");
-  return (env) =>
-    vm.runInNewContext(
-      `${m[0].replace("export ", "").replace(/(): boolean/, "()")}; isAutomated()`,
-      env,
-    );
+  const start = src.indexOf("export function isAutomated");
+  assert.ok(start >= 0, "isAutomated not found");
+  const end = src.indexOf("\n}\n", start) + 3;
+  const code = src
+    .slice(start, end)
+    .replace("export ", "")
+    .replace("(): boolean", "()");
+  return (env) => vm.runInNewContext(`${code}; isAutomated()`, env);
 }
 
 test("isAutomated classifies browsers", () => {
@@ -75,13 +74,22 @@ test("isAutomated classifies browsers", () => {
   const big = { width: 1920, height: 1080 };
   assert.equal(run(env({ webdriver: true, userAgent: desk }, big, 1920)), true);
   assert.equal(run(env({ userAgent: "HeadlessChrome/155" }, big, 1920)), true);
-  assert.equal(run(env({ userAgent: "anotifier-site-tests" }, big, 1920)), true);
+  assert.equal(
+    run(env({ userAgent: "anotifier-site-tests" }, big, 1920)),
+    true,
+  );
   const small = { width: 800, height: 600 };
   assert.equal(run(env({ userAgent: desk }, small, 1920)), true);
   assert.equal(run(env({ userAgent: desk }, small, 800)), false);
   assert.equal(run(env({ userAgent: desk }, big, 1920)), false);
   assert.equal(
-    run(env({ userAgent: "Mozilla/5.0 (iPhone) Mobile" }, { width: 390, height: 844 }, 390)),
+    run(
+      env(
+        { userAgent: "Mozilla/5.0 (iPhone) Mobile" },
+        { width: 390, height: 844 },
+        390,
+      ),
+    ),
     false,
   );
   assert.equal(run({}), false);
