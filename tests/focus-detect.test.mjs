@@ -3,7 +3,13 @@
 // tool would print. The last block is an opt-in live check (ANOTIFIER_LIVE_FOCUS=1).
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isAgentWindowFocused, DEFAULT_TIMEOUT_MS, WINDOWS_TIMEOUT_MS } from '../src/focus.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { isAgentWindowFocused, titleHasWorkspace, DEFAULT_TIMEOUT_MS, WINDOWS_TIMEOUT_MS } from '../src/focus.mjs';
+
+const FOREGROUND_PS1 = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'windows', 'foreground.ps1');
 
 const ME = 4242; // pid of "this" process in every fixture
 
@@ -11,7 +17,7 @@ function enoent(file) {
   return Object.assign(new Error(`spawn ${file} ENOENT`), { code: 'ENOENT' });
 }
 
-// exec fake: handlers is a function (file, args, opts) -> string | Promise<string>.
+// exec fake: handler is a function (file, args, opts) -> string | Promise<string>.
 // Every call is recorded in .calls.
 function fakeExec(handler) {
   const exec = async (file, args, opts) => {
@@ -22,29 +28,65 @@ function fakeExec(handler) {
   return exec;
 }
 
-// foreground.ps1 output
-function psOutput({ fg, chain = [] }) {
+// foreground.ps1 output. chain is what the script walked; owner is its OWNER line.
+function psOutput({ fg, chain = [], owner }) {
   const lines = [];
   if (fg) lines.push(['FG', fg.pid, fg.name, fg.ppid ?? 1, fg.title ?? ''].join('\t'));
   for (const c of chain) lines.push(['CHAIN', c.pid, c.name].join('\t'));
+  if (owner) lines.push(['OWNER', owner.pid, owner.name].join('\t'));
   return lines.join('\r\n') + '\r\n';
 }
 
+const WT = { pid: 1000, name: 'WindowsTerminal.exe' };
 const TERMINAL_CHAIN = [
   { pid: ME, name: 'node.exe' },
   { pid: 3000, name: 'claude.exe' },
   { pid: 2000, name: 'pwsh.exe' },
-  { pid: 1000, name: 'WindowsTerminal.exe' },
+  WT,
 ];
 
 const win = (extra = {}) => ({ platform: 'win32', env: {}, pid: ME, source: 'claude', ...extra });
 
+describe('titleHasWorkspace', () => {
+  const t = (title, ws, opts) => titleHasWorkspace(title, ws, opts);
+
+  it('matches the folder segment exactly', () => {
+    assert.equal(t('index.mjs - proj - Visual Studio Code', '/home/me/proj'), true);
+    assert.equal(t('proj - Visual Studio Code', 'C:\\work\\proj'), true);
+    assert.equal(t('proj - Cursor', '/home/me/proj/'), true);
+  });
+
+  it('never matches a substring', () => {
+    assert.equal(t('x.js - my-app-2 - Visual Studio Code', '/w/app'), false);
+    assert.equal(t('x.js - other - Visual Studio Code', '/w/code'), false);
+    assert.equal(t('x.js - other - Visual Studio Code', '/w/Visual Studio Code'), false);
+    assert.equal(t('x.js - app-old - Visual Studio Code', '/w/app'), false);
+  });
+
+  it('handles the dirty marker, (Workspace) and remote suffixes', () => {
+    assert.equal(t('\u25CF index.mjs - proj - Visual Studio Code', '/w/proj'), true);
+    assert.equal(t('proj (Workspace) - Visual Studio Code', '/w/proj'), true);
+    assert.equal(t('a.js - proj [WSL: Ubuntu] - Visual Studio Code', '/w/proj'), true);
+    assert.equal(t('a.js - proj [SSH: devbox] - Cursor', '/w/proj'), true);
+    assert.equal(t('a.js - proj [SSH: proj] - Cursor', '/w/other'), false);
+  });
+
+  it('is case-sensitive unless asked otherwise', () => {
+    assert.equal(t('App - Visual Studio Code', '/w/app'), false);
+    assert.equal(t('App - Visual Studio Code', '/w/app', { ignoreCase: true }), true);
+  });
+
+  it('false for a window with no folder open; null without a workspace', () => {
+    assert.equal(t('Visual Studio Code', '/w/proj'), false);
+    assert.equal(t('Welcome - Visual Studio Code', '/w/proj'), false);
+    assert.equal(t('proj - Visual Studio Code', ''), null);
+    assert.equal(t('proj - Visual Studio Code', undefined), null);
+  });
+});
+
 describe('windows', () => {
-  it('true when the foreground process is an ancestor (Windows Terminal)', async () => {
-    const exec = fakeExec(() => psOutput({
-      fg: { pid: 1000, name: 'WindowsTerminal.exe', title: 'claude' },
-      chain: TERMINAL_CHAIN,
-    }));
+  it('true when the foreground process is the first window-owning ancestor (Windows Terminal)', async () => {
+    const exec = fakeExec(() => psOutput({ fg: { ...WT, title: 'claude' }, chain: TERMINAL_CHAIN, owner: WT }));
     assert.equal(await isAgentWindowFocused(win({ exec })), true);
     const { file, args } = exec.calls[0];
     assert.equal(file, 'powershell.exe');
@@ -56,57 +98,85 @@ describe('windows', () => {
 
   it('false when another application is in the foreground', async () => {
     const exec = fakeExec(() => psOutput({
-      fg: { pid: 777, name: 'chrome.exe', title: 'Google Chrome' },
-      chain: TERMINAL_CHAIN,
+      fg: { pid: 777, name: 'chrome.exe', title: 'Google Chrome' }, chain: TERMINAL_CHAIN, owner: WT,
     }));
     assert.equal(await isAgentWindowFocused(win({ exec })), false);
   });
 
-  it('false when the foreground is the shell, even if explorer.exe is an ancestor', async () => {
-    const exec = fakeExec(() => psOutput({
-      fg: { pid: 900, name: 'explorer.exe', title: '' },
-      chain: [{ pid: ME, name: 'node.exe' }, { pid: 900, name: 'explorer.exe' }],
-    }));
+  it('regression: a launcher above the terminal never counts (terminal started from Chrome)', async () => {
+    // chain: node, claude, pwsh, WindowsTerminal, chrome. Chrome is in front.
+    const chain = [...TERMINAL_CHAIN, { pid: 900, name: 'chrome.exe' }];
+    const exec = fakeExec(() => psOutput({ fg: { pid: 900, name: 'chrome.exe', title: 'Google Chrome' }, chain, owner: WT }));
     assert.equal(await isAgentWindowFocused(win({ exec })), false);
   });
 
-  it('counts a console window owned by conhost when its parent is an ancestor', async () => {
-    const exec = fakeExec(() => psOutput({
-      fg: { pid: 600, name: 'conhost.exe', ppid: 2000, title: 'cmd' },
-      chain: TERMINAL_CHAIN,
-    }));
-    assert.equal(await isAgentWindowFocused(win({ exec })), true);
-    const stranger = fakeExec(() => psOutput({
-      fg: { pid: 601, name: 'conhost.exe', ppid: 5555, title: 'cmd' },
-      chain: TERMINAL_CHAIN,
-    }));
-    assert.equal(await isAgentWindowFocused(win({ exec: stranger })), false);
+  it('null when no ancestor owns a window (no OWNER line, or a chain cut short)', async () => {
+    const exec = fakeExec(() => psOutput({ fg: { ...WT }, chain: TERMINAL_CHAIN }));
+    assert.equal(await isAgentWindowFocused(win({ exec })), null);
+    const cut = fakeExec(() => psOutput({ fg: { ...WT }, chain: [{ pid: ME, name: 'node.exe' }] }));
+    assert.equal(await isAgentWindowFocused(win({ exec: cut })), null);
+  });
+
+  it('false when the foreground is the shell, even if explorer.exe owns the agent window', async () => {
+    const explorer = { pid: 900, name: 'explorer.exe' };
+    const exec = fakeExec(() => psOutput({ fg: { ...explorer, title: '' }, chain: [{ pid: ME, name: 'node.exe' }, explorer], owner: explorer }));
+    assert.equal(await isAgentWindowFocused(win({ exec })), false);
+  });
+
+  it('a classic console window is owned by its conhost', async () => {
+    const conhost = { pid: 600, name: 'conhost.exe' };
+    const yes = fakeExec(() => psOutput({ fg: { ...conhost, title: 'cmd' }, owner: conhost, chain: TERMINAL_CHAIN }));
+    assert.equal(await isAgentWindowFocused(win({ exec: yes })), true);
+    const other = fakeExec(() => psOutput({ fg: { pid: 601, name: 'conhost.exe', title: 'cmd' }, owner: conhost, chain: TERMINAL_CHAIN }));
+    assert.equal(await isAgentWindowFocused(win({ exec: other })), false);
   });
 
   describe('editor hosts own many windows', () => {
-    const chain = [{ pid: ME, name: 'node.exe' }, { pid: 800, name: 'Code.exe' }];
-    const codeFg = (title) => psOutput({ fg: { pid: 800, name: 'Code.exe', title }, chain });
+    const code = { pid: 800, name: 'Code.exe' };
+    const codeFg = (title) => psOutput({ fg: { ...code, title }, chain: [{ pid: ME, name: 'node.exe' }, code], owner: code });
+    const ws = 'C:\\work\\ai-agent-notify';
 
-    it('true when the window title carries the workspace folder', async () => {
+    it('true when a title segment is exactly the workspace folder', async () => {
       const exec = fakeExec(() => codeFg('index.mjs - ai-agent-notify - Visual Studio Code'));
-      assert.equal(await isAgentWindowFocused(win({ exec, workspace: 'C:\\work\\ai-agent-notify' })), true);
+      assert.equal(await isAgentWindowFocused(win({ exec, workspace: ws })), true);
     });
 
     it('false when another window of the same editor is in front', async () => {
       const exec = fakeExec(() => codeFg('main.ts - other-project - Visual Studio Code'));
-      assert.equal(await isAgentWindowFocused(win({ exec, workspace: 'C:\\work\\ai-agent-notify' })), false);
+      assert.equal(await isAgentWindowFocused(win({ exec, workspace: ws })), false);
     });
 
-    it('without a workspace the ancestor match alone decides', async () => {
+    it('regression: a folder name that is a substring of another folder does not match', async () => {
+      const exec = fakeExec(() => codeFg('x.js - my-app-2 - Visual Studio Code'));
+      assert.equal(await isAgentWindowFocused(win({ exec, workspace: 'C:\\work\\app' })), false);
+    });
+
+    it('regression: a workspace called "code" does not match the app name', async () => {
+      const exec = fakeExec(() => codeFg('x.js - other - Visual Studio Code'));
+      assert.equal(await isAgentWindowFocused(win({ exec, workspace: 'C:\\work\\code' })), false);
+    });
+
+    it('regression: null without a workspace, ancestry alone cannot pick one editor window', async () => {
       const exec = fakeExec(() => codeFg('main.ts - other-project - Visual Studio Code'));
-      assert.equal(await isAgentWindowFocused(win({ exec })), true);
+      assert.equal(await isAgentWindowFocused(win({ exec })), null);
+    });
+
+    it('matches case-insensitively on Windows', async () => {
+      const exec = fakeExec(() => codeFg('AI-Agent-Notify - Visual Studio Code'));
+      assert.equal(await isAgentWindowFocused(win({ exec, workspace: ws })), true);
+    });
+
+    it('an Electron host with a generic image name still gets the title check', async () => {
+      const electron = { pid: 801, name: 'electron.exe' };
+      const out = psOutput({ fg: { ...electron, title: 'x - other - App' }, chain: [{ pid: ME, name: 'node.exe' }, electron], owner: electron });
+      assert.equal(await isAgentWindowFocused(win({ exec: fakeExec(() => out), workspace: ws })), false);
     });
   });
 
   it('falls back to pwsh.exe when powershell.exe is missing', async () => {
     const exec = fakeExec((file) => {
       if (file === 'powershell.exe') throw enoent(file);
-      return psOutput({ fg: { pid: 1000, name: 'WindowsTerminal.exe' }, chain: TERMINAL_CHAIN });
+      return psOutput({ fg: { ...WT }, chain: TERMINAL_CHAIN, owner: WT });
     });
     assert.equal(await isAgentWindowFocused(win({ exec })), true);
     assert.deepEqual(exec.calls.map((c) => c.file), ['powershell.exe', 'pwsh.exe']);
@@ -129,36 +199,87 @@ describe('windows', () => {
     }
   });
 
-  it('null when the ancestor chain is missing (cannot compare)', async () => {
-    const exec = fakeExec(() => psOutput({ fg: { pid: 1000, name: 'WindowsTerminal.exe' }, chain: [] }));
-    assert.equal(await isAgentWindowFocused(win({ exec })), null);
+  it('STY (GNU screen) is ignored on Windows', async () => {
+    const exec = fakeExec(() => psOutput({ fg: { ...WT }, chain: TERMINAL_CHAIN, owner: WT }));
+    assert.equal(await isAgentWindowFocused(win({ exec, env: { STY: 'stale' } })), true);
+  });
+});
+
+describe('foreground.ps1', () => {
+  it('emits the shim with Reflection.Emit: no Add-Type (csc.exe, temp files)', () => {
+    const code = fs.readFileSync(FOREGROUND_PS1, 'utf8').replace(/^\s*#.*$/gm, '');
+    assert.ok(!/Add-Type/.test(code), 'Add-Type outside comments');
+    assert.match(code, /DefinePInvokeMethod/);
+    assert.match(code, /GetProcessTimes/);
+  });
+
+  it('walks up from StartPid and stops at the first window owner', { skip: process.platform !== 'win32' }, () => {
+    const inner = `
+      const { execFileSync } = require('node:child_process');
+      process.stdout.write(execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', process.argv[1], '-StartPid', String(process.pid)], { encoding: 'utf8' }));`;
+    const res = spawnSync(process.execPath, ['-e', inner, FOREGROUND_PS1], { encoding: 'utf8', timeout: 30000 });
+    assert.equal(res.status, 0, res.stderr);
+    const lines = res.stdout.split(/\r?\n/).filter(Boolean).map((l) => l.split('\t'));
+    const chain = lines.filter((l) => l[0] === 'CHAIN');
+    assert.ok(chain.length >= 2, res.stdout);
+    assert.equal(chain[0][2].toLowerCase(), 'node.exe');
+    assert.ok(chain.length <= 32);
+    const owners = lines.filter((l) => l[0] === 'OWNER');
+    assert.ok(owners.length <= 1);
+    // The walk ends at the owner: nothing is printed above it.
+    if (owners.length) assert.equal(chain.at(-1)[1], owners[0][1]);
   });
 });
 
 describe('linux (X11)', () => {
   const x11 = { DISPLAY: ':0' };
+  // pid ppid etimes comm. Ages shrink toward the leaf (children are younger).
   const psTable = [
-    `${ME} 3000 node`,
-    '3000 2000 claude',
-    '2000 1000 bash',
-    '1000 1 gnome-terminal-',
-    '800 1 code',
-    '1 0 systemd',
+    `${ME} 3000 10 node`,
+    '3000 2000 20 claude',
+    '2000 1000 30 bash',
+    '1000 900 40 gnome-terminal-',
+    '900 1 50 chrome',
+    '800 1 60 code',
+    '1 0 100 systemd',
   ].join('\n');
   const linux = (extra = {}) => ({ platform: 'linux', env: x11, pid: ME, isWsl: false, ...extra });
-  const handler = (activePid, title = '') => (file, args) => {
-    if (file === 'xdotool' && args.includes('getwindowpid')) return `${activePid}\n`;
-    if (file === 'xdotool' && args.includes('getwindowname')) return `${title}\n`;
-    if (file === 'ps') return psTable;
+  // windows: pids that own a visible window.
+  const handler = (activePid, { title = '', ps = psTable, windows = [1000, 900, 800] } = {}) => (file, args) => {
+    if (file === 'xdotool' && args[0] === 'getactivewindow' && args.includes('getwindowpid')) return `${activePid}\n`;
+    if (file === 'xdotool' && args[0] === 'getactivewindow') return `${title}\n`;
+    if (file === 'xdotool' && args[0] === 'search') {
+      const p = Number(args[args.indexOf('--pid') + 1]);
+      if (windows.includes(p)) return '12345678\n';
+      throw Object.assign(new Error('exit 1'), { code: 1 });
+    }
+    if (file === 'ps') return ps;
     throw enoent(file);
   };
 
-  it('true when the active window belongs to an ancestor', async () => {
+  it('true when the active window belongs to the first window-owning ancestor', async () => {
     assert.equal(await isAgentWindowFocused(linux({ exec: fakeExec(handler(1000)) })), true);
   });
 
   it('false when the active window belongs to something else', async () => {
     assert.equal(await isAgentWindowFocused(linux({ exec: fakeExec(handler(555)) })), false);
+  });
+
+  it('regression: a launcher above the terminal never counts (terminal opened from Chrome)', async () => {
+    // chain: node, claude, bash, gnome-terminal-, chrome. Chrome (900) is in front.
+    assert.equal(await isAgentWindowFocused(linux({ exec: fakeExec(handler(900)) })), false);
+  });
+
+  it('regression: a reused parent pid ends the walk (null, never true)', async () => {
+    // gnome-terminal- (1000) is "younger" than its child bash (30 s): its pid was reused.
+    const ps = psTable.replace('1000 900 40 gnome-terminal-', '1000 900 5 gnome-terminal-');
+    const exec = fakeExec(handler(1000, { ps, windows: [1000] }));
+    assert.equal(await isAgentWindowFocused(linux({ exec })), null);
+  });
+
+  it('null when no ancestor has a visible window', async () => {
+    assert.equal(await isAgentWindowFocused(linux({ exec: fakeExec(handler(1000, { windows: [] })) })), null);
   });
 
   it('null when xdotool is missing', async () => {
@@ -168,6 +289,11 @@ describe('linux (X11)', () => {
 
   it('null when xdotool prints garbage', async () => {
     assert.equal(await isAgentWindowFocused(linux({ exec: fakeExec(handler('no window')) })), null);
+  });
+
+  it('null when ps has no etimes column (BusyBox)', async () => {
+    const exec = fakeExec(handler(1000, { ps: `${ME} 3000 node\n3000 1 claude\n` }));
+    assert.equal(await isAgentWindowFocused(linux({ exec })), null);
   });
 
   it('null without DISPLAY', async () => {
@@ -188,18 +314,32 @@ describe('linux (X11)', () => {
     }
   });
 
-  it('editor host: the window title must carry the workspace', async () => {
-    const chainThroughCode = [
-      `${ME} 3000 node`, '3000 800 claude', '800 1 code', '1 0 systemd',
+  describe('editor hosts', () => {
+    const editorPs = (comm) => [
+      `${ME} 3000 10 node`, '3000 800 20 claude', `800 1 60 ${comm}`, '1 0 100 systemd',
     ].join('\n');
-    const mk = (title) => fakeExec((file, args) => {
-      if (file === 'xdotool' && args.includes('getwindowpid')) return '800';
-      if (file === 'xdotool') return title;
-      return chainThroughCode;
-    });
+    const mk = (title, comm = 'code') => fakeExec(handler(800, { title, ps: editorPs(comm), windows: [800] }));
     const workspace = '/home/me/ai-agent-notify';
-    assert.equal(await isAgentWindowFocused(linux({ workspace, exec: mk('a.js - ai-agent-notify - Visual Studio Code') })), true);
-    assert.equal(await isAgentWindowFocused(linux({ workspace, exec: mk('a.js - elsewhere - Visual Studio Code') })), false);
+
+    it('the window title must carry the workspace folder exactly', async () => {
+      assert.equal(await isAgentWindowFocused(linux({ workspace, exec: mk('a.js - ai-agent-notify - Visual Studio Code') })), true);
+      assert.equal(await isAgentWindowFocused(linux({ workspace, exec: mk('a.js - elsewhere - Visual Studio Code') })), false);
+      assert.equal(await isAgentWindowFocused(linux({ workspace: '/w/app', exec: mk('a.js - my-app-2 - Visual Studio Code') })), false);
+    });
+
+    it('is case-sensitive on Linux', async () => {
+      assert.equal(await isAgentWindowFocused(linux({ workspace: '/w/app', exec: mk('a.js - App - Visual Studio Code') })), false);
+    });
+
+    it('null without a workspace', async () => {
+      assert.equal(await isAgentWindowFocused(linux({ exec: mk('a.js - ai-agent-notify - Visual Studio Code') })), null);
+    });
+
+    it('an Electron comm ("electron") does not skip the title check', async () => {
+      assert.equal(await isAgentWindowFocused(linux({ workspace, exec: mk('a.js - elsewhere - Cursor', 'electron') })), false);
+      assert.equal(await isAgentWindowFocused(linux({ workspace, exec: mk('a.js - ai-agent-notify - Cursor', 'electron') })), true);
+      assert.equal(await isAgentWindowFocused(linux({ exec: mk('a.js - x - Cursor', 'electron') })), null);
+    });
   });
 });
 
@@ -225,10 +365,23 @@ describe('macOS', () => {
     assert.equal(await isAgentWindowFocused(mac({ env: { TERM_PROGRAM: 'iTerm.app' }, exec })), false);
   });
 
-  it('__CFBundleIdentifier wins over TERM_PROGRAM', async () => {
+  it('__CFBundleIdentifier alone, or agreeing with TERM_PROGRAM, decides', async () => {
     const exec = fakeExec(lsappinfo('com.mitchellh.ghostty'));
-    const env = { TERM_PROGRAM: 'Apple_Terminal', __CFBundleIdentifier: 'com.mitchellh.ghostty' };
-    assert.equal(await isAgentWindowFocused(mac({ env, exec })), true);
+    assert.equal(await isAgentWindowFocused(mac({ env: { __CFBundleIdentifier: 'com.mitchellh.ghostty' }, exec })), true);
+    const both = { TERM_PROGRAM: 'ghostty', __CFBundleIdentifier: 'com.mitchellh.ghostty' };
+    assert.equal(await isAgentWindowFocused(mac({ env: both, exec: fakeExec(lsappinfo('com.mitchellh.ghostty')) })), true);
+    // A TERM_PROGRAM we have no mapping for does not veto the bundle id.
+    const unknown = { TERM_PROGRAM: 'SomeNewTerm', __CFBundleIdentifier: 'com.mitchellh.ghostty' };
+    assert.equal(await isAgentWindowFocused(mac({ env: unknown, exec: fakeExec(lsappinfo('com.mitchellh.ghostty')) })), true);
+  });
+
+  it('regression: null when __CFBundleIdentifier and TERM_PROGRAM disagree', async () => {
+    for (const front of ['com.apple.Terminal', 'com.microsoft.VSCode', 'com.google.Chrome']) {
+      const env = { TERM_PROGRAM: 'vscode', __CFBundleIdentifier: 'com.apple.Terminal' };
+      const exec = fakeExec(lsappinfo(front));
+      assert.equal(await isAgentWindowFocused(mac({ env, exec })), null, front);
+      assert.equal(exec.calls.length, 0);
+    }
   });
 
   it('null for an editor host: titles are not readable without a permission prompt', async () => {
@@ -286,15 +439,29 @@ describe('WSL', () => {
     assert.equal(await isAgentWindowFocused(wsl({ env: { WT_SESSION: 'abc' }, exec })), false);
   });
 
-  it('VS Code remote: Code.exe with the workspace in the title', async () => {
+  it('VS Code remote: Code.exe with the workspace folder in the title', async () => {
     const env = { TERM_PROGRAM: 'vscode' };
     const workspace = '/home/me/ai-agent-notify';
     const yes = fakeExec(handler({ pid: 3, name: 'Code.exe', title: 'a.js - ai-agent-notify [WSL: Ubuntu] - Visual Studio Code' }));
     assert.equal(await isAgentWindowFocused(wsl({ env, workspace, exec: yes })), true);
     const other = fakeExec(handler({ pid: 3, name: 'Code.exe', title: 'a.js - elsewhere [WSL: Ubuntu] - Visual Studio Code' }));
     assert.equal(await isAgentWindowFocused(wsl({ env, workspace, exec: other })), false);
+    const sub = fakeExec(handler({ pid: 3, name: 'Code.exe', title: 'a.js - my-ai-agent-notify-2 [WSL: Ubuntu] - Visual Studio Code' }));
+    assert.equal(await isAgentWindowFocused(wsl({ env, workspace, exec: sub })), false);
     const terminal = fakeExec(handler({ pid: 1, name: 'WindowsTerminal.exe', title: 'Ubuntu' }));
     assert.equal(await isAgentWindowFocused(wsl({ env, workspace, exec: terminal })), false);
+    const noWorkspace = fakeExec(handler({ pid: 3, name: 'Code.exe', title: 'a.js - ai-agent-notify [WSL: Ubuntu] - Visual Studio Code' }));
+    assert.equal(await isAgentWindowFocused(wsl({ env, exec: noWorkspace })), null);
+  });
+
+  it('regression: TERM_PROGRAM=vscode wins over WT_SESSION (WSLENV forwards WT_SESSION into VS Code)', async () => {
+    const env = { TERM_PROGRAM: 'vscode', WT_SESSION: 'abc' };
+    const workspace = '/home/me/proj';
+    // A Windows Terminal window in front is not VS Code's terminal.
+    const terminal = fakeExec(handler({ pid: 1, name: 'WindowsTerminal.exe', title: 'Ubuntu' }));
+    assert.equal(await isAgentWindowFocused(wsl({ env, workspace, exec: terminal })), false);
+    const code = fakeExec(handler({ pid: 3, name: 'Code.exe', title: 'a.js - proj [WSL: Ubuntu] - Visual Studio Code' }));
+    assert.equal(await isAgentWindowFocused(wsl({ env, workspace, exec: code })), true);
   });
 
   it('null when the environment does not say which Windows app hosts the shell', async () => {
@@ -317,12 +484,16 @@ describe('WSL', () => {
 describe('null policy', () => {
   it('tmux, screen and zellij return null without probing', async () => {
     for (const env of [{ TMUX: '/tmp/tmux-1000/default,1,0' }, { STY: '123.pts-0.host' }, { ZELLIJ: '0' }]) {
-      for (const platform of ['win32', 'darwin', 'linux']) {
+      for (const platform of ['darwin', 'linux']) {
         const exec = fakeExec(() => { throw new Error('must not be called'); });
         assert.equal(await isAgentWindowFocused({ platform, env: { ...env, DISPLAY: ':0', TERM_PROGRAM: 'Apple_Terminal' }, isWsl: false, exec }), null);
         assert.equal(exec.calls.length, 0);
       }
     }
+    // psmux sets TMUX on Windows too.
+    const exec = fakeExec(() => { throw new Error('must not be called'); });
+    assert.equal(await isAgentWindowFocused({ platform: 'win32', env: { TMUX: '/tmp/psmux-1/x,2,0' }, exec }), null);
+    assert.equal(exec.calls.length, 0);
   });
 
   it('ssh sessions return null: the agent is not on the machine in front of the user', async () => {
