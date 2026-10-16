@@ -28,9 +28,9 @@ type=$(printf '%s' "$input" | jq -r '.notification_type')
 msg=$(printf '%s' "$input" | jq -r '.message')
 case "$type" in
   permission_prompt|elicitation_dialog|elicitation_url_dialog)
-    notify-send -u critical 'Claude Code needs you' "$msg" ;;
+    notify-send -u critical -- 'Claude Code needs you' "$msg" ;;
   idle_prompt)
-    notify-send 'Claude Code is waiting' "$msg" ;;
+    notify-send -- 'Claude Code is waiting' "$msg" ;;
 esac`;
 
 export const WINDOWS_SOUND = (file: string) =>
@@ -119,7 +119,7 @@ export const CLAUDE_GUIDES: Guide[] = [
               ],
               [
                 "`idle_prompt`",
-                "Claude finished about 60 seconds ago and you haven't typed since",
+                "Claude finished about 60 seconds ago, you haven't typed since, and no background agent is still running",
                 "Claude is done; nothing is blocked",
               ],
               [
@@ -134,7 +134,7 @@ export const CLAUDE_GUIDES: Guide[] = [
               ],
               [
                 "`agent_needs_input`",
-                "A background session waits on you while agent view is open (v2.1.198+), or a terminal session shows an agent team teammate's setup question (v2.1.248+) or auto mode's notice about classifier request charges, and you haven't typed for about six seconds",
+                "A background session waits on you while agent view is open (v2.1.198+). Also: a terminal session shows an agent team teammate's setup question (v2.1.248+) or auto mode's notice about classifier request charges, once you haven't typed for about six seconds",
                 "Yes",
               ],
               [
@@ -207,7 +207,7 @@ export const CLAUDE_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "To give each type its own banner from one script, read `notification_type` from stdin. This Linux script needs `jq` and `notify-send`; on macOS swap the `notify-send` lines for the `osascript` command above. Save it as `~/.claude/hooks/needs-you.sh`:",
+            text: "To give each type its own banner from one script, read `notification_type` from stdin. This Linux script needs `jq` and `notify-send`; on macOS replace each `notify-send` line with `osascript -e 'on run argv' -e 'display notification (item 1 of argv) with title \"Claude Code\"' -e 'end run' \"$msg\"`, which passes the message as an argument so a quote in it cannot break the AppleScript. Save it as `~/.claude/hooks/needs-you.sh`:",
           },
           {
             kind: "code",
@@ -284,12 +284,13 @@ export const CLAUDE_GUIDES: Guide[] = [
           {
             kind: "ol",
             items: [
-              '**Test the command by itself.** Pipe a sample event into it: `echo \'{"notification_type":"permission_prompt","message":"test"}\' | sh ~/.claude/hooks/needs-you.sh`. If no banner appears, the problem is the command (a missing `jq`, `notify-send` or Script Editor permission), not Claude Code.',
+              "**The type is `idle_prompt`.** It only runs about 60 seconds after Claude finishes, and only if you haven't typed since and no background agent, such as a background subagent, is still running. It is not sent while Claude waits for a usage limit to reset.",
+              '**Test the command by itself.** In a POSIX shell (WSL on Windows), pipe a sample event into it: `echo \'{"notification_type":"permission_prompt","message":"test"}\' | sh ~/.claude/hooks/needs-you.sh`. If no banner appears, the problem is the command (a missing `jq`, `notify-send` or Script Editor permission), not Claude Code.',
               "**Confirm the hook is registered.** Type `/hooks` in Claude Code and select `Notification`. The matcher must be one of the [types above](#types), spelled exactly.",
               "**You answered too fast.** `permission_prompt` only runs after the prompt has waited about six seconds, and an answer from you before that cancels it (in Claude Desktop and VS Code, an answer from a `PermissionRequest` hook does too). In a terminal, each keystroke while the prompt is open pushes the timer back again.",
               "**You are in Claude Desktop or the VS Code extension.** They answer permission requests through the Agent SDK. The notification fires about six seconds after the request there, typing does not delay it, and before v2.1.233 it did not fire at all. Check that `CLAUDE_CODE_DISABLE_PERMISSION_PROMPT_NOTIFY_HOOKS` is not set to `1`.",
-              "**Another dialog is already open.** A permission request that arrives behind an open dialog keeps the six-second gate, timed from when it arrives, so its notification can reach you while the request still waits in the queue.",
-              "**It is a sandboxed command's network request.** The `permission_prompt` notification covers it, but a `PermissionRequest` hook does not run for it.",
+              "**Another dialog is already open: the alert can come early.** A permission request that arrives behind an open dialog keeps the six-second gate, timed from when it arrives, so its notification can reach you while the request still waits in the queue. That is not a missing alert, just an early one.",
+              "**A sandboxed command's network request in an older terminal.** `permission_prompt` covers it from v2.1.246. A `PermissionRequest` hook never runs for it, so use `permission_prompt` there.",
               "**Desktop notifications being off is not the cause.** Hooks run even when `preferredNotifChannel` is `notifications_disabled`; that setting only changes how Claude Code alerts you itself.",
             ],
           },
@@ -343,7 +344,7 @@ export const CLAUDE_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "The Claude Code claims on this page come from the official docs, read on 2026-10-16 against Claude Code 2.1.301, the latest release at the time. Notification types, timings and version cut-offs change between releases, so confirm anything you rely on there.",
+            text: "The Claude Code claims on this page come from the official docs, read on 2026-10-16 against the `latest` Claude Code release (2.1.301). Notification types, timings and version cut-offs change between releases, so confirm anything you rely on there.",
           },
           {
             kind: "ul",
