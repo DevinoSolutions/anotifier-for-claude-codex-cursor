@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseInput } from './parse-input.mjs';
-import { route, isSilentNotification } from './router.mjs';
+import { route, isSilentNotification, isIdleReminder } from './router.mjs';
+import { readAwayUntil } from './approval.mjs';
 import { loadConfig, resolveProjectConfig } from './config-loader.mjs';
 import { sendNtfy } from './ntfy.mjs';
 import { sendWebhook } from './webhook.mjs';
@@ -133,17 +134,30 @@ const FOCUS_PROBE_CAP_MS = 2500;
 const probeFocus = async (opts) => (await import('./focus.mjs')).isAgentWindowFocused(opts);
 
 // Opt-in focus suppression (`suppressWhenFocused`). Returns null, WITHOUT running
-// the probe, when the key is not exactly true (the default); otherwise a promise
-// of true / false / null for "is the agent's own window in front?". Start it as
-// early as the event is known and await it right before dispatch, so the
-// ~1-1.8 s Windows probe overlaps the transcript read and backend lookup. The
-// promise never rejects: a throw, a rejection or a probe that outlives the cap
-// all read as null ("could not tell"), and only an exact `true` skips the alert.
-// A failure goes to errors.log, never stdout (hook output matters).
-export function startFocusProbe(config, event, { probe = probeFocus, capMs = FOCUS_PROBE_CAP_MS } = {}) {
+// the probe, when the key is not exactly true (the default), when the event is
+// the idle reminder, or while `anotifier away` is active. A window left in front
+// while the user is away still counts as in front, so those two must always be
+// sent; deciding here, before the probe starts, also spares them the probe's
+// delay. Otherwise it returns a promise of true / false / null for "is the
+// agent's own window in front?". It is started as early as the event is known
+// and awaited right before dispatch, so while it is on every alert waits for it:
+// about 1 s extra on Windows. The promise never rejects: a throw, a rejection or
+// a probe that outlives the cap all read as null ("could not tell"), and only an
+// exact `true` skips the alert. A failure goes to errors.log, never stdout (hook
+// output matters).
+export function startFocusProbe(config, event, {
+  probe = probeFocus,
+  capMs = FOCUS_PROBE_CAP_MS,
+  isAway = () => readAwayUntil() !== null,
+} = {}) {
   if (config?.suppressWhenFocused !== true) return null;
+  if (isIdleReminder(event)) return null;
+  let away = false;
+  try { away = isAway(); } catch { away = false; }
+  if (away) return null;
   let timer;
-  const cap = new Promise((resolve) => { timer = setTimeout(() => resolve(null), capMs); timer.unref?.(); });
+  // Not unref'd: while the probe is pending the backstop must keep the event loop alive.
+  const cap = new Promise((resolve) => { timer = setTimeout(() => resolve(null), capMs); });
   const run = (async () => probe({ source: event?.source, workspace: event?.cwd }))()
     .then((v) => (v === true || v === false ? v : null))
     .catch((err) => { logHookError('focus', err); return null; });
@@ -296,8 +310,11 @@ export async function main({ focus } = {}) {
       process.exit(0);
     }
 
-    // Start the focus probe now (a no-op unless suppressWhenFocused is on), so it
-    // runs while the rich views and the toast backend are prepared below.
+    // Start the focus probe now (a no-op unless suppressWhenFocused is on and
+    // this is neither the idle reminder nor an away session). It is awaited
+    // just before dispatch, so it still adds its delay to the alert.
+    // The skip below runs after the dedup lock, so a skipped run holds the lock
+    // for DEDUP_WINDOW_MS: acceptable, a double-fire is what the lock is for.
     const focusProbe = startFocusProbe(config, event, focus);
 
     // Check per-event overrides

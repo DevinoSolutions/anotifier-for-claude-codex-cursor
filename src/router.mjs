@@ -107,7 +107,8 @@ export function isSilentNotification(event) {
   return classifyClaudeNotification(event)?.kind === 'skip';
 }
 
-function isIdleReminder(event) {
+// Also read by notify.mjs: the focus gate must never skip this alert.
+export function isIdleReminder(event) {
   // The type, when present, is authoritative: idle_prompt is the nag whatever
   // its text says, and a permission prompt is never the nag.
   const typed = classifyClaudeNotification(event);

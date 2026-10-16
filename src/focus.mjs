@@ -63,8 +63,12 @@
 // windows of one multi-window app (iTerm, JetBrains IDEs): the frontmost-app
 // check cannot tell them apart.
 //
-// Title separator: VS Code (and Cursor and Windsurf, which are forks and use the
-// same title template) join the segments with " - " on Windows and Linux. The
+// A window left in front while you are away still counts as in front, so the
+// idle reminder and `anotifier away` are never suppressed (the caller,
+// startFocusProbe in notify.mjs, does not ask in those cases).
+//
+// Title separator: VS Code joins the segments with " - " on Windows and Linux
+// (Cursor and Windsurf are VS Code forks and appear to keep its default). The
 // em dash (U+2014) is the default only on macOS, where titles are never read
 // here (see above). Source: defaultWindowTitleSeparator in microsoft/vscode,
 // src/vs/workbench/browser/parts/titlebar/windowTitle.ts:

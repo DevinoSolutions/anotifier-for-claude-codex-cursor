@@ -116,7 +116,7 @@ function printHelp(c, banner) {
   console.log(`    ${c.accent('setup')}             ${c.white('First-time setup wizard')}`);
   console.log(`    ${c.accent('status')}            ${c.white('Show wired tools, ntfy topic, toast backend')}`);
   console.log(`    ${c.accent('test')} ${c.muted('[channel]')}    ${c.white('Fire test notification')} ${c.muted('(toast | ntfy | webhook | bell | both)')}`);
-  console.log(`    ${c.accent('config')} ${c.muted('[section]')}  ${c.white('Interactive settings')} ${c.muted('(ntfy | webhook | sounds | events | sentry)')}`);
+  console.log(`    ${c.accent('config')} ${c.muted('[section]')}  ${c.white('Interactive settings')} ${c.muted('(ntfy | webhook | sounds | events | sentry | focus)')}`);
   console.log(`    ${c.accent('doctor')} ${c.muted('[--deep]')}   ${c.white('Diagnose delivery per channel')} ${c.muted('(--deep verifies real delivery)')}`);
   console.log(`    ${c.accent('snooze')} ${c.muted('<dur|off>')}  ${c.white('Silence every channel for a while')} ${c.muted('(30m | 2h | 90s | 45)')}`);
   console.log(`    ${c.accent('telemetry')}         ${c.white('Opt-in anonymous usage stats')} ${c.muted('(status | on | off)')}`);
