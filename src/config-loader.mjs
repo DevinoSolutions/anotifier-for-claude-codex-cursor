@@ -72,10 +72,24 @@ export function parseHHMM(value) {
   return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }
 
-// Shallow schema check. Wrong-typed keys are DELETED from the user object
-// (defaults win) and reported, so a bad value can never poison the runtime.
-// Unknown keys are reported but kept — they are usually typos.
-function validateUserConfig(user) {
+const TOP_LEVEL_KEYS = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'contextAlerts', 'quietHours', 'events', 'sources'];
+
+// Top-level keys a project rule may NOT override: machine- or account-wide
+// settings that make no sense per workspace. `sentry`, `updateCheck` and
+// `telemetry` are process-level (error reporting, the update check, opt-in
+// stats) and are read outside any workspace; `usageAlerts` is about the
+// account's plan quota, not a project; `projects` cannot nest. Everything else
+// (channels, sounds, priority, quiet hours, event overrides, min-duration,
+// context alerts, source labels) is allowed.
+const PROJECT_EXCLUDED_KEYS = ['sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'projects'];
+const PROJECT_KEYS = TOP_LEVEL_KEYS.filter((key) => !PROJECT_EXCLUDED_KEYS.includes(key));
+
+// Schema check for one settings object (the top-level user config, or the
+// overrides of one project rule). Same per-key rules for both.
+// Wrong-typed keys are DELETED from the object (defaults win) and reported, so
+// a bad value can never poison the runtime. Unknown keys are reported but kept
+// — they are usually typos.
+function validateSettings(user) {
   const issues = [];
   const checkBlock = (blockName, spec) => {
     const block = user[blockName];
@@ -232,11 +246,154 @@ function validateUserConfig(user) {
     }
   }
 
-  const knownTop = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'updateCheck', 'telemetry', 'usageAlerts', 'contextAlerts', 'quietHours', 'events', 'sources'];
   for (const key of Object.keys(user)) {
-    if (!knownTop.includes(key)) issues.push(`unknown key "${key}"`);
+    if (key !== 'projects' && !TOP_LEVEL_KEYS.includes(key)) issues.push(`unknown key "${key}"`);
   }
   return issues;
+}
+
+// Per-project override rules: `projects: [{ match, ...overrides }]`. Each rule's
+// overrides go through validateSettings, so a bad value inside a rule is
+// reported (prefixed with `projects[i]:`) and dropped exactly like a bad
+// top-level value. A malformed rule is dropped whole: one with no usable
+// `match` would otherwise apply to nothing, or to the wrong place.
+// Excluded and unknown keys are reported and also REMOVED from the rule,
+// unlike unknown top-level keys, so they can never reach the merged config.
+function validateProjects(user, issues) {
+  if (user.projects === undefined) return;
+  if (!Array.isArray(user.projects)) {
+    issues.push('"projects" must be an array');
+    delete user.projects;
+    return;
+  }
+  const kept = [];
+  user.projects.forEach((rule, i) => {
+    const at = `projects[${i}]`;
+    if (typeof rule !== 'object' || rule === null || Array.isArray(rule)) {
+      issues.push(`"${at}" must be an object`);
+      return;
+    }
+    if (typeof rule.match !== 'string' || !rule.match.trim()) {
+      issues.push(`"${at}.match" must be a non-empty string`);
+      return;
+    }
+    const overrides = {};
+    for (const key of Object.keys(rule)) {
+      if (key === 'match') continue;
+      if (UNSAFE_KEYS.has(key)) { issues.push(`${at}: unknown key "${key}"`); continue; }
+      if (PROJECT_EXCLUDED_KEYS.includes(key)) {
+        issues.push(`${at}: unknown key "${key}" (not allowed in a project rule)`);
+        continue;
+      }
+      overrides[key] = rule[key];
+    }
+    for (const issue of validateSettings(overrides)) issues.push(`${at}: ${issue}`);
+    const clean = { match: rule.match };
+    for (const key of PROJECT_KEYS) {
+      if (overrides[key] !== undefined) clean[key] = overrides[key];
+    }
+    kept.push(clean);
+  });
+  user.projects = kept;
+}
+
+function validateUserConfig(user) {
+  const issues = validateSettings(user);
+  validateProjects(user, issues);
+  return issues;
+}
+
+// ---- Per-project overrides ----
+//
+// Rules live ONLY in the user's own ~/.anotifier/config.json. There is
+// deliberately no per-repo file (.anotifier.json in the project): a cloned repo
+// could otherwise redirect alerts, with the prompt and message text, to its own
+// webhook or ntfy topic.
+//
+// Merge order, lowest to highest precedence:
+//   defaults  <  top-level user config  <  matching project rules, in array order
+// Objects merge deeply (deepMerge); arrays and scalars are replaced.
+
+// Forward slashes, no drive-letter lead slash (Cursor sends `/C:/Users/x/app`),
+// no duplicate or trailing slashes, and folded to lower case where the file
+// system is case-insensitive (win32, darwin).
+export function normalizeProjectPath(value, platform = process.platform) {
+  let p = String(value).trim().replace(/\\/g, '/');
+  if (/^\/[A-Za-z]:(\/|$)/.test(p)) p = p.slice(1);
+  p = p.replace(/\/{2,}/g, '/');
+  if (p.length > 1) p = p.replace(/\/+$/, '');
+  if (platform === 'win32' || platform === 'darwin') p = p.toLowerCase();
+  return p;
+}
+
+// `*` matches within one path segment, `**` matches any number of segments
+// (including none). Everything else is literal. Compiled per call: rule lists
+// are tiny and the hook runs once per process.
+function projectPatternToRegExp(pattern) {
+  const segments = ('/' + pattern.replace(/^\//, '')).split('/').slice(1);
+  let source = '';
+  let lastWasGlobstar = false;
+  for (const segment of segments) {
+    if (segment === '**') {
+      if (!lastWasGlobstar) source += '(?:/[^/]+)*';
+      lastWasGlobstar = true;
+      continue;
+    }
+    lastWasGlobstar = false;
+    const body = segment
+      .split('*')
+      .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
+      .join('[^/]*');
+    source += '/' + body;
+  }
+  return { source, hasGlob: segments.some((s) => s.includes('*')) };
+}
+
+// Does `workspace` fall under the rule's `match`? A plain path (no glob)
+// matches that directory and anything below it. A glob matches exactly the
+// shape it describes: `side/*` is the directories directly under `side`,
+// `acme/**` is `acme` itself and everything below it.
+export function matchesProjectPath(match, workspace, { platform = process.platform, home = os.homedir() } = {}) {
+  if (typeof match !== 'string' || !match.trim()) return false;
+  if (typeof workspace !== 'string' || !workspace.trim()) return false;
+  let pattern = match.trim();
+  if (pattern === '~' || pattern.startsWith('~/') || pattern.startsWith('~\\')) {
+    pattern = home.replace(/[\\/]+$/, '') + pattern.slice(1);
+  }
+  pattern = normalizeProjectPath(pattern, platform);
+  const target = normalizeProjectPath(workspace, platform);
+  const { source, hasGlob } = projectPatternToRegExp(pattern);
+  const rooted = target.startsWith('/') ? target : '/' + target;
+  return new RegExp(`^${source}${hasGlob ? '' : '(?:/.*)?'}$`).test(rooted);
+}
+
+// Config for one workspace: a NEW object (the input is never mutated) with every
+// matching rule applied and the `projects` key removed. An empty or non-string
+// workspace, or no rules, yields the config as-is minus `projects`. Never throws.
+// Excluded keys are skipped here too, so a config that skipped the loader's
+// validation cannot override a machine-level setting.
+export function resolveProjectConfig(config, workspace, options = {}) {
+  if (!config || typeof config !== 'object') return config;
+  let out;
+  try {
+    out = JSON.parse(JSON.stringify(config));
+    delete out.projects;
+    if (typeof workspace !== 'string' || !workspace.trim() || !Array.isArray(config.projects)) return out;
+    for (const rule of config.projects) {
+      if (!rule || typeof rule !== 'object' || Array.isArray(rule)) continue;
+      if (!matchesProjectPath(rule.match, workspace, options)) continue;
+      const overrides = {};
+      for (const key of PROJECT_KEYS) {
+        if (rule[key] !== undefined) overrides[key] = JSON.parse(JSON.stringify(rule[key]));
+      }
+      deepMerge(out, overrides);
+    }
+    return out;
+  } catch {
+    if (out) return out;
+    const { projects, ...rest } = config;
+    return rest;
+  }
 }
 
 // Load defaults + user config, reporting exactly what is wrong with the user
