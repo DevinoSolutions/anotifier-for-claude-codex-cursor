@@ -905,7 +905,7 @@ if (typeof win?.used_percentage !== "number") {
         blocks: [
           {
             kind: "p",
-            text: "A warning comes before the limit. Claude Code sends its own notification types around it too, such as `quota_auto_resume_stale` when a limit reset while your computer slept and Claude waits for Enter (v2.1.234+). anotifier turns that one into a needs-input alert. The [permission notifications guide](/guides/claude-code-permission-notifications/) lists every type.",
+            text: "A warning comes before the limit. Claude Code sends its own notification types around it too, such as `quota_auto_resume_stale` when a limit reset while your computer slept and Claude waits for Enter (v2.1.234+). anotifier turns that one into a needs-input alert. The [permission notifications guide](/guides/claude-code-permission-notifications/) lists every type. The other statusline warning is for context: the [Claude Code auto-compact guide](/guides/claude-code-auto-compact-warning/) explains how to turn auto-compact off, `/compact` vs `/clear`, and how to be warned before a chat compacts.",
           },
         ],
       },
@@ -946,38 +946,212 @@ if (typeof win?.used_percentage !== "number") {
     updated: "2026-10-16",
     kind: "topic",
     agentSlug: "claude-code",
-    name: "Claude Code auto-compact warning",
+    name: "Claude Code auto-compact",
     icon: "/assets/icons/claude.png",
-    title: "Claude Code Auto-Compact Warning: Get Notified at 85%",
+    title: "Claude Code Auto-Compact: Turn It Off, Tune It, Get Warned",
     description:
-      "Claude Code has no setting that warns before it auto-compacts. Read context_window.total_input_tokens in your statusline, or run npx anotifier setup (1.6.0+).",
-    h1: "Get notified before Claude Code auto-compacts your chat",
+      "Claude Code auto-compact explained: when it runs, autoCompactEnabled to turn it off, /compact vs /clear, and how to get warned before it happens.",
+    h1: "Claude Code auto-compact: what it does, how to turn it off, how to get warned first",
     intro:
-      "Claude Code has no setting that warns you before it auto-compacts a chat. It does pass the chat's context size to your `statusLine` command as `context_window.total_input_tokens` on stdin, while hook input carries no `context_window` field. So a warning has to live in a statusline script: compare that number with the auto-compact window and send a notification when the chat gets close. Below is a script you can write yourself, then how anotifier 1.6.0 and later does it, once per chat at 85% by default. Unlike usage-limit warnings it needs no Claude.ai subscription, so it works on API-key and proxy sessions too. For an alert when Claude finishes or needs you, see the [Claude Code notifications guide](/guides/claude-code-notifications/).",
+      "Auto-compact is Claude Code summarizing your conversation when the context window gets close to full, so a long session can keep going. This guide covers when it runs, how to turn it off with the `autoCompactEnabled` setting, how `/compact` and `/clear` differ, and what survives a compaction. Claude Code has no setting that warns you before it compacts, though. So the last part shows how to get that warning: a statusline script you can write yourself, or anotifier 1.6.0 and later, once per chat at 85% by default. Unlike usage-limit warnings it needs no Claude.ai subscription, so it works on API-key and proxy sessions too. For an alert when Claude finishes or needs you, see the [Claude Code notifications guide](/guides/claude-code-notifications/).",
     sections: [
       {
         id: "what",
-        title: "What auto-compact is, and which window counts",
+        title: "What auto-compact is and when it triggers",
         blocks: [
           {
             kind: "p",
-            text: "When a chat's context fills up, Claude Code summarizes the conversation to free space. That is auto-compact, and `/compact` does the same on demand. It kicks in before the model's full context window is used, at the auto-compact window, which you can change with `/autocompact`. So a percentage measured against the model's full window runs low: Claude Code's own `context_window.used_percentage` is measured against the full window, not the auto-compact window, and anotifier does not use it.",
+            text: "When the context window approaches its limit, Claude Code clears older tool outputs first, then summarizes the conversation so the session can continue instead of ending. That is auto-compact. `/compact` does the same on demand, and `/context` shows what is filling the window right now.",
           },
           {
             kind: "p",
-            text: "anotifier works out the auto-compact window in this order, and stops at the first hit:",
+            text: "By default it runs when the conversation reaches the model's context limit, with these exceptions:",
           },
           {
             kind: "ul",
             items: [
-              "The `CLAUDE_CODE_AUTO_COMPACT_WINDOW` environment variable, clamped to 100,000 to 1,000,000 tokens. It overrides the setting.",
-              "The `autoCompactWindow` setting that `/autocompact` writes, clamped the same way. A per-model value (`modelSettings.<model id>.autoCompactWindow`, written by Claude Code 2.1.288 and later) wins over the top-level key in the same file. Files are read in this order: `<project>/.claude/settings.local.json`, `<project>/.claude/settings.json`, then `settings.json` in `$CLAUDE_CONFIG_DIR` (default `~/.claude`).",
-              "The model's own window, `context_window.context_window_size`.",
+              "Sonnet 4.6 and Opus 4.6 without extended context compact at the 200K boundary.",
+              "Models with a native 1M window, such as the Fable models, Sonnet 5 and later, Haiku 5.5, and Opus 4.7 and later, compact before the window fills, at about 967K tokens by default. Setting `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` makes them compact at 200K instead.",
+              "A model ID Claude Code does not recognize, such as an LLM gateway alias, compacts at the window Claude Code assumes for that ID.",
+              "Cloud sessions compact as the conversation approaches the model's limit.",
             ],
           },
           {
             kind: "p",
-            text: "The result never goes above the model's window. If auto-compact is switched off (`DISABLE_AUTO_COMPACT` or `DISABLE_COMPACT` set to a true value such as `1`, `true`, `yes` or `on`, or `autoCompactEnabled: false` in the first settings file that defines it), nothing will compact and nothing is sent.",
+            text: "How full the window gets before Claude Code compacts is the auto-compact window, and you can move it:",
+          },
+          {
+            kind: "ul",
+            items: [
+              "`/autocompact 500k` saves a window for the current model, and `/autocompact auto` returns to the default. It accepts 100K to 1M tokens and needs Claude Code v2.1.221 or later.",
+              '`autoCompactWindow` in a settings file, such as `"autoCompactWindow": 200000` in `~/.claude/settings.json`, sets it for every model.',
+              "`claude --autocompact 500k` applies for one launch without changing your saved setting.",
+              "`CLAUDE_CODE_AUTO_COMPACT_WINDOW` sets it in scripts and cloud environments, as a plain integer such as `500000`. While it is set it overrides the command, the flag and the setting.",
+              "`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` sets a percentage from 1 to 100 of the window at which compaction triggers. It can only lower the point, not raise it, and applies only in sessions that compact before the model's context limit.",
+            ],
+          },
+        ],
+      },
+      {
+        id: "turn-off",
+        title: "How to turn auto-compact off or on",
+        blocks: [
+          {
+            kind: "p",
+            text: "The switch is the `autoCompactEnabled` setting, a boolean that defaults to `true`. It appears in `/config` as **Auto-compact**, and toggling it there writes the key to your user settings. You can also set it by hand in any settings file, for example `~/.claude/settings.json`:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({ autoCompactEnabled: false }),
+          },
+          {
+            kind: "p",
+            text: "For one session or script, use the environment variable instead, either exported in your shell or in the `env` block of a settings file:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({ env: { DISABLE_AUTO_COMPACT: "1" } }),
+          },
+          {
+            kind: "ul",
+            items: [
+              "`DISABLE_AUTO_COMPACT` overrides `autoCompactEnabled`. Whichever of the two turns auto-compact off, the other cannot turn it back on.",
+              "Turning auto-compact off also turns off idle compaction. The manual `/compact` command keeps working.",
+              "`DISABLE_COMPACT=1` is stronger: it disables all compaction, including `/compact`.",
+              "To turn it back on, set `autoCompactEnabled` to `true` (or toggle it in `/config`) and remove the environment variable.",
+            ],
+          },
+          {
+            kind: "note",
+            text: "With auto-compact off, nothing frees space for you. Once the conversation grows past the model's context window, requests fail with `Prompt is too long` until you run `/compact` or `/clear`.",
+          },
+        ],
+      },
+      {
+        id: "compact",
+        title: "Manual /compact, with focus instructions",
+        blocks: [
+          {
+            kind: "p",
+            text: "`/compact` replaces the conversation history with a summary and keeps the same session going. It takes optional focus instructions, so the summary keeps what you choose instead of what the automatic pass guesses matters:",
+          },
+          {
+            kind: "code",
+            lang: "bash",
+            code: `/compact
+/compact focus on the auth bug fix
+/compact Focus on the API changes`,
+          },
+          {
+            kind: "ul",
+            items: [
+              "**Compact at a natural break**, such as before a long new task, rather than letting auto-compact fire in the middle of one.",
+              '**Make the focus permanent.** Add a line to `CLAUDE.md`, such as "When compacting, always preserve the full list of modified files and any test commands", and it applies to every compaction.',
+              "**Compact only part of a chat.** Press `Esc` twice or run `/rewind`, pick a message, and choose **Summarize from here** or **Summarize up to here**.",
+            ],
+          },
+        ],
+      },
+      {
+        id: "compact-vs-clear",
+        title: "/compact vs /clear",
+        blocks: [
+          {
+            kind: "table",
+            head: ["Compare", "`/compact`", "`/clear`"],
+            rows: [
+              [
+                "What it does",
+                "Replaces the history with a summary",
+                "Starts a new conversation with empty context",
+              ],
+              [
+                "Same session?",
+                "Yes, the conversation continues",
+                "No. The old conversation is saved, and `/resume` brings it back",
+              ],
+              [
+                "What Claude keeps",
+                "The summary, plus what is re-loaded from disk (see below)",
+                "Nothing from the conversation. Project memory still applies",
+              ],
+              [
+                "Arguments",
+                "`/compact [instructions]`: what the summary should focus on",
+                "`/clear [name]`: a label for the old conversation in the `/resume` picker. Aliases: `/reset`, `/new`",
+              ],
+              [
+                "Use it when",
+                "You are mid-task and the context is filling up",
+                "You are switching to unrelated work",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "In short: compact to carry on with the same task, clear to start a different one. Old conversation crowds out the files you need next and costs tokens on every message, so clearing between unrelated tasks is the cheaper habit.",
+          },
+        ],
+      },
+      {
+        id: "after",
+        title: "What happens to your context after compaction",
+        blocks: [
+          {
+            kind: "p",
+            text: "The conversation becomes a summary. What else carries over depends on how it was loaded:",
+          },
+          {
+            kind: "table",
+            head: ["What", "After compaction"],
+            rows: [
+              [
+                "Project-root `CLAUDE.md` and unscoped rules",
+                "Re-injected from disk",
+              ],
+              ["Auto memory", "Re-injected from disk"],
+              [
+                "Files Claude read or edited",
+                "Up to five are re-read, most recently modified first. A file over 5,000 tokens comes back as a path reference",
+              ],
+              [
+                "Invoked skills",
+                "Re-injected, capped at 5,000 tokens per skill and 25,000 in total. The oldest are dropped first",
+              ],
+              [
+                "Rules with `paths:` frontmatter, nested `CLAUDE.md`",
+                "Reloaded on demand. What was loaded earlier is summarized away",
+              ],
+              ["Background commands and subagents", "Keep running"],
+              [
+                "`SessionStart` hooks that match `compact`",
+                "Run again, and their output is added to the compacted context",
+              ],
+              [
+                "Instructions you gave only in the chat",
+                "Summarized with the rest, and may be lost",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "So anything that must survive belongs in the project-root `CLAUDE.md`, not in a message. The automatic pass works the same way as `/compact`.",
+          },
+        ],
+      },
+      {
+        id: "warn",
+        title: "How to get warned before auto-compact runs",
+        blocks: [
+          {
+            kind: "p",
+            text: "Claude Code has no setting that warns you before it auto-compacts a chat. It does pass the chat's context size to your `statusLine` command as `context_window.total_input_tokens` on stdin, while hook input carries no `context_window` field. So a warning has to live in a statusline script: compare that number with the auto-compact window and send a notification when the chat gets close.",
+          },
+          {
+            kind: "p",
+            text: "There are two ways to get one. [Write the script yourself](#diy), or let [anotifier](#anotifier) do it. Both need to know which window to measure against, because the auto-compact window can sit below the model's full window. [How anotifier finds that window](#window) is below.",
           },
         ],
       },
@@ -1094,6 +1268,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
               "**It reaches the channels you have on.** Desktop toast, ntfy push and webhook. It never rings the terminal bell, because a statusline has no terminal of its own.",
               "**Snooze and quiet hours hold it back.** While either is active nothing is sent and nothing is recorded, so a chat already over the line is warned once it ends, if a statusline refresh happens.",
               "**No subscription needed.** The context numbers come with every statusline refresh, so API-key and proxy sessions are covered, unlike the usage-limit warnings.",
+              "**Silent when auto-compact is off.** If you turned it off with `autoCompactEnabled` or `DISABLE_AUTO_COMPACT` (see [how to turn auto-compact off](#turn-off)), there is nothing to warn about, so nothing is sent.",
             ],
           },
           {
@@ -1120,6 +1295,28 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
         ],
       },
       {
+        id: "window",
+        title: "How anotifier finds the auto-compact window",
+        blocks: [
+          {
+            kind: "p",
+            text: "A percentage measured against the model's full window runs low, because auto-compact can fire earlier. Claude Code's own `context_window.used_percentage` is measured against the full window, not the auto-compact window, so anotifier does not use it. It works out the auto-compact window in this order, and stops at the first hit:",
+          },
+          {
+            kind: "ul",
+            items: [
+              "The `CLAUDE_CODE_AUTO_COMPACT_WINDOW` environment variable, clamped to 100,000 to 1,000,000 tokens. It overrides the setting.",
+              "The `autoCompactWindow` setting that `/autocompact` writes, clamped the same way. A per-model value (`modelSettings.<model id>.autoCompactWindow`, written by Claude Code 2.1.288 and later) wins over the top-level key in the same file. Files are read in this order: `<project>/.claude/settings.local.json`, `<project>/.claude/settings.json`, then `settings.json` in `$CLAUDE_CONFIG_DIR` (default `~/.claude`).",
+              "The model's own window, `context_window.context_window_size`.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "The result never goes above the model's window. If auto-compact is switched off (`DISABLE_AUTO_COMPACT` or `DISABLE_COMPACT` set to a true value such as `1`, `true`, `yes` or `on`, or `autoCompactEnabled: false` in the first settings file that defines it), nothing will compact and nothing is sent.",
+          },
+        ],
+      },
+      {
         id: "limits",
         title: "Limits worth knowing",
         blocks: [
@@ -1133,35 +1330,48 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
           },
         ],
       },
+      {
+        id: "sources",
+        title: "Official docs this page follows",
+        blocks: [
+          {
+            kind: "p",
+            text: "Checked on 2026-10-16. Docs change, so confirm a setting there before you rely on it.",
+          },
+          {
+            kind: "ul",
+            items: [
+              "Claude Code: [`autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled), [set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window), [default auto-compact thresholds](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds), [environment variables](https://code.claude.com/docs/en/env-vars)",
+              "Claude Code: [commands](https://code.claude.com/docs/en/commands), [what survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction), [best practices](https://code.claude.com/docs/en/best-practices), [context exceeds the token limit](https://code.claude.com/docs/en/errors#context-exceeds-the-token-limit)",
+            ],
+          },
+        ],
+      },
     ],
     faqs: [
       {
+        q: "What is auto-compact in Claude Code?",
+        a: "Auto-compact is Claude Code summarizing your conversation when the context window approaches its limit. It clears older tool outputs first, then summarizes the rest, so a long session keeps going instead of ending. /compact does the same on demand.",
+      },
+      {
+        q: "When does Claude Code auto-compact?",
+        a: "By default when the conversation reaches the model's context limit. Sonnet 4.6 and Opus 4.6 without extended context compact at the 200K boundary, and models with a native 1M window compact at about 967K tokens. You can move the point with /autocompact, the autoCompactWindow setting, the --autocompact flag or the CLAUDE_CODE_AUTO_COMPACT_WINDOW environment variable.",
+      },
+      {
+        q: "How do I turn off auto-compact in Claude Code?",
+        a: "Set autoCompactEnabled to false in a settings file such as ~/.claude/settings.json, or switch Auto-compact off in /config. For one session set the environment variable DISABLE_AUTO_COMPACT=1. The manual /compact command keeps working. DISABLE_COMPACT=1 turns off all compaction, /compact included.",
+      },
+      {
+        q: "What does the autoCompactEnabled setting do?",
+        a: "It is a boolean that defaults to true. When false, Claude Code does not compact the conversation automatically, and idle compaction turns off too. It works in any settings file, and /config writes it to your user settings. DISABLE_AUTO_COMPACT overrides it, and whichever of the two turns auto-compact off, the other cannot turn it back on.",
+      },
+      {
+        q: "What is the difference between /compact and /clear?",
+        a: "/compact replaces the conversation with a summary and continues the same session, and takes optional focus instructions such as /compact focus on the auth bug fix. /clear starts a new conversation with empty context; the old one is saved and /resume brings it back. Compact to carry on with a task, clear to switch to another.",
+      },
+      {
         q: "Can Claude Code warn me before it auto-compacts?",
-        a: "Not with a setting, but it passes the chat's context size (context_window.total_input_tokens) to your statusLine command. A script there can send a notification when it nears the auto-compact window. anotifier 1.6.0 and later does this for you, once per chat at 85%.",
-      },
-      {
-        q: "Why can't a hook warn me about context?",
-        a: "Claude Code passes the context_window numbers to the statusline command, and hook input has no context_window field, so the warning is triggered from the statusline.",
-      },
-      {
-        q: "Does this need a Claude.ai Pro or Max plan?",
-        a: "No. Unlike the usage-limit warning, the context numbers come with every statusline refresh, so API-key and proxy sessions get the warning too.",
-      },
-      {
-        q: "Does it follow my /autocompact setting?",
-        a: "Yes. anotifier uses the CLAUDE_CODE_AUTO_COMPACT_WINDOW environment variable first, then the autoCompactWindow setting from your project and user settings files, then the model's window, and never goes above the model's window. The --autocompact flag and managed settings are invisible to a statusline, so with those the warning can be late or missing.",
-      },
-      {
-        q: "Will it warn again after I run /compact?",
-        a: "No. Each chat warns once and never again, even after /compact. /clear starts a new session, which can warn again.",
-      },
-      {
-        q: "Can I change the threshold or turn the warning off?",
-        a: 'Yes. Set contextAlerts.threshold in ~/.anotifier/config.json to a percentage above 0 and at most 100, or contextAlerts.enabled to false. The default is { "enabled": true, "threshold": 85 }.',
-      },
-      {
-        q: "Does a warning come through while I am snoozed?",
-        a: "No. While you are snoozed or inside quiet hours nothing is sent and nothing is recorded, so a chat already over the line is warned once that ends, if the statusline refreshes.",
+        a: "Not with a setting, but it passes the chat's context size (context_window.total_input_tokens) to your statusLine command, so a script there can send a notification. anotifier 1.6.0 and later does this for you, once per chat at 85% of the auto-compact window it finds from your settings, and sends nothing when auto-compact is off. Change the percentage with contextAlerts.threshold in ~/.anotifier/config.json.",
       },
     ],
   },
