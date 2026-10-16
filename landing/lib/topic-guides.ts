@@ -49,7 +49,7 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "Phone push, webhooks and the terminal bell work the same on both. They do not depend on any of this, so they still arrive when a toast cannot.",
+            text: "Phone push and webhooks do not depend on any of this, and neither does the Claude Code bell (Claude Code writes it itself), so they still arrive when a toast cannot. The terminal bell for other agents is a separate path: on native Windows it also runs through `pwsh`.",
           },
         ],
       },
@@ -75,7 +75,7 @@ export const TOPIC_GUIDES: Guide[] = [
             items: [
               "Writes the hooks for each agent it finds: `Stop` and `Notification` for Claude Code in `~/.claude/settings.json`, and `Stop`, `PermissionRequest` and `SessionStart` for Codex in `%USERPROFILE%\\.codex\\hooks.json`. Each hook is one `node` command that runs anotifier's `notify.mjs`. Claude Code runs a hook command with Git Bash on Windows, or with PowerShell when Git Bash is not installed.",
               "Checks for `pwsh`. If it is there, it installs BurntToast for your user with `Install-Module BurntToast -Scope CurrentUser` when the module is missing. Nothing is installed while a hook runs.",
-              "If `pwsh` is missing, or the BurntToast install fails, it turns the toast channel off and prints the `winget` command. `status` then shows `toast: off, no backend`. Phone push, webhooks and the bell stay on. Run `setup` again once PowerShell 7 is installed and the toast comes back on; a toast you switched off yourself stays off.",
+              "If `pwsh` is missing, or the BurntToast install fails, it turns the toast channel off and prints the `winget` command. `status` then shows `toast: off, no backend`. Phone push and webhooks stay on. Run `setup` again once PowerShell 7 is installed and the toast comes back on; a toast you switched off yourself stays off.",
             ],
           },
           {
@@ -125,7 +125,7 @@ export const TOPIC_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "A Linux process in WSL cannot draw a Windows notification, so anotifier asks Windows to do it. It detects WSL from the kernel version string, `/proc/version`, or the `WSL_INTEROP` and `WSL_DISTRO_NAME` variables (Docker containers are not mistaken for WSL) and uses the Windows path instead of `notify-send`. Microsoft documents the mechanism it relies on: WSL can run Windows tools from the Linux command line as `tool-name.exe`. The steps:",
+            text: "A Linux process in WSL cannot draw a Windows notification, so anotifier asks Windows to do it. It detects WSL from the kernel version string, `/proc/version`, the `WSL_INTEROP` and `WSL_DISTRO_NAME` variables, or other WSL markers (Docker containers are not mistaken for WSL) and uses the Windows path instead of `notify-send`. Microsoft documents the mechanism it relies on: WSL can run Windows tools from the Linux command line as `tool-name.exe`. The steps:",
           },
           {
             kind: "ol",
@@ -184,7 +184,7 @@ export const TOPIC_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "The most common reason for `Toast sent` with nothing on screen is Windows itself holding the banner back. Windows 11 calls the feature Do not disturb; Windows 10 and older write-ups call it Focus Assist. While it is on, Windows shows banners only for alarms, reminders and the apps you allow, and sends everything else to the notification center, so a missed toast is usually waiting there. anotifier does not detect it, and `test toast` reports `Toast sent` whenever the PowerShell call succeeds.",
+            text: "A common reason for `Toast sent` with nothing on screen is Windows itself holding the banner back. Windows 11 calls the feature Do not disturb (Focus assist on older builds). While it is on, Windows shows banners only for alarms, reminders and the apps you allow, and sends everything else to the notification center, so a missed toast is usually waiting there. anotifier does not detect it, and `test toast` reports `Toast sent` whenever the PowerShell call succeeds.",
           },
           {
             kind: "ul",
