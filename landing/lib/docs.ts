@@ -810,7 +810,7 @@ export const DOCS: DocSection[] = [
         kind: "ul",
         items: [
           "Unit and integration suites run on Linux, macOS, and Windows for every change.",
-          "End-to-end lanes install the real Claude, Codex, Gemini, and Cursor CLIs from npm, drive them, and assert a real ntfy.sh push round-trips.",
+          "End-to-end lanes install the real Claude, Codex, and Gemini CLIs from npm, drive them, and assert a real ntfy.sh push round-trips. The Cursor lane checks the config wiring only.",
           "Toast lanes fire the real backend, then read the record back from dunst history plus an OCR of the on-screen banner (Linux), Notification Center's SQLite database (macOS), and `wpndatabase.db` (Windows). A silently dropped toast turns CI red.",
           "A tmux lane drives the real Codex TUI through an approval modal and proves the `PermissionRequest` alert fires.",
           "Every lane is required and hard-fails; live status badges are on the [GitHub README](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor#testing).",

@@ -144,11 +144,16 @@ const WHAT_ANOTIFIER_ADDS: Block[] = [
 ];
 
 /** anotifier reads no project folder from Cursor's stop event and hooks only
-    `stop`, so three of the shared rows don't hold for Cursor. */
-const CURSOR_ROWS: Record<string, string> = {
-  "Names the project": "No, the title is `Cursor`",
-  "Urgent for approvals, calm for done": "No, finished runs only",
-  "Click to focus the window": "No",
+    `stop`, so three of the shared rows don't hold for Cursor. Cursor also has
+    its own OS notification (cursor.com/changelog/1-5), so the desktop toast row
+    changes in the Built-in column too. */
+const CURSOR_ROWS: Record<string, { builtIn?: string; anotifier?: string }> = {
+  "Desktop toast": { builtIn: "Yes, Cursor's OS notification setting" },
+  "Names the project": { anotifier: "No, the title is `Cursor`" },
+  "Urgent for approvals, calm for done": {
+    anotifier: "No, finished runs only",
+  },
+  "Click to focus the window": { anotifier: "No" },
 };
 
 const WHAT_ANOTIFIER_ADDS_CURSOR: Block[] = WHAT_ANOTIFIER_ADDS.map((block) =>
@@ -157,7 +162,12 @@ const WHAT_ANOTIFIER_ADDS_CURSOR: Block[] = WHAT_ANOTIFIER_ADDS.map((block) =>
         ...block,
         rows: block.rows.map((row) =>
           row[0] in CURSOR_ROWS
-            ? [...row.slice(0, 3), CURSOR_ROWS[row[0]]]
+            ? [
+                row[0],
+                CURSOR_ROWS[row[0]].builtIn ?? row[1],
+                row[2],
+                CURSOR_ROWS[row[0]].anotifier ?? row[3],
+              ]
             : row,
         ),
       }
@@ -604,7 +614,7 @@ const AGENT_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "Cursor hooks run a command of yours at points in the agent loop. Put them in `~/.cursor/hooks.json` for every project (`%USERPROFILE%\\.cursor\\hooks.json` on Windows) or in `.cursor/hooks.json` inside one project. Cursor runs the matching hooks from every file and reloads the files when they change. This is the smallest working file:",
+            text: "Cursor hooks run a command of yours at points in the agent loop. Put them in `~/.cursor/hooks.json` for every project (`%USERPROFILE%\\.cursor\\hooks.json` on Windows) or in `.cursor/hooks.json` inside one project. Cursor runs the matching hooks from every file and reloads the files when they change. This is the shape of the file. The `command` can be any shell string or script; the next section has working ones:",
           },
           { kind: "code", lang: "json", code: CURSOR_HOOK_SCRIPT },
           {
@@ -617,8 +627,8 @@ const AGENT_GUIDES: Guide[] = [
               "`version` is `1`. Each key under `hooks` is an event name holding a list of entries. An entry needs `command`; `timeout` (seconds), `matcher` and `failClosed` are optional.",
               "`stop` fires when the agent loop ends. It gets JSON on stdin with `status` (`completed`, `aborted` or `error`) and `loop_count`, plus the fields every hook gets, among them `conversation_id`, `generation_id`, `hook_event_name` and `workspace_roots`.",
               "Exit code `0` means success, `2` blocks the action, and any other code is a failure that lets the agent carry on. A notification hook that fails therefore fails silently.",
-              'A `stop` hook can print `{"followup_message": "..."}`, and Cursor sends that as the next message, up to `loop_limit` times (5 by default). A notification hook should print nothing.',
-              "User hooks run with `~/.cursor/` as the working directory, so `./hooks/notify.sh` means `~/.cursor/hooks/notify.sh`. Project hooks run from the project root.",
+              'A `stop` hook can print `{"followup_message": "..."}`, and Cursor sends that as the next message, up to `loop_limit` times (5 by default). A notification hook should print nothing or `{}`; a `followup_message` field would be sent as the next prompt.',
+              "For user hooks, relative `command` paths resolve from `~/.cursor/`, so `./hooks/notify.sh` means `~/.cursor/hooks/notify.sh`. Project hooks run from the project root.",
               "To debug, open the Hooks tab under Customize or the Hooks output channel. If a new hook still doesn't load, restart Cursor.",
             ],
           },
@@ -671,7 +681,7 @@ const AGENT_GUIDES: Guide[] = [
           {
             kind: "ul",
             items: [
-              "**One alert per finished run,** titled `Cursor` and saying `Task complete`, as a toast, a phone push and a webhook message (whichever you enabled). A second `stop` within 1.5 seconds is dropped, because Cursor has been seen firing the hook twice.",
+              "**One alert per finished run,** titled `Cursor` and saying `Task complete`, as a toast, a phone push and a webhook message (whichever you enabled). A second `stop` within 1.5 seconds is dropped, because Cursor can fire the hook twice in quick succession.",
               "**No project name.** Cursor's docs list `workspace_roots` in the hook input, but anotifier reads `cwd` and `workspacePaths` and not `workspace_roots`, so every Cursor alert looks the same. With several windows open, the hand-written script above is the way to name the project.",
               "**No status.** anotifier doesn't read `status`, so a run you stopped or one that ended in an error says `Task complete` too.",
               "**No click-to-focus.** The Windows toast jumps to a window by project folder, and a Cursor alert has none, so there is no click action.",
@@ -739,7 +749,7 @@ const AGENT_GUIDES: Guide[] = [
               [
                 "Nothing at all after a run",
                 "The hook isn't in the file Cursor reads, or didn't load",
-                "Run `anotifier status` and look for Cursor `wired`. Open the Hooks tab under Customize and the Hooks output channel for errors; restart Cursor if the hook still doesn't load",
+                "Run `anotifier status` and look for Cursor IDE `wired`. Open the Hooks tab under Customize and the Hooks output channel for errors; restart Cursor if the hook still doesn't load",
               ],
               [
                 "`anotifier test toast` works, real runs are silent",
@@ -754,7 +764,7 @@ const AGENT_GUIDES: Guide[] = [
               [
                 "My own hook never shows a banner",
                 "The command exits with a code other than 0, and Cursor lets the agent carry on without telling you",
-                'Run it by hand with a sample payload: `echo \'{"status":"completed","loop_count":0}\' | ./hooks/notify.sh`, and fix whatever it prints',
+                'Run it by hand from `~/.cursor` with a sample payload: `echo \'{"status":"completed","loop_count":0,"workspace_roots":["/home/you/my-app"]}\' | ./hooks/notify.sh`, and fix whatever it prints',
               ],
               [
                 "Two notifications for one run",
@@ -824,11 +834,11 @@ const AGENT_GUIDES: Guide[] = [
       },
       {
         q: "What is the Cursor stop hook and what does it receive?",
-        a: "stop is the hooks.json event that fires when the agent loop ends. Its stdin JSON carries status (completed, aborted or error) and loop_count, plus common fields such as conversation_id, generation_id and workspace_roots. Exit 0 and print nothing for a plain notification; printing a followup_message makes Cursor send it as the next prompt.",
+        a: "stop is the hooks.json event that fires when the agent loop ends. Its stdin JSON carries status (completed, aborted or error) and loop_count, plus common fields such as conversation_id, generation_id and workspace_roots. Exit 0 and print nothing or {} for a plain notification; a followup_message field would be sent as the next prompt.",
       },
       {
         q: "Why did I get two Cursor notifications for one run?",
-        a: "Cursor runs the matching hooks from every hooks.json, so the same hook in ~/.cursor and in a project's .cursor folder fires twice. Cursor has also been seen firing a hook twice for one run; anotifier drops a repeat of the same event within 1.5 seconds, but a hand-written hook needs its own guard.",
+        a: "Cursor runs the matching hooks from every hooks.json, so the same hook in ~/.cursor and in a project's .cursor folder fires twice. Cursor can also fire a hook twice in quick succession for one run; anotifier de-duplicates a repeat of the same event within 1.5 seconds, but a hand-written hook needs its own guard.",
       },
       {
         q: "Does the Cursor CLI (cursor-agent) notify when it finishes?",
