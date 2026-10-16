@@ -115,7 +115,7 @@ export const CHANNELS: Channel[] = [
   },
   {
     slug: "discord",
-    updated: "2026-10-15",
+    updated: "2026-10-16",
     name: "Discord",
     kind: "webhook",
     title: "Discord Notifications for Claude Code & AI Agents",
