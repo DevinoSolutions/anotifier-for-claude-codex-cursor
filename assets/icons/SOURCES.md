@@ -38,7 +38,7 @@ assets are in this repository.
 | `link` | `link` | webhooks |
 | `terminal` | `command-line` | terminal bell |
 | `lines` | `bars-3-bottom-left` | rich content |
-| `approval` | `check-badge` | approval alerts |
+| `approval` | `hand-raised` | approval alerts |
 | `focus` | `cursor-arrow-rays` | click-to-focus |
 | `cube` | `cube` | zero dependencies, the npm install row |
 | `bell` | `bell-alert` | closing call to action |
