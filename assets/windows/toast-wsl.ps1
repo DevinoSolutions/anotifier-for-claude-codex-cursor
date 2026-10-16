@@ -1,6 +1,7 @@
 param(
   [string]$Title = 'Agent Notify',
-  [string]$Message = 'Needs your attention'
+  [string]$Message = 'Needs your attention',
+  [string]$Silent = 'false'
 )
 # Self-contained Windows-native toast for WSL callers. Raw WinRT only — no
 # BurntToast or any external module — so Windows PowerShell 5.1 (always present on
@@ -23,6 +24,14 @@ $xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([
 $texts = $xml.GetElementsByTagName('text')
 $null = $texts.Item(0).AppendChild($xml.CreateTextNode($Title))
 $null = $texts.Item(1).AppendChild($xml.CreateTextNode($Message))
+
+# -Silent true: a custom sound file plays separately (play-sound.ps1), so the toast
+# itself must not add the default Windows toast sound.
+if ($Silent -eq 'true') {
+  $audio = $xml.CreateElement('audio')
+  $audio.SetAttribute('silent', 'true')
+  $null = $xml.DocumentElement.AppendChild($audio)
+}
 
 $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($AppId).Show($toast)

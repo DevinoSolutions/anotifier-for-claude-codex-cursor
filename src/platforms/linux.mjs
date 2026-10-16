@@ -2,6 +2,7 @@
 import { execFile } from 'node:child_process';
 import { getConfigDir } from '../config-loader.mjs';
 import { logHookError } from '../error-log.mjs';
+import { linuxPlayers, playFirst, prepareSoundFile } from './sound.mjs';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -31,7 +32,17 @@ export function buildNotifySendArgs(notification, iconPath) {
   ];
 }
 
-export function sendToast(notification) {
+// deps are injectable for tests: execFile, the spawn that starts the sound
+// player, and the error logger.
+export async function sendToast(notification, deps = {}) {
+  const { execFileImpl = execFile, log = logHookError, ...soundDeps } = deps;
+
+  // Linux toasts have no sound of their own, so a custom sound file is the only
+  // case where anything plays: first of pw-play, paplay, aplay (WAV only). The
+  // notification carries no sound hint, so the daemon adds none of its own.
+  const file = prepareSoundFile(notification.toastSound, 'toast:linux', { log, ...soundDeps });
+  if (file) await playFirst(linuxPlayers(file), 'toast:linux', { log, ...soundDeps });
+
   return new Promise((resolve) => {
     // Per-source icon: assets/icons/<source>.png, fallback to legacy icon.png
     const iconsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'icons');
@@ -41,8 +52,8 @@ export function sendToast(notification) {
     }
     const args = buildNotifySendArgs(notification, fs.existsSync(iconPath) ? iconPath : '');
 
-    execFile('notify-send', args, { timeout: 5000 }, (err, stdout, stderr) => {
-      if (err) logHookError('toast:linux', err, { stderr: (stderr || '').slice(0, 400) });
+    execFileImpl('notify-send', args, { timeout: 5000 }, (err, stdout, stderr) => {
+      if (err) log('toast:linux', err, { stderr: (stderr || '').slice(0, 400) });
       resolve(!err);
     });
   });

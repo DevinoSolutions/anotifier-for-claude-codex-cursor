@@ -6,7 +6,8 @@ param(
   [string]$Cwd = '',
   [string]$Hwnd = '0',
   [string]$Source = '',
-  [string]$ClickToFocus = 'true'
+  [string]$ClickToFocus = 'true',
+  [string]$Silent = 'false'
 )
 # Per-source icon: assets/icons/<source>.png
 $iconsDir = Join-Path $PSScriptRoot '..\icons'
@@ -107,7 +108,9 @@ try {
   Import-Module BurntToast -ErrorAction Stop
 
   if ($launchUri) {
-    $audio   = New-BTAudio -Source "ms-winsoundevent:Notification.$Sound"
+    # -Silent true: a custom sound file plays separately (play-sound.ps1), so the
+    # toast itself makes no sound.
+    $audio   = if ($Silent -eq 'true') { New-BTAudio -Silent } else { New-BTAudio -Source "ms-winsoundevent:Notification.$Sound" }
     $text1   = New-BTText -Text $Title
     $text2   = New-BTText -Text $Message
     $binding = if (Test-Path $logo) {
@@ -120,16 +123,17 @@ try {
     $content = New-BTContent -Audio $audio -Visual $visual -Launch $launchUri -ActivationType Protocol
     Submit-BTNotification -Content $content
   } else {
+    $soundArgs = if ($Silent -eq 'true') { @{ Silent = $true } } else { @{ Sound = $Sound } }
     if (Test-Path $logo) {
-      New-BurntToastNotification -Text $Title, $Message -Sound $Sound -AppLogo $logo
+      New-BurntToastNotification -Text $Title, $Message @soundArgs -AppLogo $logo
     } else {
-      New-BurntToastNotification -Text $Title, $Message -Sound $Sound
+      New-BurntToastNotification -Text $Title, $Message @soundArgs
     }
   }
 } catch {
   # Degraded fallback: still make a sound, but exit non-zero so the caller
   # (src/platforms/windows.mjs) records WHY the real toast never appeared.
-  try { [System.Media.SystemSounds]::Exclamation.Play() } catch {}
+  if ($Silent -ne 'true') { try { [System.Media.SystemSounds]::Exclamation.Play() } catch {} }
   [Console]::Error.WriteLine("toast.ps1: BurntToast notification failed: $($_.Exception.Message)")
   exit 3
 }

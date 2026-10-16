@@ -6,6 +6,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { notificationAuthState, verifyDelivery, ncDbPath } from '../src/platforms/macos-delivery.mjs';
 import { toastPlatform } from '../src/platforms/index.mjs';
 import { findWslPowerShell } from '../src/platforms/wsl.mjs';
+import { checkSoundFile, isSoundFilePath } from '../src/platforms/sound.mjs';
 import { toastOffBySetup, toastOffNoBackendLabel, probeCommand } from './toast-backend.mjs';
 import { readApprovalRaw } from '../src/approval.mjs';
 
@@ -169,6 +170,21 @@ function configCheck(config, configProblem) {
   if (configProblem) return { id: 'config', channel: 'config', status: 'fail', detail: configProblem.message, hint: 'fix ~/.anotifier/config.json' };
   if (!config || typeof config !== 'object') return { id: 'config', channel: 'config', status: 'fail', detail: 'config did not load' };
   return { id: 'config', channel: 'config', status: 'ok', detail: 'config valid' };
+}
+
+// Custom sound files (events.<event>.toastSound set to a path). Only reported
+// when one is configured. A missing file is a warning, not a failure: the toast
+// still goes out, with the default sound. Names the events, not the paths.
+export function soundFilesCheck(config, check = checkSoundFile) {
+  const events = Object.entries(config?.events || {}).filter(([, e]) => isSoundFilePath(e?.toastSound));
+  if (!events.length) return null;
+  const bad = events.filter(([, e]) => check(e.toastSound).reason).map(([name]) => name);
+  if (!bad.length) return { id: 'sound-files', channel: 'sound', status: 'ok', detail: `custom sound file found for ${events.length} event${events.length === 1 ? '' : 's'}` };
+  return {
+    id: 'sound-files', channel: 'sound', status: 'warn',
+    detail: `custom sound file missing or unreadable for: ${bad.join(', ')} (the default sound plays instead)`,
+    hint: 'fix events.<event>.toastSound in ~/.anotifier/config.json, or run: anotifier config sounds',
+  };
 }
 
 // Remote approval (experimental, design 2.5): when the agent access token
@@ -348,6 +364,8 @@ export async function runChecks({ config, configProblem = null, deep = false, st
     results.push({ id: 'deep-probe', channel: 'toast', status: 'info', detail: `deep verification not available on ${p} (static checks only)` });
   }
   results.push(bellCheck(), ntfyCheck(config), webhookCheck(config), configCheck(config, configProblem));
+  const soundRow = soundFilesCheck(config);
+  if (soundRow) results.push(soundRow);
   if (p === 'darwin') results.push(focusCheck());
   const approvalRow = approvalTokenCheck(readApprovalRaw());
   if (approvalRow) results.push(approvalRow);
