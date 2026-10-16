@@ -12,6 +12,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 - **Minimum duration filter.** New `events.task_complete.minDurationSeconds` (default `0`, off): a turn shorter than that many seconds sends no "task complete" alert. Permission prompts and every other needs-input notification are always sent, a turn of unknown length is never skipped, and the key is rejected on any event other than `task_complete`. Set it in `anotifier config events` or `~/.anotifier/config.json`; `anotifier status` shows it as `Min duration`. See the README section "Turn length and the minimum duration filter".
 - A timing hook that records when a turn started: `UserPromptSubmit` for Claude Code and Codex CLI, `BeforeAgent` for Gemini CLI. It prints only `{}`, has a 5-second timeout, ignores every error, and keeps its state in `~/.anotifier/turns.json`. Re-run `npx anotifier setup` after upgrading to add it (the Claude Code plugin gets it from `hooks/hooks.json`); `anotifier uninstall` removes the hook and deletes `turns.json` (with its lock and any leftover temp file). Until it is wired, nothing is timed and nothing is filtered.
 
+### Fixed
+
+- **Cursor alerts now read Cursor's own hook input.** Cursor sends `workspace_roots`, `conversation_id` and, on the `stop` hook, a `status` (`completed`, `aborted` or `error`); the hook read none of them. Now the first workspace root names the project, so a Cursor alert shows `my-app · Cursor` in its title and a Windows click on the toast can focus the right window. The conversation id is the session id, so the double-fire guard is per conversation instead of one global lock: two chats finishing within 1.5 seconds both alert. A run that **errored** now says `Task failed` (with the `warning` ntfy tag instead of the check) rather than "Task complete", still under your `events.task_complete` settings. A run you **aborted** sends no alert at all, since you stopped it at the keyboard. Each field is used only when present and well-typed; a payload without them alerts exactly as before. Nothing to re-run: setup already wires the `stop` hook.
+
 ## [1.7.1] — 2026-10-10
 
 ### Changed

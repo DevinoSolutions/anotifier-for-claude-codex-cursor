@@ -193,6 +193,18 @@ async function main() {
       process.exit(0);
     }
 
+    // A Cursor run the user stopped themselves (status 'aborted'): they are at
+    // the keyboard and "Task complete" would be false. Same quiet exit as the
+    // held-back Stop above, for the same reasons (before the dedup lock, an
+    // expected outcome so nothing in errors.log). An errored run is NOT skipped:
+    // it goes out as "Task failed" (router.mjs).
+    if (event.event === 'task_complete' && event.runStatus === 'aborted') {
+      await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
+      await flushErrorReporting();
+      process.stdout.write(defaultResponseBody(event?.source));
+      process.exit(0);
+    }
+
     // How long the turn took, for the agents that give us both ends of it. Read
     // here, after the held-back gate (a Stop that is not the end of the turn
     // must not stamp its end) and before the dedup lock (a filtered run must not
