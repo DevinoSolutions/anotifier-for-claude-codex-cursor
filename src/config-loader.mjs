@@ -288,7 +288,14 @@ function validateSettings(user, { inRule = false, inheritedWebhook = null } = {}
 function isAbsoluteProjectMatch(value) {
   if (typeof value !== 'string') return false;
   const p = value.trim();
-  return /^[\\/]/.test(p) || /^[A-Za-z]:[\\/]/.test(p) || p === '~' || /^~[\\/]/.test(p);
+  return isAbsoluteProjectPath(p) || p === '~' || /^~[\\/]/.test(p);
+}
+
+// POSIX `/…`, UNC (`\\host\share`, `//host/share`), a drive `C:\…` or `C:/…`
+// (Cursor's `/C:/…` starts with a slash). Not `~`, and not a drive-relative `C:foo`.
+function isAbsoluteProjectPath(value) {
+  const p = value.trim();
+  return /^[\\/]/.test(p) || /^[A-Za-z]:[\\/]/.test(p);
 }
 
 function validateProjects(user, issues) {
@@ -406,6 +413,8 @@ function matchSegment(pattern, text) {
 export function matchesProjectPath(match, workspace, { platform = process.platform, home = os.homedir() } = {}) {
   if (typeof match !== 'string' || !match.trim()) return false;
   if (typeof workspace !== 'string' || !workspace.trim()) return false;
+  // A relative cwd has nothing to anchor to: it must never match, whatever the pattern.
+  if (!isAbsoluteProjectPath(workspace)) return false;
   let pattern = match.trim();
   if (pattern === '~' || pattern.startsWith('~/') || pattern.startsWith('~\\')) {
     pattern = home.replace(/[\\/]+$/, '') + pattern.slice(1);
@@ -457,7 +466,10 @@ export function resolveProjectConfig(config, workspace, options = {}) {
       deepMerge(out, overrides);
     }
     return out;
-  } catch {
+  } catch (err) {
+    // The base config is the safe answer, but a swallowed failure must still show
+    // up in errors.log (never stdout: hooks read it).
+    logHookError('config:projects', err);
     if (out) return out;
     const { projects, ...rest } = config;
     return rest;
