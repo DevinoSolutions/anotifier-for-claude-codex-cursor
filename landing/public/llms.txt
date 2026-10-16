@@ -39,7 +39,7 @@
 - [macOS and Linux](https://anotifier.io/guides/macos-linux-notifications/): osascript and Notification Center permissions, notify-send
 - [Agent hooks explained](https://anotifier.io/guides/agent-hooks-explained/): which hook each agent fires, where it is configured, what setup writes
 - [Notifications not working](https://anotifier.io/guides/notifications-not-working/): status, test and doctor, common causes and fixes
-- [Phone push with ntfy](https://anotifier.io/guides/ntfy-phone-notifications/): setup, private topics, self-hosting
+- [Claude Code ntfy: phone push](https://anotifier.io/guides/ntfy-phone-notifications/): get Claude Code, Codex, Cursor and Gemini CLI to push to your phone through ntfy: app and topic setup with anotifier, a by-hand Stop/Notification hook that curls ntfy, priority and tags, private topics and why anotifier (as of 1.7.1) sends no access token to ntfy, self-hosted servers and fallbackServer, iOS upstream-base-url, a curl test, fixes by symptom
 
 ## Compared with alternatives
 
