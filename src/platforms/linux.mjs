@@ -22,14 +22,10 @@ export const URGENCY_MAP = {
 // and the call fails. The message body is agent-controlled — rich content can
 // start with a dash ("- Fixed the bug") — so options MUST come first, then `--`,
 // then title/message, or a dash-leading toast silently never fires.
-//
-// `silent` (a custom sound file is playing) asks the daemon not to add its own
-// sound; daemons that ignore the hint do no harm, since we send no sound-name.
-export function buildNotifySendArgs(notification, iconPath, { silent = false } = {}) {
+export function buildNotifySendArgs(notification, iconPath) {
   return [
     '--urgency', URGENCY_MAP[notification.priority] || 'low',
     ...(iconPath ? ['--icon', iconPath] : []),
-    ...(silent ? ['--hint', 'boolean:suppress-sound:true'] : []),
     '--',
     notification.title,
     notification.message,
@@ -42,9 +38,10 @@ export async function sendToast(notification, deps = {}) {
   const { execFileImpl = execFile, log = logHookError, ...soundDeps } = deps;
 
   // Linux toasts have no sound of their own, so a custom sound file is the only
-  // case where anything plays: first of pw-play, paplay, aplay (WAV only).
+  // case where anything plays: first of pw-play, paplay, aplay (WAV only). The
+  // notification carries no sound hint, so the daemon adds none of its own.
   const file = prepareSoundFile(notification.toastSound, 'toast:linux', { log, ...soundDeps });
-  const playing = file ? await playFirst(linuxPlayers(file), 'toast:linux', { log, ...soundDeps }) : false;
+  if (file) await playFirst(linuxPlayers(file), 'toast:linux', { log, ...soundDeps });
 
   return new Promise((resolve) => {
     // Per-source icon: assets/icons/<source>.png, fallback to legacy icon.png
@@ -53,7 +50,7 @@ export async function sendToast(notification, deps = {}) {
     if (!iconPath || !fs.existsSync(iconPath)) {
       iconPath = path.join(getConfigDir(), 'icon.png');
     }
-    const args = buildNotifySendArgs(notification, fs.existsSync(iconPath) ? iconPath : '', { silent: playing });
+    const args = buildNotifySendArgs(notification, fs.existsSync(iconPath) ? iconPath : '');
 
     execFileImpl('notify-send', args, { timeout: 5000 }, (err, stdout, stderr) => {
       if (err) log('toast:linux', err, { stderr: (stderr || '').slice(0, 400) });

@@ -417,25 +417,6 @@ Get a heads-up before Claude Code auto-compacts a long chat. anotifier sends **o
 | `needs_input` | Reminder | urgent | Agent needs your input or permission |
 | `session_start` | Default | low | New session started (all channels off by default, webhook included) |
 
-#### Custom sound files
-
-`toastSound` can also be the path of your own audio file, per event:
-
-```json
-{ "events": { "task_complete": { "toastSound": "~/sounds/done.wav" }, "needs_input": { "toastSound": "C:\Sounds\ask.mp3" } } }
-```
-
-A value is read as a file, not a name, when it starts with `~/`, is an absolute path, contains a `/` or `\`, or ends in `.wav`, `.mp3`, `.aiff`, `.aif`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.opus` or `.flac`. `~` is your home folder, and a relative path is relative to `~/.anotifier`. The sound names above never match, so existing configs keep working.
-
-When the file exists, it plays instead of the toast's own sound and the toast is silent, so you hear one sound. It plays in the background: the hook does not wait for it to finish.
-
-- Windows: `.wav` plays directly; other formats go through Windows Media (`.mp3`, `.m4a`, `.aac` and `.flac` normally work; `.ogg`, `.oga` and `.opus` need a codec Windows may not have). A clip is cut off after 30 seconds.
-- macOS: `afplay`, so any format macOS plays (not `.ogg`).
-- Linux: the first of `pw-play`, `paplay` and `aplay` that starts (`aplay` is used for `.wav` only). Linux toasts have no sound otherwise, so this is the only case where Linux plays one.
-- WSL: Windows plays it, like the toast. A Linux path or a `/mnt/c/...` path both work.
-
-If the file is missing or unreadable, or no player starts, the toast keeps the default sound and one line goes to `~/.anotifier/errors.log` (the path is not written there, and is never sent to usage stats or Sentry). `anotifier doctor` warns about a missing file, `anotifier config sounds` checks that a file exists when you type its path, and `anotifier test toast` plays the first one configured. A file that exists but cannot be decoded can only fail inside the player: on Windows a short system sound plays instead; elsewhere nothing plays.
-
 **Only Claude notifications that wait on you are urgent.** Claude Code's `Notification` hook fires for many kinds of notification and names each one in its `notification_type` field. anotifier reads that field and alerts as follows:
 
 | Claude `notification_type` | What you get |
@@ -460,6 +441,27 @@ If the file is missing or unreadable, or no player starts, the toast keeps the d
 ```
 
 It takes the same `min` / `low` / `default` / `high` / `urgent` scale as `priority`, and applies only to the idle reminder.
+
+#### Custom sound files
+
+`toastSound` can also be the path of your own audio file, per event:
+
+```json
+{ "events": { "task_complete": { "toastSound": "~/sounds/done.wav" }, "needs_input": { "toastSound": "C:\Sounds\ask.mp3" } } }
+```
+
+A value is read as a file, not a name, when it starts with `~/`, is an absolute path, contains a `/` or `\`, or ends in `.wav`, `.mp3`, `.aiff`, `.aif`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.opus` or `.flac`. `~` is your home folder, and a relative path is relative to `~/.anotifier`. The sound names above never match, so existing configs keep working.
+
+When the file exists, it plays instead of the toast's own sound and the toast is silent, so you hear one sound. It plays in the background: the hook does not wait for it to finish.
+
+- Windows: `.wav` plays through the Windows sound player; other formats go through Windows Media (`.mp3`, `.m4a`, `.aac` and `.flac` normally work; `.ogg`, `.oga` and `.opus` need a codec Windows may not have). Any clip is cut off after 30 seconds.
+- macOS: `afplay`, so any format macOS plays (not `.ogg`, `.oga` or `.opus`).
+- Linux: the first of `pw-play`, `paplay` and `aplay` that starts (`aplay` is used for `.wav` only). Linux toasts have no sound otherwise, so this is the only case where Linux plays one.
+- WSL: Windows plays it, like the toast, and the toast is silenced when the alert starts, before the player has launched. A Linux path or a `/mnt/c/...` path works; write `/mnt/c/Sounds/ask.mp3`, not `C:\Sounds\ask.mp3`, because a `C:\...` value is not a path Linux can open.
+
+If the file is missing or unreadable, anotifier does not try to play it. The toast then keeps the default sound on Windows and macOS (Linux has none), and one line goes to `~/.anotifier/errors.log`. The same line is written when no player can be started. On WSL the toast is already silent by then, so a failed player leaves that alert without a sound. The log never contains the path, and the path is never sent to usage stats or Sentry. A file that exists but cannot be decoded only fails inside the player: on Windows a short system sound plays instead; on macOS and Linux nothing plays.
+
+`anotifier doctor` warns about a missing file, `anotifier config sounds` checks that a file exists when you type its path, and `anotifier test toast` plays the first one configured.
 
 ### Turn length and the minimum duration filter
 
@@ -526,7 +528,7 @@ anotifier telemetry on
 | `setup_failed` | `setup` finds no tool, or cannot patch one | `step` (`no_tools` or `patch`); for `patch` also `tools_detected` and `failed_tools` (same names as above) |
 | `telemetry_enabled` | you run `anotifier telemetry on` | `via` (`command`) |
 | `test_result` | `anotifier test` | `channel` (`toast`, `ntfy`, `webhook`, `bell`, `both`, or `all`), `outcomes` (per channel: `sent`, `failed`, `not_configured` or `skipped`) |
-| `doctor_result` | `anotifier doctor` | `deep`, `strict` (booleans), `checks` (check id -> `ok`, `info`, `warn` or `fail`; ids: `toast-backend`, `toast-auth`, `toast-deep`, `deep-probe`, `bell`, `ntfy-config`, `webhook-config`, `config`, `focus`). Never the check's detail text. |
+| `doctor_result` | `anotifier doctor` | `deep`, `strict` (booleans), `checks` (check id -> `ok`, `info`, `warn` or `fail`; ids: `toast-backend`, `toast-auth`, `toast-deep`, `deep-probe`, `bell`, `ntfy-config`, `webhook-config`, `config`, `sound-files`, `focus`). Never the check's detail text. |
 | `uninstall_result` | `anotifier uninstall` | `removed`, `failed` (lists of `Claude Code`, `Codex CLI`, `Cursor IDE`, `Gemini CLI`, `Antigravity CLI`, `agentfocus://`) |
 | `hook_daily_summary` | at most once per 24 hours, from the end of a hook run | `runs`; `outcomes` (counts of `dispatched`, `suppressed_snooze`, `suppressed_quiet`, `held_back`, `skipped`, `duplicate`, `unmapped`, `error`); `sources` (`claude`, `codex`, `cursor`, `gemini`, `antigravity`, `other`); `events` (`task_complete`, `needs_input`, `session_start`, `other`); `unmapped_events` (counts per unrecognized hook event name, clamped as above, at most 10 distinct names, the rest under `other`); `channels` (`toast`, `ntfy`, `webhook`, `bell`, each with `ok` and `fail` counts); `latency` (counts per bucket: `lt_250ms`, `lt_500ms`, `lt_1s`, `lt_2500ms`, `ge_2500ms`); `window_start`, `window_hours`; and `config`, which says which features are on: `toast_enabled`, `toast_rich`, `ntfy_enabled`, `ntfy_rich`, `ntfy_custom_server` (whether the server is not ntfy.sh -- never which server), `webhook_enabled`, `webhook_format` (`generic`, `slack`, `discord`, `telegram`, `other`, or `null`), `bell_enabled`, `quiet_hours_enabled`, `update_check_enabled`, `sentry_enabled` |
 

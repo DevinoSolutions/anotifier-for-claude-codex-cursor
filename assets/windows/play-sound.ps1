@@ -22,8 +22,16 @@ $maxSeconds = 30
 
 try {
   if ([System.IO.Path]::GetExtension($Path).ToLowerInvariant() -eq '.wav') {
+    # Play() returns at once; the process then waits out the clip, capped like the
+    # other formats. Length comes from the WAV header (byte rate at offset 28).
     $player = New-Object System.Media.SoundPlayer $Path
-    $player.PlaySync()
+    $player.Load()
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $byteRate = if ($bytes.Length -ge 44) { [BitConverter]::ToUInt32($bytes, 28) } else { 0 }
+    $seconds = if ($byteRate -gt 0) { ($bytes.Length - 44) / $byteRate } else { $maxSeconds }
+    $player.Play()
+    $wait = [Math]::Min($seconds + 0.3, $maxSeconds)
+    if ($wait -gt 0) { Start-Sleep -Milliseconds ([int]($wait * 1000)) }
   } else {
     Add-Type -AssemblyName PresentationCore
     $player = New-Object System.Windows.Media.MediaPlayer

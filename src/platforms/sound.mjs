@@ -64,7 +64,7 @@ export function prepareSoundFile(toastSound, context, { log = logHookError, ...d
   if (!isSoundFilePath(toastSound)) return null;
   const checked = checkSoundFile(toastSound, deps);
   if (!checked.reason) return checked.path;
-  log(context, new Error('custom sound file unusable, using the default sound'), { reason: checked.reason });
+  log(context, new Error('custom sound file unusable, no custom sound will play'), { reason: checked.reason });
   return null;
 }
 
@@ -89,7 +89,7 @@ export async function playFirst(candidates, context, { log = logHookError, ...de
   for (const [command, args] of candidates) {
     if (await startDetached(command, args, deps)) return true;
   }
-  log(context, new Error('no sound player could be started, using the default sound'), { tried: candidates.map(([command]) => command) });
+  log(context, new Error('no sound player could be started, no custom sound will play'), { tried: candidates.map(([command]) => command) });
   return false;
 }
 

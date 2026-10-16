@@ -83,6 +83,7 @@ const EXE_CANDIDATES = [
 
 let cachedExe = null;
 let cachedWinPath = null;
+let cachedWinPlayScript = null;
 
 function toWindowsPath(linuxPath) {
   return new Promise((resolve) => {
@@ -124,12 +125,13 @@ function runToast(exe, winPath, title, message, silent = false) {
 // file. The file goes through wslpath -w, so it can be a Linux path or a /mnt/c
 // one. Walks the same exe candidates as the toast; the first that starts the
 // player is cached. Resolves true when the player is running, so the toast can be
-// made silent; false (logged once, without the path) leaves the default sound.
+// made silent; false (logged once, without the path) means no sound plays.
 async function startSoundPlayer(file, log, run) {
   const winFile = await run.toWindowsPath(file);
-  const winScript = await run.toWindowsPath(PLAY_SCRIPT);
+  if (!cachedWinPlayScript) cachedWinPlayScript = await run.toWindowsPath(PLAY_SCRIPT);
+  const winScript = cachedWinPlayScript;
   if (!winFile || !winScript) {
-    log('toast:wsl', new Error('wslpath could not translate the sound file path, using the default sound'));
+    log('toast:wsl', new Error('wslpath could not translate the sound file path, no sound will play'));
     return false;
   }
   const args = windowsPlayerArgs(winScript, winFile, { detach: true });
@@ -137,7 +139,7 @@ async function startSoundPlayer(file, log, run) {
     const r = await run.runPowerShell(exe, args);
     if (r.ok) { cachedExe = exe; return true; }
   }
-  log('toast:wsl', new Error('no Windows PowerShell could start the sound player, using the default sound'));
+  log('toast:wsl', new Error('no Windows PowerShell could start the sound player, no sound will play'));
   return false;
 }
 
@@ -169,10 +171,17 @@ export async function sendToast(notification, { log = logHookError, run = { toWi
   }
 
   // The toast goes out through Windows, so a custom sound file does too: Windows
-  // plays it and the toast is made silent, so there is only one sound.
+  // plays it and the toast is made silent, so there is only one sound. The player
+  // starts alongside the toast, never before it, so a slow interop launch cannot
+  // eat the hook's time budget. The toast is silenced optimistically: if the
+  // player then fails (logged once, no path), the alert has no sound.
   const file = prepareSoundFile(notification?.toastSound, 'toast:wsl', { log, ...soundDeps });
-  const silent = file ? await startSoundPlayer(file, log, run) : false;
+  const player = file ? startSoundPlayer(file, log, run).catch(() => false) : Promise.resolve(false);
+  const [delivered] = await Promise.all([deliverToast(run, log, title, message, Boolean(file)), player]);
+  return delivered;
+}
 
+async function deliverToast(run, log, title, message, silent) {
   if (cachedExe) {
     const r = await run.runToast(cachedExe, cachedWinPath, title, message, silent);
     if (!r.ok) log('toast:wsl', r.err, { exe: cachedExe, stderr: r.stderr });

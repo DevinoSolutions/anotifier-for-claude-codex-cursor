@@ -157,11 +157,9 @@ describe('player command building', () => {
     assert.ok(!args.includes('-Detach'));
     assert.deepEqual(windowsPlayerArgs('p', 'a', { detach: true }).slice(-2), ['-Detach', 'true']);
   });
-  it('linux notify-send gets the suppress-sound hint before `--` only when silent', () => {
+  it('linux notify-send args never carry a sound hint (libnotify 0.7.9 rejects boolean hints)', () => {
     const n = { title: 'T', message: 'm', priority: 'low' };
-    assert.ok(!buildNotifySendArgs(n, '').includes('--hint'));
-    const args = buildNotifySendArgs(n, '', { silent: true });
-    assert.deepEqual(args, ['--urgency', 'low', '--hint', 'boolean:suppress-sound:true', '--', 'T', 'm']);
+    assert.deepEqual(buildNotifySendArgs(n, ''), ['--urgency', 'low', '--', 'T', 'm']);
   });
 });
 
@@ -253,16 +251,16 @@ describe('macos sendToast with a sound file', () => {
 describe('linux sendToast with a sound file', () => {
   const note = (toastSound) => ({ title: 'T', message: 'M', priority: 'low', toastSound });
 
-  it('plays with the first available player and sends a silent toast', async () => {
+  it('plays with the first available player and sends the plain toast', async () => {
     const { spawnImpl, calls } = fakeSpawn(['pw-play']);
     const toast = fakeExecFile();
     assert.equal(await linuxToast(note(wav), { spawnImpl, execFileImpl: toast.execFileImpl, log: () => {} }), true);
     assert.deepEqual(calls.map((c) => c.command), ['pw-play', 'paplay']);
-    assert.ok(toast.calls[0].args.includes('boolean:suppress-sound:true'));
+    assert.ok(!toast.calls[0].args.includes('--hint'));
     assert.ok(!toast.calls[0].args.includes(wav));
   });
 
-  it('an mp3 with only aplay installed finds no player: logged, toast not silenced', async () => {
+  it('an mp3 with only aplay installed finds no player: logged, toast still sent', async () => {
     const { spawnImpl, calls } = fakeSpawn(['pw-play', 'paplay', 'aplay']);
     const toast = fakeExecFile();
     const { entries, log } = logger();
@@ -325,6 +323,33 @@ describe('wsl sendToast with a sound file', () => {
     assert.equal(f.powershell.length, 0);
     assert.equal(f.toasts[0].silent, false);
     assert.equal(entries.length, 1);
+  });
+
+  it('the toast does not wait for the player, and is silenced optimistically', async () => {
+    let releasePlayer;
+    const gate = new Promise((resolve) => { releasePlayer = resolve; });
+    const f = fakeRun();
+    f.run.runPowerShell = async (exe, args) => { f.powershell.push({ exe, args }); await gate; return { ok: true }; };
+    const done = wslToast(note(wav), { log: () => {}, run: f.run });
+    // The toast is delivered while the player launch is still pending.
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(f.toasts.length, 1);
+    assert.equal(f.toasts[0].silent, true);
+    let settled = false;
+    done.then(() => { settled = true; });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(settled, false, 'sendToast resolves only once the player launch settled');
+    releasePlayer();
+    assert.equal(await done, true);
+  });
+
+  it('a player launch that fails is logged once without the path, and the toast is still sent', async () => {
+    const f = fakeRun({ playerOk: false });
+    const { entries, log } = logger();
+    assert.equal(await wslToast(note(wav), { log, run: f.run }), true);
+    assert.equal(f.toasts.length, 1);
+    assert.equal(entries.length, 1);
+    assert.ok(!JSON.stringify(entries).includes(dir));
   });
 
   it('a name sends the toast exactly as before', async () => {
