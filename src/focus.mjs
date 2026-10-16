@@ -14,7 +14,9 @@
 // window. That ancestor is the agent's window. Whatever launched it (a terminal
 // started from Chrome, say) is above it and never counts. The walk also stops
 // when a parent was created after its child, which means the parent pid was
-// reused by an unrelated process. Then:
+// reused by an unrelated process. The walk also stops at a WindowsTerminal.exe
+// that shows no window (quake mode, hidden to the tray): the answer is then null,
+// not a climb to whatever launched the terminal. Then:
 //
 //   foreground window's process == that first window-owning ancestor  =>  true
 //
@@ -57,7 +59,13 @@
 // focused. The OS only knows windows, and a terminal with several tabs
 // (Windows Terminal, iTerm) is one window. On WSL, WT_SESSION matching is looser
 // still: any Windows Terminal window counts, not only the agent's. The feature
-// that calls this must be opt-in and say so.
+// that calls this must be opt-in and say so. The same holds on macOS for separate
+// windows of one multi-window app (iTerm, JetBrains IDEs): the frontmost-app
+// check cannot tell them apart.
+//
+// Cursor separates its title segments with an em dash, not " - ". The exact
+// segment match then finds no folder and answers false for Cursor on Windows
+// and Linux. That is the fail-safe direction and is left as it is.
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -294,7 +302,13 @@ async function probeLinuxX11({ run, env, workspace, pid }) {
 
 async function probeMac({ run, env }) {
   const own = String(env.__CFBundleIdentifier || '').toLowerCase();
-  const fromTerm = (MAC_BUNDLES_BY_TERM_PROGRAM[env.TERM_PROGRAM] || []).map((s) => s.toLowerCase());
+  const term = env.TERM_PROGRAM;
+  const known = Boolean(term) && Object.hasOwn(MAC_BUNDLES_BY_TERM_PROGRAM, term);
+  // A TERM_PROGRAM we do not know (Zed, Tabby, a multiplexer...) says the shell
+  // runs in something other than what __CFBundleIdentifier names, so there is no
+  // trusting either.
+  if (term && !known) return null;
+  const fromTerm = known ? MAC_BUNDLES_BY_TERM_PROGRAM[term].map((s) => s.toLowerCase()) : [];
   // Both set and disagreeing (com.apple.Terminal vs TERM_PROGRAM=vscode, say):
   // the env was inherited from somewhere else, so there is no telling.
   if (own && fromTerm.length > 0 && !fromTerm.includes(own)) return null;

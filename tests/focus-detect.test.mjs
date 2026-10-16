@@ -76,6 +76,10 @@ describe('titleHasWorkspace', () => {
     assert.equal(t('App - Visual Studio Code', '/w/app', { ignoreCase: true }), true);
   });
 
+  it('Cursor em-dash titles fail safe: false, never a wrong true', () => {
+    assert.equal(t('a.js — proj — Cursor', '/w/proj'), false);
+  });
+
   it('false for a window with no folder open; null without a workspace', () => {
     assert.equal(t('Visual Studio Code', '/w/proj'), false);
     assert.equal(t('Welcome - Visual Studio Code', '/w/proj'), false);
@@ -115,6 +119,12 @@ describe('windows', () => {
     assert.equal(await isAgentWindowFocused(win({ exec })), null);
     const cut = fakeExec(() => psOutput({ fg: { ...WT }, chain: [{ pid: ME, name: 'node.exe' }] }));
     assert.equal(await isAgentWindowFocused(win({ exec: cut })), null);
+  });
+
+  it('regression: a hidden Windows Terminal (no OWNER) is null even with a launcher above it', async () => {
+    // quake mode / hidden to tray: the script stops at WindowsTerminal.exe, prints no OWNER.
+    const exec = fakeExec(() => psOutput({ fg: { pid: 900, name: 'chrome.exe', title: 'Google Chrome' }, chain: TERMINAL_CHAIN }));
+    assert.equal(await isAgentWindowFocused(win({ exec })), null);
   });
 
   it('false when the foreground is the shell, even if explorer.exe owns the agent window', async () => {
@@ -211,6 +221,11 @@ describe('foreground.ps1', () => {
     assert.ok(!/Add-Type/.test(code), 'Add-Type outside comments');
     assert.match(code, /DefinePInvokeMethod/);
     assert.match(code, /GetProcessTimes/);
+  });
+
+  it('stops the walk at WindowsTerminal.exe even without a window', () => {
+    const code = fs.readFileSync(FOREGROUND_PS1, 'utf8').replace(/^\s*#.*$/gm, '');
+    assert.ok(code.includes("if ($names[$id] -ieq 'WindowsTerminal.exe') { break }"));
   });
 
   it('walks up from StartPid and stops at the first window owner', { skip: process.platform !== 'win32' }, () => {
@@ -370,9 +385,18 @@ describe('macOS', () => {
     assert.equal(await isAgentWindowFocused(mac({ env: { __CFBundleIdentifier: 'com.mitchellh.ghostty' }, exec })), true);
     const both = { TERM_PROGRAM: 'ghostty', __CFBundleIdentifier: 'com.mitchellh.ghostty' };
     assert.equal(await isAgentWindowFocused(mac({ env: both, exec: fakeExec(lsappinfo('com.mitchellh.ghostty')) })), true);
-    // A TERM_PROGRAM we have no mapping for does not veto the bundle id.
-    const unknown = { TERM_PROGRAM: 'SomeNewTerm', __CFBundleIdentifier: 'com.mitchellh.ghostty' };
-    assert.equal(await isAgentWindowFocused(mac({ env: unknown, exec: fakeExec(lsappinfo('com.mitchellh.ghostty')) })), true);
+  });
+
+  it('regression: null when TERM_PROGRAM is set but unknown, whatever __CFBundleIdentifier says', async () => {
+    for (const term of ['zed', 'Tabby', 'tmux-ish', 'constructor']) {
+      const env = { TERM_PROGRAM: term, __CFBundleIdentifier: 'com.mitchellh.ghostty' };
+      const exec = fakeExec(lsappinfo('com.mitchellh.ghostty'));
+      assert.equal(await isAgentWindowFocused(mac({ env, exec })), null, term);
+      assert.equal(exec.calls.length, 0);
+    }
+    // With no TERM_PROGRAM at all the bundle id alone still decides.
+    const exec = fakeExec(lsappinfo('com.mitchellh.ghostty'));
+    assert.equal(await isAgentWindowFocused(mac({ env: { __CFBundleIdentifier: 'com.mitchellh.ghostty' }, exec })), true);
   });
 
   it('regression: null when __CFBundleIdentifier and TERM_PROGRAM disagree', async () => {

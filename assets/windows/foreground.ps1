@@ -3,6 +3,7 @@
 #   FG<TAB>pid<TAB>image<TAB>parentPid<TAB>title     (absent when nothing is in the foreground)
 #   CHAIN<TAB>pid<TAB>image                           (StartPid and its ancestors, nearest first)
 #   OWNER<TAB>pid<TAB>image                           (the first chain member that owns a visible window)
+#                                                     (none when the walk ends at a hidden WindowsTerminal.exe)
 #
 # The walk up the parent chain stops at the FIRST process that owns a visible top-level
 # window (or whose console host does, for classic conhost.exe windows). Anything above it
@@ -127,6 +128,9 @@ if ($StartPid -ne 0) {
       Write-Output ("OWNER`t{0}`t{1}" -f $owner, $names[$owner])
       break
     }
+    # A Windows Terminal with no visible window (quake mode, hidden to the tray) is still
+    # the agent's terminal: stop here with no OWNER rather than climb to its launcher.
+    if ($names[$id] -ieq 'WindowsTerminal.exe') { break }
     if (-not $parents.ContainsKey($id)) { break }
     $parent = $parents[$id]
     if ($parent -eq 0 -or -not $names.ContainsKey($parent)) { break }
