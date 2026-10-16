@@ -281,6 +281,16 @@ function validateSettings(user, { inRule = false, inheritedWebhook = null } = {}
 // level: reported and kept.
 // Checks that read a sibling key (the telegram chatId) run against the
 // top-level webhook merged with the rule, since that is what the rule yields.
+// A rule's `match` must be anchored: a POSIX `/…`, a drive `C:/…` (or Cursor's
+// `/C:/…`), a UNC `//host/…`, or `~/…` (expanded to the home directory). A
+// relative pattern (`.`, `./`, `a/..`, `side/*`) has nothing to anchor to and
+// would normalise to something that matches every workspace.
+function isAbsoluteProjectMatch(value) {
+  if (typeof value !== 'string') return false;
+  const p = value.trim();
+  return /^[\\/]/.test(p) || /^[A-Za-z]:[\\/]/.test(p) || p === '~' || /^~[\\/]/.test(p);
+}
+
 function validateProjects(user, issues) {
   if (user.projects === undefined) return;
   const inheritedWebhook = { ...defaults.webhook, ...(user.webhook && typeof user.webhook === 'object' ? user.webhook : {}) };
@@ -298,6 +308,10 @@ function validateProjects(user, issues) {
     }
     if (typeof rule.match !== 'string' || !rule.match.trim()) {
       issues.push(`"${at}.match" must be a non-empty string`);
+      return;
+    }
+    if (!isAbsoluteProjectMatch(rule.match)) {
+      issues.push(`${at}: "match" must be an absolute path or start with ~/`);
       return;
     }
     const overrides = {};
@@ -394,6 +408,8 @@ export function matchesProjectPath(match, workspace, { platform = process.platfo
   if (pattern === '~' || pattern.startsWith('~/') || pattern.startsWith('~\\')) {
     pattern = home.replace(/[\\/]+$/, '') + pattern.slice(1);
   }
+  // Backstop for a config that skipped validation: a relative pattern never matches.
+  if (!isAbsoluteProjectMatch(pattern)) return false;
   const toSegments = (value) => normalizeProjectPath(value, platform).split('/').filter((seg) => seg && seg !== '.');
   const patternSegments = toSegments(pattern);
   const target = toSegments(workspace);

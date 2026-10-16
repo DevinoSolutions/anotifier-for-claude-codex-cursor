@@ -120,6 +120,22 @@ describe('matchesProjectPath', () => {
     assert.equal(normalizeProjectPath('/h/x/../app/', 'linux'), '/h/app');
   });
 
+  it('a relative pattern never matches (backstop for unvalidated configs)', () => {
+    for (const rel of ['.', './', '..', 'a/..', 'side/*', 'app', '*', '**', 'C:', '.\\app']) {
+      assert.equal(matchesProjectPath(rel, '/home/me/app', LINUX), false, rel);
+      assert.equal(matchesProjectPath(rel, 'C:\\Users\\me\\app', WIN), false, rel);
+    }
+  });
+
+  it('absolute forms all match: POSIX, drive, Cursor drive, UNC, ~/', () => {
+    assert.ok(matchesProjectPath('/home/me/app', '/home/me/app', LINUX));
+    assert.ok(matchesProjectPath('C:/Users/me/app', 'C:\\Users\\me\\app', WIN));
+    assert.ok(matchesProjectPath('/C:/Users/me/app', 'C:\\Users\\me\\app', WIN));
+    assert.ok(matchesProjectPath('//host/share/app', '\\\\host\\share\\app\\src', WIN));
+    assert.ok(matchesProjectPath('\\\\host\\share\\*', '//host/share/app', WIN));
+    assert.ok(matchesProjectPath('~/app', '/home/me/app', LINUX));
+  });
+
   it('many stars in one segment finish fast (no regex backtracking)', () => {
     const stars = 'a*'.repeat(12) + 'b';
     const text = 'a'.repeat(60);
@@ -219,6 +235,20 @@ describe('resolveProjectConfig', () => {
     for (const ws of ['', '   ', undefined, null, 42, {}, []]) {
       assert.deepEqual(resolveProjectConfig(config, ws, LINUX), expected);
     }
+  });
+
+  it('ignores a relative or empty match instead of matching every workspace', () => {
+    const config = base();
+    config.projects = [
+      { match: '.', ntfy: { topic: 'dot' } },
+      { match: './', ntfy: { topic: 'dot-slash' } },
+      { match: 'a/..', ntfy: { topic: 'up' } },
+      { match: 'work/*', ntfy: { topic: 'rel' } },
+      { match: '', ntfy: { topic: 'empty' } },
+    ];
+    assert.equal(resolveProjectConfig(config, WS, LINUX).ntfy.topic, 'general');
+    config.projects.push({ match: '/', ntfy: { topic: 'root' } });
+    assert.equal(resolveProjectConfig(config, WS, LINUX).ntfy.topic, 'root');
   });
 
   it('handles a config with no projects key or an empty list', () => {
@@ -399,6 +429,24 @@ describe('project rule validation', () => {
     assert.equal(Object.getPrototypeOf(config.projects[0]), Object.prototype);
     assert.equal(config.projects[0].polluted, undefined);
     assert.equal(config.projects[0].ntfy.topic, 't');
+  });
+
+  it('rejects a relative match, reports it and drops the rule', () => {
+    for (const match of ['.', './', 'a/..', 'side/*', 'app', '*', '**', 'C:', '.\\app', '  ']) {
+      const { config, problem } = load({ projects: [{ match, ntfy: { topic: 't' } }, { match: '/ok' }] });
+      assert.equal(problem?.type, 'validate', match);
+      assert.match(problem.message, match.trim()
+        ? /projects\[0\]: "match" must be an absolute path or start with ~\//
+        : /"projects\[0\]\.match" must be a non-empty string/, match);
+      assert.deepEqual(config.projects, [{ match: '/ok' }], match);
+    }
+  });
+
+  it('accepts every absolute form of match', () => {
+    const matches = ['/', '/home/me/app', 'C:/Users/me/app', 'C:\\Users\\me\\app', '/C:/Users/me/app', '//host/share/app', '\\\\host\\share\\app', '~', '~/work/**', '~\\work'];
+    const { config, problem } = load({ projects: matches.map((match) => ({ match })) });
+    assert.equal(problem, null);
+    assert.deepEqual(config.projects.map((r) => r.match), matches);
   });
 
   it('a telegram rule inherits the top-level chatId, so it is not reported', () => {
