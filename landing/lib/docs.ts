@@ -105,7 +105,7 @@ export const DOCS: DocSection[] = [
           [
             "Windows",
             "PowerShell 7+ (pwsh)",
-            "Toasts use the BurntToast module; setup installs it if missing.",
+            "Toasts use the BurntToast module; setup installs it if missing. See [Claude Code and Codex notifications on Windows](/guides/windows-wsl-notifications/#native-windows).",
           ],
           ["macOS", "osascript", "Built in. No extra install."],
           [
@@ -116,7 +116,7 @@ export const DOCS: DocSection[] = [
           [
             "WSL",
             "WSL2 interop + Windows PowerShell",
-            "Both on by default. Toasts are routed to Windows.",
+            "Both on by default. Toasts are routed to Windows; see [how the toast crosses from WSL into Windows](/guides/windows-wsl-notifications/#wsl).",
           ],
         ],
       },
@@ -509,7 +509,7 @@ export const DOCS: DocSection[] = [
             "`toast.clickToFocus`",
             "boolean",
             "`true`",
-            "Clicking the toast focuses the originating window (Windows).",
+            "Clicking the toast focuses the originating window (Windows); [how it picks the window](/guides/windows-wsl-notifications/#click-to-focus).",
           ],
           [
             "`toast.richContent`",
@@ -755,7 +755,7 @@ export const DOCS: DocSection[] = [
         items: [
           "Hook processes always exit 0 and always return the JSON the agent expects, even after an internal error.",
           "`anotifier status` lists the last 8 hook errors with timestamp and context, and points at the log file.",
-          "`anotifier doctor` runs static checks per channel; `doctor --deep` sends a real marker notification and reads it back from Notification Center (macOS) or dunst history (Linux). Windows gets a static PowerShell + BurntToast + execution-policy check.",
+          "`anotifier doctor` runs static checks per channel; `doctor --deep` sends a real marker notification and reads it back from Notification Center (macOS) or dunst history (Linux). Windows gets a static PowerShell + BurntToast + execution-policy check; the [Windows and WSL troubleshooting table](/guides/windows-wsl-notifications/#not-working) maps each error to a fix.",
           "Opt-in Sentry mirroring (`sentry.enabled` + `sentry.dsn`) sends error events only, through a built-in zero-dependency client. No SDK is bundled.",
         ],
       },

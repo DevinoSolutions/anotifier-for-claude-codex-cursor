@@ -10,36 +10,80 @@ import { COMMUNITY_URL } from "./site";
 export const TOPIC_GUIDES: Guide[] = [
   {
     slug: "windows-wsl-notifications",
-    updated: "2026-10-09",
+    updated: "2026-10-16",
     kind: "topic",
     name: "Windows & WSL",
-    title: "Claude Code & Codex Windows Notifications, Including WSL",
+    title: "Claude Code Windows Notifications: Native, WSL & Fixes",
     description:
-      "Windows toasts need PowerShell 7 and BurntToast, which setup installs. In WSL they go through Windows interop: no agent icon, custom sound or click-to-focus.",
-    h1: "Agent notifications on Windows and WSL",
+      "Windows: setup installs BurntToast; PowerShell 7 sends the toast. WSL: a Windows toast via powershell.exe interop, no wsl-notify-send. Focus Assist fixes.",
+    h1: "Claude Code and Codex notifications on Windows and WSL",
     intro:
-      "anotifier runs the same hooks on Windows and inside WSL, but the toast takes a different road on each. Native Windows uses PowerShell 7 and the BurntToast module for a full toast with the agent's icon, a sound, and click-to-focus. Inside WSL, the Linux side hands the toast to Windows through interop, which gives a plainer banner. Here is what each path needs and how to check it.",
+      "To get a Claude Code or Codex notification on Windows, run `npx anotifier@latest setup` in PowerShell. It wires the hooks and installs the BurntToast module, and the toast itself is sent by PowerShell 7 (`pwsh`). Inside WSL, run the same command inside the distribution: the toast then reaches Windows through `powershell.exe` interop, with no `wsl-notify-send` and no BurntToast. This guide covers what each path needs, what you get from it, and the usual reasons a Windows toast does not appear, including Do not disturb and Focus Assist.",
     sections: [
       {
-        id: "native",
+        id: "which",
+        title: "Which road does your toast take?",
+        blocks: [
+          {
+            kind: "table",
+            head: [
+              "Where the agent runs",
+              "What sends the toast",
+              "What you get",
+              "What it needs",
+            ],
+            rows: [
+              [
+                "Windows: PowerShell, CMD, Windows Terminal, the VS Code terminal",
+                "`pwsh` running anotifier's `toast.ps1` with BurntToast",
+                "The agent's icon, a Windows notification sound, a title like `my-app · Claude Code`, and click-to-focus",
+                "PowerShell 7 and the BurntToast module; `setup` installs the module",
+              ],
+              [
+                "A WSL distribution",
+                "`powershell.exe` (or `pwsh.exe`) reached through Windows interop, running `toast-wsl.ps1`",
+                "A plain toast with the title and message, shown under Windows PowerShell's name: no agent icon, custom sound or click-to-focus",
+                "Interop on, and PowerShell reachable through `/mnt/c` or the PATH",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "Phone push and webhooks do not depend on any of this, and neither does the Claude Code bell (Claude Code writes it itself), so they still arrive when a toast cannot. The terminal bell for other agents is a separate path: on native Windows it also runs through `pwsh`.",
+          },
+        ],
+      },
+      {
+        id: "native-windows",
         title: "Native Windows: PowerShell 7 and BurntToast",
         blocks: [
           {
             kind: "p",
-            text: "On Windows every toast is sent by `pwsh` (PowerShell 7) running anotifier's `toast.ps1`, which uses the [BurntToast](https://github.com/Windos/BurntToast) module. `anotifier setup` installs BurntToast for your user with `Install-Module BurntToast -Scope CurrentUser`; nothing is ever installed while a hook runs.",
+            text: "On Windows every toast is sent by `pwsh` (PowerShell 7) running anotifier's `toast.ps1`, which uses the [BurntToast](https://github.com/Windos/BurntToast) module. PowerShell 7 installs side by side with the Windows PowerShell 5.1 that ships with Windows and does not replace it. `powershell.exe` on its own cannot send these toasts. Install PowerShell 7 with `winget`, then run setup:",
           },
           {
             kind: "code",
             lang: "powershell",
-            code: "winget install --id Microsoft.PowerShell --source winget\nnpx anotifier@latest setup\nanotifier test toast",
+            code: "winget install --id Microsoft.PowerShell --source winget\nnpx anotifier@latest setup\nnpx anotifier@latest test toast",
+          },
+          {
+            kind: "p",
+            text: "What `setup` does for the toast on Windows:",
           },
           {
             kind: "ul",
             items: [
-              "**PowerShell 7 is required.** Windows PowerShell 5.1 (`powershell.exe`) on its own is not enough for native toasts.",
+              "Writes the hooks for each agent it finds: `Stop` and `Notification` for Claude Code in `~/.claude/settings.json`, and `Stop`, `PermissionRequest` and `SessionStart` for Codex in `%USERPROFILE%\\.codex\\hooks.json`. Each hook is one `node` command that runs anotifier's `notify.mjs`. Claude Code runs a hook command with Git Bash on Windows, or with PowerShell when Git Bash is not installed.",
+              "Checks for `pwsh`. If it is there, it installs BurntToast for your user with `Install-Module BurntToast -Scope CurrentUser` when the module is missing. Nothing is installed while a hook runs.",
+              "If `pwsh` is missing, or the BurntToast install fails, it turns the toast channel off and prints the `winget` command. `status` then shows `toast: off, no backend`. Phone push and webhooks stay on. Run `setup` again once PowerShell 7 is installed and the toast comes back on; a toast you switched off yourself stays off.",
+            ],
+          },
+          {
+            kind: "ul",
+            items: [
               "Each toast carries the agent's own icon and a title like `my-app · Claude Code`.",
               "Sounds are the Windows notification sounds: `Default`, `IM`, `Mail`, `Reminder`, `SMS`, `Alarm`. Finished tasks play `IM`; approvals and questions play `Reminder`. Change them per event with `events.<event>.toastSound`.",
-              "If BurntToast is missing or fails, you hear the Windows exclamation sound instead of seeing a toast, and the failure is logged to `~/.anotifier/errors.log` as `toast:windows`.",
+              "A toast has 7 seconds to send. If BurntToast is missing or fails, you hear the Windows exclamation sound instead of seeing a toast, and the failure is logged to `~/.anotifier/errors.log` as `toast:windows` with the cause (`pwsh not found`, `exit code 3`, or `timed out after 7000 ms`).",
             ],
           },
         ],
@@ -50,7 +94,19 @@ export const TOPIC_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "Clicking a toast brings the terminal or editor window that ran the agent to the front, so an approval prompt is one click away. On first use anotifier registers an `agentfocus://` link handler for your user under `HKCU\\Software\\Classes\\agentfocus`, finds the window by walking up from the hook's process to the terminal or IDE that owns it, and puts that window in the toast's launch link. To turn it off:",
+            text: "Clicking a native toast brings the terminal or editor that ran the agent to the front, so an approval prompt is one click away. When the hook knows the project name or working directory, the toast carries an `agentfocus://` link, and on the first toast anotifier registers a handler for it under `HKCU\\Software\\Classes\\agentfocus`. Clicking the toast runs `pwsh` to choose a window:",
+          },
+          {
+            kind: "ol",
+            items: [
+              "It looks at visible windows whose title contains the project folder name.",
+              "Among those it prefers one whose title also names a terminal (Windows Terminal, PowerShell, cmd, Warp, WezTerm and similar), then a Visual Studio Code window, then a Cursor window, then any other match.",
+              "If no title matches, it falls back to the window that `toast.ps1` found by walking up the process tree from the hook, as long as that window still exists.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "So a custom terminal tab title that drops the folder name sends the click to the fallback window. To turn click-to-focus off:",
           },
           {
             kind: "code",
@@ -65,71 +121,206 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         id: "wsl",
-        title: "Inside WSL: toasts through Windows interop",
+        title: "Inside WSL: how the toast crosses into Windows",
         blocks: [
           {
             kind: "p",
-            text: "When an agent runs inside a WSL distribution, anotifier detects WSL (from the kernel version string, `/proc/version`, or the `WSL_INTEROP` and `WSL_DISTRO_NAME` variables) and sends the toast through Windows instead of `notify-send`. Docker containers are not mistaken for WSL. It converts its script path with `wslpath -w`, then tries these in order and remembers the first that works:",
+            text: "A Linux process in WSL cannot draw a Windows notification, so anotifier asks Windows to do it. It detects WSL from the kernel version string, `/proc/version`, the `WSL_INTEROP` and `WSL_DISTRO_NAME` variables, or other WSL markers (Docker containers are not mistaken for WSL) and uses the Windows path instead of `notify-send`. Microsoft documents the mechanism it relies on: WSL can run Windows tools from the Linux command line as `tool-name.exe`. The steps:",
           },
           {
             kind: "ol",
             items: [
-              "`/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe`",
-              "`powershell.exe` on the PATH",
-              "`/mnt/c/Program Files/PowerShell/7/pwsh.exe`",
-              "`pwsh.exe` on the PATH",
+              "`wslpath -w` converts the path of anotifier's `toast-wsl.ps1` into a Windows path such as `\\\\wsl.localhost\\Ubuntu\\…`, so Windows PowerShell can open a file that lives inside the distribution.",
+              "It runs a PowerShell with `-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File` and the title and message as typed parameters, never `-Command`. It tries these in order until one works: `/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe`, then `powershell.exe` on the PATH, then `/mnt/c/Program Files/PowerShell/7/pwsh.exe`, then `pwsh.exe` on the PATH.",
+              "`toast-wsl.ps1` calls the Windows toast API directly, using PowerShell's own registered app identity. That is why it needs no BurntToast and shows under Windows PowerShell's name.",
             ],
           },
           {
             kind: "p",
-            text: "The WSL toast is deliberately simple. It calls the Windows toast API directly, so it needs no BurntToast, and it shows the title and message under Windows PowerShell's name. It has no custom sound, no per-agent icon, and no click-to-focus. Phone push, webhooks, and the terminal bell work exactly as on Linux. To build the same toast by hand, or to compare it with `wsl-notify-send`, see [Windows toast from WSL](/guides/wsl-notify-send/).",
+            text: "The result is deliberately simple: the title and the message, with no per-agent icon, custom sound or click-to-focus. Each attempt has 7 seconds. A failure is logged to `~/.anotifier/errors.log` as `toast:wsl`; when none of the four works, the entry lists each one it tried.",
           },
           {
             kind: "ul",
             items: [
-              "Run `npx anotifier@latest setup` **inside** the distribution. Agents in WSL read their settings from the Linux home directory, so a Windows-side setup does not wire them.",
-              "Windows interop must be on (the WSL default) and PowerShell must be reachable through `/mnt/c` or the PATH. With `enabled = false` under `[interop]` in `/etc/wsl.conf`, there is no route to a toast.",
+              "Run `npx anotifier@latest setup` **inside** the distribution. Agents in WSL read their settings from the Linux home directory, so a Windows-side setup does not wire them. Claude Code's own setup page says the same for the agent: install and launch `claude` inside the WSL terminal, not from PowerShell or CMD.",
+              "Interop must be on. It is by default: the `[interop]` section of `/etc/wsl.conf` has `enabled` (default `true`) and `appendWindowsPath` (default `true`). With `enabled = false` there is no route to a toast. With only `appendWindowsPath = false`, the two absolute `/mnt/c` paths above do not depend on the PATH, so they are still tried while C: is mounted at `/mnt/c`.",
+              "Changes to `wsl.conf` apply only after WSL has fully stopped. Run `wsl --shutdown` from PowerShell, then open the distribution again.",
+              "`setup` looks for a reachable PowerShell. If it finds none, it turns the toast channel off and tells you to enable interop. Run `setup` again once it works.",
             ],
           },
           {
             kind: "note",
-            text: "In 1.2.6 and earlier, `setup`, `status`, and `doctor` describe WSL as plain Linux, so they may warn that `notify-send` is missing. That warning does not apply to WSL toasts, and a failed WSL toast is not written to `errors.log`. 1.3.0 fixes both: all three commands name the Windows-interop toast path, `doctor` checks for `wslpath` and a reachable Windows PowerShell instead of `notify-send`, and a failed WSL toast is logged as `toast:wsl`. On any version, `anotifier test toast`, which prints `Toast sent` or `Toast failed`, is the real check.",
+            text: "In 1.2.6 and earlier, `setup`, `status`, and `doctor` describe WSL as plain Linux, so they may warn that `notify-send` is missing, and a failed WSL toast is not written to `errors.log`. 1.3.0 fixes both: all three commands name the Windows-interop toast path, `doctor` checks for `wslpath` and a reachable Windows PowerShell instead of `notify-send`, and a failed WSL toast is logged as `toast:wsl`.",
           },
         ],
       },
       {
-        id: "check",
-        title: "Test and troubleshoot on Windows",
+        id: "wsl-notify-send",
+        title: "Do you need wsl-notify-send?",
         blocks: [
           {
-            kind: "code",
-            lang: "powershell",
-            code: "anotifier test toast   # real toast: prints Toast sent or Toast failed\nanotifier doctor       # PowerShell, BurntToast and execution policy\nanotifier status       # wired agents and the last 8 errors",
+            kind: "p",
+            text: "No. anotifier never calls `wsl-notify-send`. It runs PowerShell directly, so there is nothing to download and nothing to put on your PATH. [wsl-notify-send](https://github.com/stuartleeks/wsl-notify-send) is a separate prebuilt Windows executable that accepts a few `notify-send` options. It is useful when you write your own hook and want a drop-in `notify-send` inside WSL. The [wsl-notify-send guide](/guides/wsl-notify-send/) compares it with calling `powershell.exe` yourself, shows the toast script, and wires either one to Claude Code and Codex.",
+          },
+          {
+            kind: "p",
+            text: "Both give the same kind of toast: a title and a message under a generic app name. The native Windows road is the one with the icon, sound and click-to-focus.",
+          },
+        ],
+      },
+      {
+        id: "wslg",
+        title: "WSLg and WSL notifications",
+        blocks: [
+          {
+            kind: "p",
+            text: "WSLg is Microsoft's support for running Linux GUI applications on Windows. Microsoft's documentation lists it for WSL 2 on Windows 10 build 19044 or later and on Windows 11, and describes GUI apps, not desktop notifications. anotifier does not depend on it. The toast is raised by Windows through interop, so you do not need WSLg, a notification daemon or D-Bus inside the distribution for it to work.",
+          },
+        ],
+      },
+      {
+        id: "focus-assist",
+        title: "Do not disturb and Focus Assist",
+        blocks: [
+          {
+            kind: "p",
+            text: "A common reason for `Toast sent` with nothing on screen is Windows itself holding the banner back. Windows 11 calls the feature Do not disturb (Focus assist on older builds). While it is on, Windows shows banners only for alarms, reminders and the apps you allow, and sends everything else to the notification center, so a missed toast is usually waiting there. anotifier does not detect it, and `test toast` reports `Toast sent` whenever the PowerShell call succeeds.",
           },
           {
             kind: "ul",
             items: [
-              "Native toasts need PowerShell 7. Since 1.3.0, `doctor` fails when PowerShell 7 is missing and `setup` warns about it, both with the `winget` command to install it. In 1.2.6 and earlier, `anotifier doctor` also passes with only Windows PowerShell 5.1, so if doctor is green and `test toast` fails, install PowerShell 7 and run setup again.",
-              "`test toast` says `Toast sent` but nothing appears: Do not disturb (Focus Assist) may be on. anotifier does not detect it; check **Settings > System > Notifications**.",
-              "`doctor --deep` has no read-back on Windows yet; it reports that deep verification is not available there.",
-              "Still stuck? The [troubleshooting guide](/guides/notifications-not-working/) walks through every check.",
+              "Turn it off from the notification center (the bell icon), or allow the sender under **Settings > System > Notifications**, in the Do not disturb **Apps** list (**Add apps**).",
+              "It can switch on by itself. Under **Turn on do not disturb automatically**, Windows lists rules for certain times of day, when duplicating the display, when playing a game, when using an app in full-screen mode, and for the first hour after a Windows feature update.",
+              "Per-app settings matter too. On **Settings > System > Notifications**, under **Notifications from apps and other senders**, open the sender and check that notifications and **Show notification banners** are on, and **Play a sound** if you want the ding. For a WSL toast the sender is Windows PowerShell.",
             ],
+          },
+        ],
+      },
+      {
+        id: "not-working",
+        title: "Windows toast not showing? Fixes by symptom",
+        blocks: [
+          {
+            kind: "p",
+            text: "Start with `anotifier status`, which prints the last 8 hook errors from `~/.anotifier/errors.log`, then match what you see:",
+          },
+          {
+            kind: "table",
+            head: ["Symptom", "Likely cause", "Fix"],
+            rows: [
+              [
+                "`toast:windows`, `pwsh not found`",
+                "PowerShell 7 is not installed or not on the PATH",
+                "`winget install --id Microsoft.PowerShell --source winget`, then `npx anotifier@latest setup`",
+              ],
+              [
+                "`toast:windows`, `exit code 3`, and a Windows exclamation sound instead of a banner",
+                "BurntToast is missing or failed to load or send; the cause is in the log's stderr",
+                "`Install-Module BurntToast -Scope CurrentUser`, or run `setup` again",
+              ],
+              [
+                "`toast:windows`, `timed out after 7000 ms`",
+                "`pwsh` did not finish in the 7 second window",
+                "Run `anotifier test toast` again and check whether it succeeds",
+              ],
+              [
+                "`doctor` fails with an execution policy message",
+                "A `MachinePolicy` or `UserPolicy` of `Restricted` or `AllSigned` is set by Group Policy",
+                "anotifier passes `-ExecutionPolicy Bypass`, which covers every other scope. Microsoft documents that Group Policy overrides the policies set in PowerShell, so ask your administrator",
+              ],
+              [
+                "`status` shows `toast: off, no backend`",
+                "`setup` turned the toast channel off because PowerShell 7, BurntToast, or the WSL route was missing. `test toast` ignores that switch, so it can pass while real alerts are off",
+                "Install the missing piece and run `setup` again",
+              ],
+              [
+                "`Toast sent`, no banner",
+                "Do not disturb, or the sender's notification settings",
+                "See the Do not disturb section above",
+              ],
+              [
+                "The test works, the real alert does not",
+                "The hook is not wired, the agent was started before setup, or notifications are snoozed",
+                "Restart the agent, run `status`, and use the [troubleshooting guide](/guides/notifications-not-working/)",
+              ],
+              [
+                "WSL: `toast:wsl`, `no Windows PowerShell reachable through WSL interop`",
+                "Interop is off, or C: is not mounted at `/mnt/c` and PowerShell is not on the PATH",
+                "Set `[interop] enabled=true` in `/etc/wsl.conf`, run `wsl --shutdown` from Windows, reopen the distribution",
+              ],
+              [
+                "WSL: `wslpath could not translate the toast script path`",
+                "`wslpath` is missing, so the script path cannot be handed to Windows",
+                "Run anotifier inside a WSL distribution, where `wslpath` ships",
+              ],
+              [
+                "Nothing at all from an agent that runs in WSL",
+                "Setup was run on Windows, not in the distribution",
+                "Run `npx anotifier@latest setup` inside WSL, and `status` on both sides to see which one has the hooks",
+              ],
+            ],
+          },
+        ],
+      },
+      {
+        id: "wsl-exit-code",
+        title: '"Terminal process wsl.exe terminated with exit code: -1"',
+        blocks: [
+          {
+            kind: "p",
+            text: 'This message is not an anotifier error. VS Code prints "The terminal process … terminated with exit code" when the shell it launched exits, and here the shell is `wsl.exe`. anotifier never starts `wsl.exe`: on Windows it runs `pwsh`, and from inside WSL it runs `powershell.exe`, and its own failures go to `errors.log` as `toast:windows` or `toast:wsl`.',
+          },
+          {
+            kind: "p",
+            text: 'VS Code\'s terminal troubleshooting page covers the WSL case. Run `wsl --status` and `wsl --list --verbose` in PowerShell outside the editor to see whether WSL starts at all. Use a real Linux distribution rather than a Docker-managed one such as `docker-desktop-data`, set the default with `wsl --set-default "<distribution-name>"`, and update a terminal profile that names a distribution with `-d`. That page documents exit code 1 for WSL and does not explain -1, so this guide cannot tell you what -1 means. If WSL itself starts but the toast does not appear, the table above applies.',
+          },
+        ],
+      },
+      {
+        id: "test",
+        title: "Send a test toast",
+        blocks: [
+          {
+            kind: "code",
+            lang: "powershell",
+            code: "npx anotifier@latest test toast   # real toast: prints Toast sent or Toast failed\nnpx anotifier@latest doctor       # PowerShell 7, BurntToast, execution policy (WSL: wslpath, PowerShell)\nnpx anotifier@latest status       # wired agents, the toast backend and the last 8 errors",
+          },
+          {
+            kind: "ul",
+            items: [
+              "`test toast` uses the same backend as the hooks and exits with code 1 when it fails. It skips the agent's hook, snooze and quiet hours, and it ignores `toast.enabled`, so it can pass while real alerts are off. `status` shows whether the toast channel is on.",
+              "On Windows, `doctor` fails when PowerShell 7 is missing, warns when BurntToast is not installed, and fails on a blocking Group Policy execution policy. In WSL it checks for `wslpath` and a reachable Windows PowerShell. `doctor --deep` has no read-back on Windows or WSL, so `test toast` is the real delivery check.",
+              "To test BurntToast without anotifier, run `pwsh -NoProfile -Command \"New-BurntToastNotification -Text 'Test','Hello'\"`. To test the WSL road by hand, use the script in the [wsl-notify-send guide](/guides/wsl-notify-send/).",
+              "If the test works and real alerts do not, the problem is between the agent and anotifier. Restart the agent so it reloads its hooks, and see the [troubleshooting guide](/guides/notifications-not-working/).",
+            ],
+          },
+          {
+            kind: "p",
+            text: "Related Windows guides: [Claude Code notification sounds on Windows and WSL](/guides/claude-code-notification-sound/#windows), [Codex CLI notifications on Windows](/guides/codex-cli-notifications/#windows), and [Cursor notifications on Windows and WSL](/guides/cursor-agent-notifications/#windows).",
           },
         ],
       },
     ],
     faqs: [
       {
-        q: "Do I need BurntToast inside WSL?",
-        a: "No. WSL toasts call the Windows toast API directly through Windows PowerShell. BurntToast is only used for native Windows toasts, and setup installs it there for you.",
+        q: "Why don't I get a Claude Code notification on Windows?",
+        a: "Claude Code runs hooks on its Stop and Notification events, and something has to turn them into a toast. Run npx anotifier@latest setup in PowerShell: it wires the hooks and installs BurntToast, and the toast is sent by PowerShell 7. If nothing appears, run anotifier test toast, then check anotifier status for a toast:windows error, and check that Do not disturb is off.",
       },
       {
-        q: "Why does my WSL toast look different from the native one?",
-        a: "The WSL path is a minimal toast shown under Windows PowerShell's name: title and message only, with no per-agent icon, no custom sound, and no click-to-focus. Native Windows toasts go through BurntToast and have all three.",
+        q: "Does it work in WSL2?",
+        a: "Yes. Run npx anotifier@latest setup inside the WSL distribution where the agent runs. anotifier detects WSL and sends the toast through powershell.exe and Windows interop, which is on by default. The toast is plain: a title and a message under Windows PowerShell's name, with no agent icon, custom sound or click-to-focus.",
       },
       {
-        q: "Which window does click-to-focus bring forward?",
-        a: "The terminal or editor that launched the agent. anotifier walks up the process tree from the hook to the first process that owns a window, such as Windows Terminal, VS Code, or Cursor.",
+        q: "Do I need wsl-notify-send or BurntToast inside WSL?",
+        a: "No. anotifier does not use wsl-notify-send, and the WSL toast calls the Windows toast API directly through Windows PowerShell, so it needs no BurntToast either. BurntToast is only used for native Windows toasts, and setup installs it there. wsl-notify-send is an option if you write your own hooks.",
+      },
+      {
+        q: "Why is a Windows toast silent or missing even though the test says Toast sent?",
+        a: "Usually Do not disturb, called Focus Assist on older Windows. While it is on, Windows shows banners only for alarms, reminders and the apps you allow, and sends the rest to the notification center. It can also switch on by itself, for example when an app is full screen. anotifier does not detect it. Turn it off, or allow the sender in Settings > System > Notifications.",
+      },
+      {
+        q: 'What does "terminal process wsl.exe terminated with exit code -1" mean?',
+        a: "It is a VS Code terminal message, not an anotifier error: the wsl.exe shell VS Code launched exited. anotifier never starts wsl.exe. VS Code's terminal troubleshooting page says to check wsl --status and wsl --list --verbose outside the editor, use a real Linux distribution, and fix the default distribution or the profile's -d setting. It documents exit code 1 for WSL and does not explain -1.",
       },
       {
         q: "Are Windows notifications tested?",
@@ -388,7 +579,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "notifications-not-working",
-    updated: "2026-10-08",
+    updated: "2026-10-16",
     kind: "topic",
     name: "Troubleshooting",
     title: "Agent Notifications Not Working? Troubleshooting Guide",
@@ -511,17 +702,17 @@ export const TOPIC_GUIDES: Guide[] = [
               [
                 "Windows: `Toast failed`",
                 "PowerShell 7 or BurntToast missing",
-                "Install PowerShell 7, then re-run setup. See [Windows & WSL](/guides/windows-wsl-notifications/)",
+                "Install PowerShell 7, then re-run setup. See [Windows toast not showing: fixes by symptom](/guides/windows-wsl-notifications/#not-working)",
               ],
               [
                 "Windows: `Toast sent`, no banner",
                 "Do not disturb (Focus Assist)",
-                "**Settings > System > Notifications**",
+                "**Settings > System > Notifications**. See [Do not disturb and Focus Assist on Windows](/guides/windows-wsl-notifications/#focus-assist)",
               ],
               [
                 "WSL: `Toast failed`",
                 "Windows interop off, or PowerShell not reachable",
-                "See [Windows & WSL](/guides/windows-wsl-notifications/)",
+                "See [how the WSL toast reaches Windows](/guides/windows-wsl-notifications/#wsl)",
               ],
               [
                 "macOS: `Toast sent`, no banner",

@@ -206,7 +206,7 @@ notify-send "Cursor · $project" "Agent $status"`;
 const AGENT_GUIDES: Guide[] = [
   {
     slug: "claude-code-notifications",
-    updated: "2026-10-15",
+    updated: "2026-10-16",
     kind: "agent",
     agentSlug: "claude-code",
     name: "Claude Code",
@@ -263,7 +263,7 @@ const AGENT_GUIDES: Guide[] = [
             items: [
               "**macOS**: `osascript` banners come from Script Editor. If Script Editor has no notification permission, the command fails silently and macOS never asks. Run `osascript -e 'display notification \"test\"'` once, then allow Script Editor in **System Settings > Notifications**.",
               '**Linux**: use `notify-send "Claude Code" "Claude finished"`. It needs a desktop notification daemon, which headless servers, SSH sessions, and most containers lack; install `libnotify-bin` on Debian and Ubuntu if the command is missing.',
-              "**Windows**: Claude Code's docs use a PowerShell `MessageBox`, which is a dialog box and can open behind your terminal. A real toast needs a PowerShell module such as BurntToast. Inside WSL, `powershell.exe` must be reachable through Windows interop.",
+              "**Windows**: Claude Code's docs use a PowerShell `MessageBox`, which is a dialog box and can open behind your terminal. A real toast needs a PowerShell module such as BurntToast. Inside WSL, `powershell.exe` must be reachable through Windows interop. [Claude Code notifications on Windows and WSL](/guides/windows-wsl-notifications/) covers both roads, Do not disturb, and fixes.",
             ],
           },
           {
@@ -349,7 +349,7 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "codex-cli-notifications",
-    updated: "2026-10-15",
+    updated: "2026-10-16",
     kind: "agent",
     agentSlug: "codex",
     name: "Codex CLI",
@@ -475,7 +475,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "To skip the wiring, run `npx anotifier@latest setup` in PowerShell. On Windows it writes `Stop`, `PermissionRequest`, and `SessionStart` hooks into `%USERPROFILE%\\.codex\\hooks.json`, turns on the hooks feature flag, records the trust hashes in `config.toml`, and backs up `hooks.json` first. It then checks for PowerShell 7 (`pwsh`) and installs the BurntToast module for your user with `Install-Module BurntToast -Scope CurrentUser`; if `pwsh` is missing it prints `winget install --id Microsoft.PowerShell --source winget`. Toasts then arrive as `my-app · Codex` with the Codex icon and a Windows notification sound, and clicking one brings the terminal window forward. `anotifier test toast` confirms it works. The [Windows and WSL guide](/guides/windows-wsl-notifications/) has the details.",
+            text: "To skip the wiring, run `npx anotifier@latest setup` in PowerShell. On Windows it writes `Stop`, `PermissionRequest`, and `SessionStart` hooks into `%USERPROFILE%\\.codex\\hooks.json`, turns on the hooks feature flag, records the trust hashes in `config.toml`, and backs up `hooks.json` first. It then checks for PowerShell 7 (`pwsh`) and installs the BurntToast module for your user with `Install-Module BurntToast -Scope CurrentUser`; if `pwsh` is missing it prints `winget install --id Microsoft.PowerShell --source winget`. Toasts then arrive as `my-app · Codex` with the Codex icon and a Windows notification sound, and clicking one brings the terminal window forward. `anotifier test toast` confirms it works. The [Windows and WSL guide](/guides/windows-wsl-notifications/#native-windows) has the details, including click-to-focus and a fix table for toasts that do not show.",
           },
           {
             kind: "note",
@@ -483,7 +483,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "Codex running inside WSL is the Linux build: it reads `~/.codex` in the distribution, so run `npx anotifier@latest setup` inside WSL. The toast then goes through Windows interop. See [Agent notifications on Windows and WSL](/guides/windows-wsl-notifications/) and [Windows toast from WSL](/guides/wsl-notify-send/).",
+            text: "Codex running inside WSL is the Linux build: it reads `~/.codex` in the distribution, so run `npx anotifier@latest setup` inside WSL. The toast then goes through Windows interop. See [how the WSL toast reaches Windows](/guides/windows-wsl-notifications/#wsl) and [Windows toast from WSL](/guides/wsl-notify-send/).",
           },
         ],
       },
@@ -571,7 +571,7 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "cursor-agent-notifications",
-    updated: "2026-10-15",
+    updated: "2026-10-16",
     kind: "agent",
     agentSlug: "cursor",
     name: "Cursor",
@@ -734,7 +734,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "Details for both are in [Agent notifications on Windows and WSL](/guides/windows-wsl-notifications/) and [Windows toast from WSL](/guides/wsl-notify-send/).",
+            text: "Details for both are in [Claude Code and Codex notifications on Windows and WSL](/guides/windows-wsl-notifications/) and [Windows toast from WSL](/guides/wsl-notify-send/).",
           },
         ],
       },
