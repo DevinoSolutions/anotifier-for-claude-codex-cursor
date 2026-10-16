@@ -23,21 +23,21 @@ const soundHook = (macSound: string, windowsFile: string) => ({
 export const CODEX_GUIDES: Guide[] = [
   {
     slug: "codex-notification-sound",
-    updated: "2026-10-06",
+    updated: "2026-10-16",
     kind: "topic",
     agentSlug: "codex",
     name: "Codex CLI sounds",
     icon: "/assets/icons/codex.png",
-    title: "Codex CLI Notification Sound: Ding When Done or Waiting",
+    title: "Codex CLI Notification Sound: Ding for Approval Prompts",
     description:
-      'By default Codex alerts you only in the background. Set notification_condition = "always" under [tui] in ~/.codex/config.toml, or play a sound with a hook.',
+      'Make Codex ding when it needs approval or a response: set notification_condition = "always" under [tui] in ~/.codex/config.toml, or play a sound from a hook.',
     h1: "Make Codex CLI ding when it needs your approval or a response",
     intro:
-      'Codex CLI already notifies you when it needs approval or a response from you, but by default only while its terminal is in the background, and in some terminals as a silent banner. Under `[tui]` in `~/.codex/config.toml`, set `notification_condition = "always"` to be alerted even when the window is in front, and `notification_method = "bel"` to get the terminal bell instead of a banner. For a real sound file, add a `PermissionRequest` hook that plays one. Here are both, plus how to ding only when Codex is waiting on you.',
+      'Codex CLI already notifies you when it needs approval or a response from you, but by default only while its terminal is in the background, and in some terminals as a silent banner. Under `[tui]` in `~/.codex/config.toml`, set `notification_condition = "always"` to be alerted even when the window is in front, and `notification_method = "bel"` to get the terminal bell instead of a banner. For a real sound file, add a `PermissionRequest` hook that plays one. Here are both, plus how to ding only when Codex is waiting on you. For the rest of the notification setup (desktop toasts, the `notify` command, phone alerts) see [Codex CLI notifications](/guides/codex-cli-notifications/).',
     sections: [
       {
         id: "builtin",
-        title: "Codex already dings, but only in the background",
+        title: "Why Codex doesn't ding when it needs a response",
         blocks: [
           {
             kind: "p",
@@ -70,7 +70,7 @@ export const CODEX_GUIDES: Guide[] = [
       },
       {
         id: "config",
-        title: "The config: ding for approvals, even in the foreground",
+        title: "Ding when Codex needs approval, even in the foreground",
         blocks: [
           {
             kind: "p",
@@ -105,7 +105,7 @@ export const CODEX_GUIDES: Guide[] = [
       },
       {
         id: "hook",
-        title: "Play a real sound: a PermissionRequest hook",
+        title: "Play a sound file when Codex needs approval: a hook",
         blocks: [
           {
             kind: "p",
@@ -143,7 +143,7 @@ export const CODEX_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "The `notify` setting runs your own program, but Codex currently sends it only one event, `agent-turn-complete`. It never fires for an approval prompt. Codex also ignores `notify` in a project's `.codex/config.toml`, so set it in `~/.codex/config.toml`. Use it for a finished-turn sound or webhook, and one of the options above for approvals.",
+            text: "The `notify` setting runs your own program, but Codex currently sends it only one event, `agent-turn-complete`. It never fires for an approval prompt. Codex also ignores `notify` in a project's `.codex/config.toml`, so set it in `~/.codex/config.toml`. Use it for a finished-turn sound or webhook, and one of the options above for approvals. The [Codex CLI notifications guide](/guides/codex-cli-notifications/#notify) covers `notify` as a desktop or phone alert.",
           },
         ],
       },
@@ -175,12 +175,16 @@ export const CODEX_GUIDES: Guide[] = [
     ],
     faqs: [
       {
-        q: "How do I make Codex ding when it needs approval?",
-        a: 'Under [tui] in ~/.codex/config.toml, set notifications = ["approval-requested"], notification_method = "bel" and notification_condition = "always". Or add a PermissionRequest hook to ~/.codex/hooks.json that plays a sound file.',
+        q: "How do I make Codex ding when it needs approval or a response?",
+        a: 'Under [tui] in ~/.codex/config.toml, set notifications = ["approval-requested", "plan-mode-prompt", "async-question"], notification_method = "bel" and notification_condition = "always". Or add a PermissionRequest hook to ~/.codex/hooks.json that plays a sound file (approvals only).',
       },
       {
         q: "Can Codex ding when a Plan mode prompt or a question needs my response?",
         a: 'Yes. Those are the plan-mode-prompt and async-question notification types. Keep them in the [tui] notifications list with notification_method = "bel" and notification_condition = "always". A PermissionRequest hook fires only for approvals, so use the [tui] setting for prompts and questions.',
+      },
+      {
+        q: "Can Codex ding only when it is waiting on me, not when it finishes?",
+        a: 'Yes. List only the types that wait on you, such as notifications = ["approval-requested", "plan-mode-prompt", "async-question"], and leave out agent-turn-complete. A PermissionRequest hook also fires only for approvals.',
       },
       {
         q: "Why doesn't Codex make a sound?",

@@ -557,12 +557,12 @@ const AGENT_GUIDES: Guide[] = [
     agentSlug: "codex",
     name: "Codex CLI",
     icon: "/assets/icons/codex.png",
-    title: "Codex CLI Notifications on Windows, macOS & Linux",
+    title: "Codex CLI Notifications: Desktop, Phone & Windows Setup",
     description:
-      "Codex CLI alerts only in the background; in Windows Terminal that is a bell. Add desktop or phone alerts with hooks or anotifier, or turn them off.",
+      "Codex CLI already notifies you, but only while its terminal is unfocused. Tune [tui] in config.toml, add a notify command or hooks, or get phone alerts.",
     h1: "How to get notified when Codex CLI finishes or needs approval",
     intro:
-      "Codex CLI already notifies you when a turn ends or an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else, including Windows Terminal and VS Code. For alerts you can't miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option, then [Codex on Windows](#windows) and [how to turn the alerts off](#mute). To make Codex ding when it needs a response, see [Codex CLI notification sounds](/guides/codex-notification-sound/).",
+      "Codex CLI already notifies you when a turn ends or an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else, including Windows Terminal and VS Code. For alerts you can't miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option, then [Codex on Windows](#windows) and [how to turn the alerts off](#mute). Want a sound? See how to [make Codex ding when it needs approval](/guides/codex-notification-sound/).",
     sections: [
       {
         id: "builtin",
@@ -570,7 +570,7 @@ const AGENT_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "The Codex TUI notifies you out of the box when a turn ends, when it asks to run a command or edit files, and when a Plan mode prompt or a question is waiting. In Ghostty, iTerm2, Kitty, Warp, and WezTerm it sends an OSC 9 desktop notification; in any other terminal, including Windows Terminal and the VS Code terminal, it rings the bell. By default it does this only while the terminal is unfocused. Tune it under `[tui]` in `~/.codex/config.toml`:",
+            text: "The Codex TUI notifies you out of the box when a turn ends, when it asks to run a command or edit files, and when a Plan mode prompt or a question is waiting. It sends an OSC 9 desktop notification in terminals that support it and rings the bell in the rest, and by default only while the terminal is unfocused. Tune it under `[tui]` in `~/.codex/config.toml`:",
           },
           {
             kind: "code",
@@ -579,7 +579,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "What you get: alerts in this machine's terminal only, nothing on your phone, and no sound if the terminal's bell is muted. To make approvals ding, see [Codex notification sounds](/guides/codex-notification-sound/).",
+            text: "What you get: alerts in this machine's terminal only, and nothing on your phone. Whether you hear anything depends on the terminal; to [make Codex ding when it needs approval](/guides/codex-notification-sound/#config), see the sound guide.",
           },
         ],
       },
@@ -640,7 +640,7 @@ const AGENT_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: 'Codex CLI runs natively on Windows and keeps its settings in `%USERPROFILE%\\.codex`: `CODEX_HOME` defaults to `~/.codex`. The built-in notification works as described in Option 1, with one catch. With `notification_method = "auto"`, Codex sends OSC 9 only to Ghostty, iTerm2, Kitty, Warp, and WezTerm. Windows Terminal and the VS Code terminal are not on that list, so Codex rings the bell (BEL) there and no desktop notification appears. That is Codex CLI 0.162.1, the latest release at the time of writing.',
+            text: 'Codex CLI runs natively on Windows and keeps its settings in `%USERPROFILE%\\.codex`: `CODEX_HOME` defaults to `~/.codex`. The built-in notification works as described in Option 1, with one catch. With `notification_method = "auto"`, Codex sends OSC 9 only to Ghostty, iTerm2, Kitty, Warp, and WezTerm. Windows Terminal and the VS Code terminal are not on that list, so Codex rings the bell (BEL) there and no desktop notification appears. That is how Codex CLI 0.163.0, the latest release at the time of writing, behaves.',
           },
           {
             kind: "ul",
@@ -673,7 +673,7 @@ const AGENT_GUIDES: Guide[] = [
             items: [
               "Open `/hooks` in Codex and trust the two new hooks, or Codex skips them.",
               "The toast shows under the name Windows PowerShell, with the title and message you pass and no agent icon, custom sound, or click-to-focus. If nothing appears, Do not disturb (Focus Assist) may be on.",
-              "For a sound file instead of a toast, use the `commandWindows` sound hook in the [Codex notification sound guide](/guides/codex-notification-sound/#hook).",
+              "For a sound file instead of a toast, use the `commandWindows` sound hook in [the guide to making Codex ding when it needs approval](/guides/codex-notification-sound/#hook).",
             ],
           },
           {
@@ -713,7 +713,7 @@ const AGENT_GUIDES: Guide[] = [
               ],
               [
                 "Only some of them",
-                'List the types you want, such as `notifications = ["approval-requested"]`. The type names are in the [Codex notification sound guide](/guides/codex-notification-sound/#config)',
+                'List the types you want, such as `notifications = ["approval-requested"]`. The type names are listed in the guide to [making Codex ding when it needs approval](/guides/codex-notification-sound/#config)',
               ],
               [
                 "Alerts while you are looking at Codex",
