@@ -32,7 +32,7 @@ jobs:
         env:
           EXTRA_URLS: ${{ secrets.LIVENESS_EXTRA_URLS }}
         run: |
-          set -u
+          set -uf
           # One URL is up when it answers 200 within 15 s, on one of 3 tries
           # 20 s apart (a deploy that is rolling the container is not an outage).
           check() {
@@ -55,7 +55,7 @@ jobs:
           check "https://anotifier.io/sitemap.xml" "https://anotifier.io/sitemap.xml" || failed=1
 
           n=0
-          for url in $EXTRA_URLS; do
+          for url in ${EXTRA_URLS:-}; do
             n=$((n + 1))
             check "$url" "extra URL #$n" || failed=1
           done
