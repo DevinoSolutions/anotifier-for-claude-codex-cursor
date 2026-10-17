@@ -71,6 +71,9 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
 - **Terminal bell** -- audible ding in the terminal that launched the agent (works over SSH/tmux)
 - **Click-to-focus** -- click the toast to jump back to the terminal or VS Code window (Windows)
 - **Turn length** -- "task complete" says how long the turn took (`took 4m 12s`), and `minDurationSeconds` can skip quick turns (Claude Code, Codex, Gemini CLI)
+- **Your own sounds** -- `toastSound` can be the path of an audio file, per event (see "Custom sound files")
+- **Skip alerts while you are looking at the agent** -- opt-in `suppressWhenFocused` sends nothing while the window running the agent is the one in front
+- **Per-project overrides** -- a `projects` list gives chosen folders their own channels, topics, sounds and quiet hours
 - **Codex approval alerts** -- get notified the instant Codex asks for permission, not just when it finishes
 - **Per-tool branded icons** -- each tool gets its own logo in the notification
 - **One unified config** -- shared `~/.anotifier/config.json` across all tools
@@ -126,11 +129,13 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
 
 All five tools are wired automatically by the setup wizard. No manual config editing needed. For Claude Code, Codex and Gemini CLI setup also adds a small timing hook (`UserPromptSubmit` for Claude Code and Codex CLI, `BeforeAgent` for Gemini CLI) that only records when a turn started, see [Turn length](#turn-length-and-the-minimum-duration-filter). Codex's `PermissionRequest` hook fires the same "needs your input" alert when Codex asks for approval to run a command -- verified with Codex CLI >=0.144.0.
 
-**Antigravity CLI** (Google's successor to Gemini CLI for Google AI Pro/Ultra and free Code Assist users) reads hooks from its own file, `~/.gemini/config/hooks.json`. Setup wires it when `~/.gemini/antigravity-cli` exists, adding one group named `anotifier` with a `Stop` handler and leaving your other groups alone; `anotifier uninstall` removes only that group. Google's docs say the Antigravity 2.0 app and Antigravity IDE read the same global `~/.gemini/config/hooks.json`, so a handler setup wrote should fire there too, but setup only wires Antigravity when `~/.gemini/antigravity-cli` exists and neither app has been tested. The `Stop` handler answers `{"decision":"stop"}` so it can never keep the agent running. The notification is the generic "Task complete" line, and a `Stop` caused by an error or a cancel says "Task complete" too: anotifier does not read `terminationReason` (its values are not fully documented) or `fullyIdle`, so every `Stop` alerts. Antigravity has no notification or permission event (its events are `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`), so there is no "needs input" alert for it. What is verified: hook wiring and payload parsing are unit-tested against the format in [Google's hooks docs](https://antigravity.google/docs/hooks). What is not: there is no live Antigravity CLI lane in CI yet, so it has not been exercised against a real Antigravity CLI run.
+**Cursor** (1.8.0 and later) sends the workspace folders, the conversation id and a `status` with its `stop` hook, and anotifier reads them. The first workspace folder names the project (`my-app · Cursor`) and lets a Windows click on the toast focus the right window; the conversation id gives each chat its own double-fire guard, so two chats finishing within 1.5 seconds both alert. A run that ended in an error says `Task failed` (with the `warning` ntfy tag) under your `events.task_complete` settings, and a run you aborted sends no alert. A payload without these fields alerts as before.
+
+**Antigravity CLI** (Google's successor to Gemini CLI for Google AI Pro/Ultra and free Code Assist users) reads hooks from its own file, `~/.gemini/config/hooks.json`. Setup wires it when `~/.gemini/antigravity-cli` exists, adding one group named `anotifier` with a `Stop` handler and leaving your other groups alone; `anotifier uninstall` removes only that group. Google's docs say the Antigravity 2.0 app and Antigravity IDE read the same global `~/.gemini/config/hooks.json`, so a handler setup wrote should fire there too, but setup only wires Antigravity when `~/.gemini/antigravity-cli` exists and neither app has been tested. The `Stop` handler answers `{"decision":"stop"}` so it can never keep the agent running. The notification is the generic "Task complete" line, and a `Stop` caused by an error or a cancel says "Task complete" too: anotifier does not read `terminationReason` (its values are not fully documented) or `fullyIdle`, so every `Stop` alerts. Antigravity has 6 hook events (`SessionStart`, `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation` and `Stop`) and none is a notification or permission event, so the hooks anotifier uses send no "needs input" alert for it. For permission-prompt and question alerts, turn on Antigravity's own `notifications` setting, covered in the [Antigravity CLI notifications guide](https://anotifier.io/guides/antigravity-cli-notifications/). What is verified: hook wiring and payload parsing are unit-tested against the format in [Google's hooks docs](https://antigravity.google/docs/hooks). What is not: there is no live Antigravity CLI lane in CI yet, so it has not been exercised against a real Antigravity CLI run.
 
 ### VS Code Native Support
 
-Claude Code, Codex, and Cursor all run inside VS Code. **anotifier** hooks directly into each tool's native hook system -- no VS Code extension required. The setup wizard detects installed tools and patches their configs automatically. On Windows, click a notification toast to jump straight back to your VS Code window (Cursor alerts are the exception: anotifier doesn't read a project folder from Cursor's event). More on the [VS Code page](https://anotifier.io/vscode/).
+Claude Code, Codex, and Cursor all run inside VS Code. **anotifier** hooks directly into each tool's native hook system -- no VS Code extension required. The setup wizard detects installed tools and patches their configs automatically. On Windows, click a notification toast to jump straight back to your VS Code window (Cursor alerts too, from 1.8.0: the first workspace folder names the project). More on the [VS Code page](https://anotifier.io/vscode/).
 
 ## Installation
 
@@ -174,7 +179,7 @@ curl -fsSL https://raw.githubusercontent.com/DevinoSolutions/anotifier-for-claud
 anotifier setup            # First-time setup wizard
 anotifier status           # Show wired tools, config, backends
 anotifier test [channel]   # Fire test notification (toast | ntfy | webhook | bell | both)
-anotifier config [section] # Interactive settings (ntfy | webhook | sounds | events | sentry)
+anotifier config [section] # Interactive settings (ntfy | webhook | sounds | events | sentry | focus)
 anotifier doctor [--deep]  # Diagnose delivery per channel (--deep verifies real delivery)
 anotifier snooze [dur]     # Silence every channel for a while (30m | 2h | 90s | 45 = 45 minutes)
 anotifier snooze off       # Cancel the snooze early
@@ -232,6 +237,7 @@ Config lives at `~/.anotifier/config.json`. Abbreviated — see [config/default-
     "from": "22:00",
     "to": "08:00"
   },
+  "suppressWhenFocused": false,
   "events": {
     "task_complete": { "toastSound": "IM", "priority": "default", "minDurationSeconds": 0 },
     "needs_input": { "toastSound": "Reminder", "priority": "urgent" },
@@ -447,7 +453,7 @@ It takes the same `min` / `low` / `default` / `high` / `urgent` scale as `priori
 `toastSound` can also be the path of your own audio file, per event:
 
 ```json
-{ "events": { "task_complete": { "toastSound": "~/sounds/done.wav" }, "needs_input": { "toastSound": "C:\Sounds\ask.mp3" } } }
+{ "events": { "task_complete": { "toastSound": "~/sounds/done.wav" }, "needs_input": { "toastSound": "C:\\Sounds\\ask.mp3" } } }
 ```
 
 A value is read as a file, not a name, when it starts with `~/`, is an absolute path, contains a `/` or `\`, or ends in `.wav`, `.mp3`, `.aiff`, `.aif`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.opus` or `.flac`. `~` is your home folder, and a relative path is relative to `~/.anotifier`. A path containing a double quote is not used. The sound names above never match, so existing configs keep working.
@@ -495,6 +501,22 @@ How a turn is measured depends on what each tool's hooks offer. The start time i
 
 Cursor's `beforeSubmitPrompt` hook can block a prompt unless it answers correctly, and its docs do not promise that it and `stop` share an id, so Cursor is left untimed rather than guessed. Antigravity has no event documented as once per user turn. Neither is ever filtered and neither shows a length. Setup must be re-run once after upgrading (`npx anotifier setup`) to add the timing hook to the tools that use it; until then nothing is timed and nothing is filtered. A Stop that fires while Claude Code still has background work running is held back as before and does not end the turn.
 
+### Skip alerts while you are looking at the agent
+
+`suppressWhenFocused` (default `false`, off) skips an alert when the window that runs the agent, its terminal or its editor, is the one in front of you: you can already see the prompt or the result. When it is on, "task complete" and needs-input alerts send nothing on any channel (toast, ntfy, webhook, terminal bell).
+
+```json
+{ "suppressWhenFocused": true }
+```
+
+Turn it on with `anotifier config focus` or by editing `~/.anotifier/config.json`. `anotifier status` shows it as `When focused`. A `projects` rule can turn it on or off for one folder.
+
+- **Opt-in, because it costs time.** Each alert waits for a short window probe before it is sent: about 1 s on Windows and WSL (a PowerShell call), a fraction of a second on macOS and Linux. If the probe fails or takes too long, the alert is sent.
+- **Only a clear "yes, in front" skips.** When anotifier cannot tell, it sends as usual: under tmux, screen or zellij, over ssh, on Wayland (and XWayland), on Linux without `xdotool`, in a hidden Windows Terminal window, and for an editor on macOS, where window titles cannot be read without a permission prompt.
+- **How it decides.** It finds the first window up the agent's process tree and compares it with the foreground window. For VS Code, Cursor and Windsurf, whose windows share one process, the window title must also have the project folder name as one of its ` - `-separated parts. On macOS it compares the front application with the terminal named by `__CFBundleIdentifier` or `TERM_PROGRAM`. On WSL it asks Windows for the foreground window.
+- **Tabs and panes.** Another tab or pane of the same terminal window counts as in front, and so does another window of one multi-window app on macOS (iTerm2, for example). On WSL any Windows Terminal window counts.
+- **Never suppressed.** The idle reminder always goes out, because a window left in front while you are away still counts as in front. The usage-limit and context warnings from the statusline and the update notice do not use this setting.
+
 ### Per-project overrides
 
 A `projects` list in `~/.anotifier/config.json` changes settings for the workspaces you name. Each rule has a `match` and the settings it overrides:
@@ -522,7 +544,7 @@ A hook run whose working folder is `~/work/acme`, or anything inside it, uses th
 - **Telegram.** A rule that sets `"webhook": { "format": "telegram" }` takes `chatId` from your top-level `webhook` when it has one. If the top level has no `chatId`, put it in the same rule as `format`; otherwise `anotifier status` reports it as missing.
 - **Where the folder comes from.** The `cwd` the agent sends with the hook; for Cursor and Antigravity CLI, which can omit it, the first workspace folder. With no folder in the hook input, no rule applies.
 - **What it covers.** The notifications your agents send through hooks: task complete, needs input and session start, including quiet hours and the minimum duration filter. Snooze is not per project: `anotifier snooze` still silences everything.
-- **The statusline warnings.** The usage-limit and context warnings come from Claude Code's statusline, not a hook, so the folder is read from its input: `workspace.current_dir`, then `workspace.project_dir`, then `cwd` ([Claude Code statusline fields](https://code.claude.com/docs/en/statusline)). A matching rule changes the context warning for that session only (`contextAlerts.enabled` and `contextAlerts.threshold`) and how both warnings are delivered: `toast`, `ntfy`, `webhook` and `quietHours`. The usage-limit warning belongs to your account, not to a folder, and is recorded once for all your chats, so its thresholds, its on/off switch and its state stay global (`usageAlerts` is not allowed in a rule). What a rule changes is only where that one warning goes: it is sent by whichever chat sees the limit first, so it uses that chat's folder's rule. Quiet hours from a rule keep a chat in that folder from sending (or recording) a warning, so another chat or a later refresh still announces it. The same goes for a rule that turns every channel off (`toast`, `ntfy` and `webhook`): a chat in that folder leaves the usage warning to your other chats. The folder is the one the session is in when the statusline refreshes, so it follows a `cd` or a worktree switch. Remote approvals read your top-level settings only.
+- **The statusline warnings.** The usage-limit and context warnings come from Claude Code's statusline, not a hook, so the folder is read from its input: `workspace.current_dir`, then `workspace.project_dir`, then `cwd` ([Claude Code statusline fields](https://code.claude.com/docs/en/statusline)). A matching rule changes the context warning for that session only (`contextAlerts.enabled` and `contextAlerts.threshold`) and how both warnings are delivered: `toast`, `ntfy`, `webhook` and `quietHours`. The usage-limit warning belongs to your account, not to a folder, and is recorded once for all your chats, so its thresholds, its on/off switch and its state stay global (`usageAlerts` is not allowed in a rule). What a rule changes is only where that one warning goes: it is sent by whichever chat sees the limit first, so it uses that chat's folder's rule. Quiet hours from a rule keep a chat in that folder from sending (or recording) a warning, so another chat or a later refresh still announces it. The same goes for a rule that turns every channel off (`toast`, `ntfy` and `webhook`): a chat in that folder leaves the usage warning to your other chats. The folder is the one the session is in when the statusline refreshes, so it follows a `cd` or a worktree switch.
 - **The CLI.** `anotifier status`, `doctor` and `config` work on your top-level settings. A rule's overrides are never applied there.
 
 ### Error visibility
@@ -552,7 +574,7 @@ anotifier telemetry on
 
 | Event | Sent when | Properties |
 | --- | --- | --- |
-| `cli_command` | a CLI command finishes (not for `telemetry`) | `command` (`setup`, `status`, `test`, `config`, `doctor`, `snooze`, `uninstall`), `args` (a list; each is one of `--deep`, `--json`, `--strict`, `toast`, `ntfy`, `webhook`, `bell`, `both`, `sounds`, `events`, `sentry`, `off`, and anything else you typed -- a snooze duration, a typo -- is `other`), `exit_code`, `duration_ms` |
+| `cli_command` | a CLI command finishes (not for `telemetry`) | `command` (`setup`, `status`, `test`, `config`, `doctor`, `snooze`, `uninstall`), `args` (a list; each is one of `--deep`, `--json`, `--strict`, `toast`, `ntfy`, `webhook`, `bell`, `both`, `sounds`, `events`, `sentry`, `focus`, `off`, and anything else you typed -- a snooze duration, a typo -- is `other`), `exit_code`, `duration_ms` |
 | `cli_error` | a command throws | `command` (as above, or `other`), `error_name` (the error class name, clamped; `Error` if it does not fit), `error_code` (e.g. `ENOENT`, clamped; `null` if there is none). Never the error message. |
 | `setup_completed` | `setup` finishes | `tools_detected` (any of `claude`, `codex`, `cursor`, `gemini`, `antigravity`), `toast_backend_ready`, `icon_ready`, `config_rebuilt`, `ntfy_enabled` (booleans) |
 | `setup_failed` | `setup` finds no tool, or cannot patch one | `step` (`no_tools` or `patch`); for `patch` also `tools_detected` and `failed_tools` (same names as above) |

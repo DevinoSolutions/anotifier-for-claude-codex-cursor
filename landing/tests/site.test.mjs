@@ -267,13 +267,6 @@ test("the Claude Code hub leads with the answer, explains the events, shows vali
   assert.match(quiet.from, /^([01]\d|2[0-3]):[0-5]\d$/, "quietHours.from");
   assert.match(quiet.to, /^([01]\d|2[0-3]):[0-5]\d$/, "quietHours.to");
 
-  // Only released behaviour (npm 1.7.1): none of the unreleased features.
-  assert.doesNotMatch(
-    g.body,
-    /minDurationSeconds|\(took |workspace_roots|Per-project override/i,
-    "the guide describes an unreleased feature",
-  );
-
   const { schemaQs, visibleQs } = faqQuestions(g.body);
   assert.ok(visibleQs.length >= 7, `only ${visibleQs.length} FAQ questions`);
   assert.deepEqual(schemaQs, visibleQs, "FAQ JSON-LD differs from the page");
@@ -318,6 +311,16 @@ test("the Claude Code hub leads with the answer, explains the events, shows vali
     assert.ok(
       pages.get(from).body.includes(`href="${hub}"`),
       `${from} does not link the hub`,
+    );
+  }
+});
+
+test("no page names the experimental approval flag", () => {
+  for (const [path, page] of pages) {
+    assert.doesNotMatch(
+      page.body,
+      /ANOTIFIER_EXPERIMENTAL/,
+      `${path} mentions an experimental flag`,
     );
   }
 });
