@@ -368,7 +368,7 @@ describe('CLI surface', () => {
     assert.equal((await answered('', undefined)).config.suppressWhenFocused, false);
   });
 
-  it('configFocus explains the delay and that away and idle are never suppressed', async () => {
+  it('configFocus explains the delay and that the idle reminder is never suppressed', async () => {
     const { text } = await answered('n');
     assert.match(text, /adds about 1 s to each alert on Windows/);
     assert.match(text, /idle reminder is never suppressed/);
