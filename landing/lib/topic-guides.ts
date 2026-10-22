@@ -443,7 +443,7 @@ export const TOPIC_GUIDES: Guide[] = [
       "Which hook events Claude Code, Codex CLI, Cursor and Gemini CLI fire when they finish or need you, where each is configured, and what anotifier writes.",
     h1: "How agent hooks power your notifications",
     intro:
-      "Every coding agent anotifier supports can run a command at fixed points in its lifecycle. Those hooks are all anotifier uses: setup adds one entry per event to each agent's own config file, the agent runs it, and the hook turns the event into a notification. No wrapper, no daemon, no polling. This page lists exactly what gets written where, and what happens when a hook fires. Hooks run with your user permissions, so audit them before you trust them: [Claude Code hooks security](/guides/claude-code-hooks-security/) covers that.",
+      "Every coding agent anotifier supports can run a command at fixed points in its lifecycle. Those hooks are all anotifier uses: setup adds one entry per event to each agent's own config file, the agent runs it, and the hook turns the event into a notification. No wrapper, no daemon, no polling. This page lists exactly what gets written where, and what happens when a hook fires. Hooks run with your user permissions, so audit them before you trust them.",
     sections: [
       {
         id: "events",

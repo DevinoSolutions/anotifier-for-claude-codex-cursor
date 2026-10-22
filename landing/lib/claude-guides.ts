@@ -1501,7 +1501,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
     icon: "/assets/icons/claude.png",
     title: "Claude Code Hooks Security: Are They Safe? How to Audit",
     description:
-      "Claude Code hooks security in short: hooks run shell commands with your full user permissions. Audit them with /hooks and lock them down with a few settings.",
+      "Claude Code hooks security: hooks run shell commands with your full user permissions. Audit them with /hooks, then lock them down with a few settings.",
     h1: "Claude Code hooks security: are hooks safe, and how to audit them",
     intro:
       "A Claude Code hook is a shell command that runs with your full user permissions, so anyone who can add one to a settings file, plugin or repository you trust can run code as you. Type `/hooks` to see every active hook and where it came from.",
