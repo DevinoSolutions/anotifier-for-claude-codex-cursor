@@ -8,7 +8,7 @@ import { json } from "./claude-guides";
  * settings page and CLI reference (the `notifications` setting), and the CLI
  * release notes (1.3.1). Google documents no hook exit codes, no failure
  * behavior and no Windows shell, and the copy says so instead of guessing.
- * anotifier facts mirror the released 1.7.1 package (setup/patch-config.mjs
+ * anotifier facts mirror the released 1.8.0 package (setup/patch-config.mjs
  * patchAntigravity, src/parse-input.mjs, src/notify.mjs defaultResponseBody,
  * cli/setup.mjs, config/default-config.json). anotifier has not been run
  * against a live Antigravity CLI, and the copy says so.
@@ -76,12 +76,12 @@ const NTFY_SH = `curl -s -o /dev/null -d 'Antigravity run finished' -H 'Title: A
 const NTFY_PS1 = `curl.exe -s -o NUL -d 'Antigravity run finished' -H 'Title: Antigravity CLI' https://ntfy.sh/your-topic`;
 
 const AGY_SRC =
-  "https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/blob/v1.7.1";
+  "https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/blob/v1.8.0";
 
 export const ANTIGRAVITY_GUIDES: Guide[] = [
   {
     slug: "antigravity-cli-notifications",
-    updated: "2026-10-16",
+    updated: "2026-10-17",
     kind: "agent",
     agentSlug: "antigravity-cli",
     name: "Antigravity CLI",
@@ -279,7 +279,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: 'Antigravity CLI support arrived in anotifier 1.4.0 and is in the current release, 1.7.1. Setup wires it when a `~/.gemini/antigravity-cli` folder exists. It backs up an existing `~/.gemini/config/hooks.json` to `~/.anotifier/backups/`, then adds one top-level group named `anotifier` with a `Stop` handler (30-second timeout) beside your own groups. If you muted that group with `"enabled": false`, or tuned its timeout, running setup again keeps both. The path in `command` is where anotifier is installed:',
+            text: 'Antigravity CLI support arrived in anotifier 1.4.0 and is in the current release, 1.8.0. Setup wires it when a `~/.gemini/antigravity-cli` folder exists. It backs up an existing `~/.gemini/config/hooks.json` to `~/.anotifier/backups/`, then adds one top-level group named `anotifier` with a `Stop` handler (30-second timeout) beside your own groups. If you muted that group with `"enabled": false`, or tuned its timeout, running setup again keeps both. The path in `command` is where anotifier is installed:',
           },
           {
             kind: "code",
@@ -486,7 +486,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
               "The `agy` command: Google's [Antigravity CLI codelab](https://codelabs.developers.google.com/antigravity-cli-hands-on)",
               "Gemini CLI and Antigravity CLI: Google's [transition announcement](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli)",
               "Hooks not firing in the IDE on Windows: a [Google AI Developers Forum report](https://discuss.ai.google.dev/t/stop-and-posttooluse-hooks-in-agents-hooks-json-never-fire-antigravity-ide-1-107-0-windows/178288) from August 2026, unresolved",
-              `anotifier 1.7.1: [patch-config.mjs](${AGY_SRC}/setup/patch-config.mjs), [parse-input.mjs](${AGY_SRC}/src/parse-input.mjs), [notify.mjs](${AGY_SRC}/src/notify.mjs), the [README](${AGY_SRC}/README.md) and the [docs](/docs/)`,
+              `anotifier 1.8.0: [patch-config.mjs](${AGY_SRC}/setup/patch-config.mjs), [parse-input.mjs](${AGY_SRC}/src/parse-input.mjs), [notify.mjs](${AGY_SRC}/src/notify.mjs), the [README](${AGY_SRC}/README.md) and the [docs](/docs/)`,
             ],
           },
         ],
@@ -519,7 +519,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
       },
       {
         q: "Does anotifier work with Antigravity CLI?",
-        a: 'Yes, since anotifier 1.4.0 and in the current 1.7.1. Run npx anotifier@latest setup and it adds an anotifier group with a Stop handler to ~/.gemini/config/hooks.json when ~/.gemini/antigravity-cli exists. You get a "Task complete" alert on your desktop, phone or webhook; a failed or cancelled run says the same, and there is no needs-input alert. It has not yet been tested against a live Antigravity CLI.',
+        a: 'Yes, since anotifier 1.4.0 and in the current 1.8.0. Run npx anotifier@latest setup and it adds an anotifier group with a Stop handler to ~/.gemini/config/hooks.json when ~/.gemini/antigravity-cli exists. You get a "Task complete" alert on your desktop, phone or webhook; a failed or cancelled run says the same, and there is no needs-input alert. It has not yet been tested against a live Antigravity CLI.',
       },
       {
         q: "Do my Gemini CLI notification hooks work in Antigravity CLI?",

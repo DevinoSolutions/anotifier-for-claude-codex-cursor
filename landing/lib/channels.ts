@@ -201,8 +201,8 @@ export const CHANNELS: Channel[] = [
               ],
               [
                 "Cursor finished",
-                "`Cursor`",
-                "`Task complete`. anotifier doesn't read a project folder from Cursor's event, so there is no project name.",
+                "`my-app · Cursor`",
+                "`my-app: Task complete`, or `my-app: Task failed` when the run ended in an error. A run you aborted sends nothing. The project is the first of Cursor's workspace folders (1.8.0 and later; earlier versions sent `Cursor` and `Task complete`).",
               ],
               [
                 "Usage-limit and context warnings, update notice",

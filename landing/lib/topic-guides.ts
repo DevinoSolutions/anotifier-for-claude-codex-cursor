@@ -42,7 +42,7 @@ export const TOPIC_GUIDES: Guide[] = [
               [
                 "A WSL distribution",
                 "`powershell.exe` (or `pwsh.exe`) reached through Windows interop, running `toast-wsl.ps1`",
-                "A plain toast with the title and message, shown under Windows PowerShell's name: no agent icon, custom sound or click-to-focus",
+                "A plain toast with the title and message, shown under Windows PowerShell's name: no agent icon or click-to-focus, and no sound unless `toastSound` is an audio file of your own (1.8.0 and later)",
                 "Interop on, and PowerShell reachable through `/mnt/c` or the PATH",
               ],
             ],
@@ -73,7 +73,7 @@ export const TOPIC_GUIDES: Guide[] = [
           {
             kind: "ul",
             items: [
-              "Writes the hooks for each agent it finds: `Stop` and `Notification` for Claude Code in `~/.claude/settings.json`, and `Stop`, `PermissionRequest` and `SessionStart` for Codex in `%USERPROFILE%\\.codex\\hooks.json`. Each hook is one `node` command that runs anotifier's `notify.mjs`. Claude Code runs a hook command with Git Bash on Windows, or with PowerShell when Git Bash is not installed.",
+              "Writes the hooks for each agent it finds: `Stop` and `Notification` for Claude Code in `~/.claude/settings.json`, and `Stop`, `PermissionRequest` and `SessionStart` for Codex in `%USERPROFILE%\\.codex\\hooks.json`, plus (1.8.0 and later) a small `UserPromptSubmit` timing hook for both. Each hook is one `node` command that runs anotifier's `notify.mjs`. Claude Code runs a hook command with Git Bash on Windows, or with PowerShell when Git Bash is not installed.",
               "Checks for `pwsh`. If it is there, it installs BurntToast for your user with `Install-Module BurntToast -Scope CurrentUser` when the module is missing. Nothing is installed while a hook runs.",
               "If `pwsh` is missing, or the BurntToast install fails, it turns the toast channel off and prints the `winget` command. `status` then shows `toast: off, no backend`. Phone push and webhooks stay on. Run `setup` again once PowerShell 7 is installed and the toast comes back on; a toast you switched off yourself stays off.",
             ],
@@ -137,7 +137,7 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "The result is deliberately simple: the title and the message, with no per-agent icon, custom sound or click-to-focus. Each attempt has 7 seconds. A failure is logged to `~/.anotifier/errors.log` as `toast:wsl`; when none of the four works, the entry lists each one it tried.",
+            text: "The result is deliberately simple: the title and the message, with no per-agent icon or click-to-focus, and no sound unless `toastSound` is the path of an audio file of your own (1.8.0 and later). Each attempt has 7 seconds. A failure is logged to `~/.anotifier/errors.log` as `toast:wsl`; when none of the four works, the entry lists each one it tried.",
           },
           {
             kind: "ul",
@@ -308,7 +308,7 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "Does it work in WSL2?",
-        a: "Yes. Run npx anotifier@latest setup inside the WSL distribution where the agent runs. anotifier detects WSL and sends the toast through powershell.exe and Windows interop, which is on by default. The toast is plain: a title and a message under Windows PowerShell's name, with no agent icon, custom sound or click-to-focus.",
+        a: "Yes. Run npx anotifier@latest setup inside the WSL distribution where the agent runs. anotifier detects WSL and sends the toast through powershell.exe and Windows interop, which is on by default. The toast is plain: a title and a message under Windows PowerShell's name, with no agent icon or click-to-focus, and no sound unless the toastSound setting is an audio file of your own (1.8.0 and later).",
       },
       {
         q: "Do I need wsl-notify-send or BurntToast inside WSL?",
@@ -330,7 +330,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "macos-linux-notifications",
-    updated: "2026-09-25",
+    updated: "2026-10-16",
     kind: "topic",
     name: "macOS & Linux",
     title: "Claude Code & Codex Notifications on macOS and Linux",
@@ -383,7 +383,7 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "Priority becomes urgency. Approvals and questions go out `critical`, which the notification spec says should stay on screen until you dismiss it; finished tasks go out `low`. Sound names are ignored on Linux.",
+            text: "Priority becomes urgency. Approvals and questions go out `critical`, which the notification spec says should stay on screen until you dismiss it; finished tasks go out `low`. Sound names are ignored on Linux; a `toastSound` that is the path of your own audio file does play there (1.8.0 and later).",
           },
           {
             kind: "p",
@@ -493,7 +493,7 @@ export const TOPIC_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "Every hook runs the same script, `src/notify.mjs` from the installed package, with `--source` naming the agent. This is the Claude Code entry setup writes under both `Stop` and `Notification`:",
+            text: "Every hook runs the same script, `src/notify.mjs` from the installed package, with `--source` naming the agent. This is the Claude Code entry setup writes under both `Stop` and `Notification` (the 1.8.0 timing hook under `UserPromptSubmit` is the same command with a 5-second timeout):",
           },
           {
             kind: "code",
@@ -556,7 +556,7 @@ export const TOPIC_GUIDES: Guide[] = [
               "Before changing a file that already exists, setup copies it to `~/.anotifier/backups/<file>.<timestamp>.backup`.",
               "anotifier recognises its own entries by the marker or by the `notify.mjs` command path, so re-running setup replaces them in place and leaves your own hooks alone.",
               "`anotifier uninstall` asks for confirmation, backs up each file, and removes only anotifier's entries (plus any hook arrays that end up empty) and its Codex trust hashes, and restores your Claude Code statusline (1.5.0 and later). It keeps `~/.anotifier/` with your config and backups, and leaves Codex's `hooks = true` flag set.",
-              "The Claude Code plugin registers the same `Stop` and `Notification` hooks from inside the plugin. `anotifier uninstall` doesn't touch those; remove the plugin from Claude Code's `/plugin` menu.",
+              "The Claude Code plugin registers the same hooks (`Stop`, `Notification` and, from 1.8.0, `UserPromptSubmit`) from inside the plugin. `anotifier uninstall` doesn't touch those; remove the plugin from Claude Code's `/plugin` menu.",
             ],
           },
         ],
@@ -772,7 +772,7 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "I get notifications, but only a generic message. Why?",
-        a: "anotifier shows what the agent said for Claude Code only, and only on the toast and webhook by default. ntfy stays generic unless you turn on ntfy.richContent, and Codex, Cursor and Gemini CLI always send generic text: my-app: Task complete for Codex and Gemini CLI, and just Task complete for Cursor, whose alerts carry no project name.",
+        a: "anotifier shows what the agent said for Claude Code only, and only on the toast and webhook by default. ntfy stays generic unless you turn on ntfy.richContent, and Codex, Cursor and Gemini CLI always send generic text: my-app: Task complete for Codex, Gemini CLI and Cursor (Cursor from 1.8.0; earlier versions sent just Task complete).",
       },
     ],
   },
@@ -907,7 +907,7 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "ntfy can also protect a topic with a username and password or an access token (`Authorization: Bearer tk_…`). anotifier (as of 1.7.1) has no config key for either: it never sends an `Authorization` header to ntfy, so the server has to accept anonymous publishing to your topic. The pattern that keeps your messages private on your own server is to deny anonymous reads and allow anonymous writes to that one topic (`server.yml`, then the `ntfy` command), and to sign in to the server in the ntfy app as that user so your phone can read:",
+            text: "ntfy can also protect a topic with a username and password or an access token (`Authorization: Bearer tk_…`). anotifier (as of 1.8.0) has no config key for either: it never sends an `Authorization` header to ntfy, so the server has to accept anonymous publishing to your topic. The pattern that keeps your messages private on your own server is to deny anonymous reads and allow anonymous writes to that one topic (`server.yml`, then the `ntfy` command), and to sign in to the server in the ntfy app as that user so your phone can read:",
           },
           {
             kind: "code",
@@ -992,7 +992,7 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "Can I use an ntfy access token or password?",
-        a: "Not in anotifier (as of 1.7.1), which sends no Authorization header to ntfy. Use a server that allows anonymous writes to your topic and denies anonymous reads. Your own curl hook can send a Bearer token.",
+        a: "Not in anotifier (as of 1.8.0), which sends no Authorization header to ntfy. Use a server that allows anonymous writes to your topic and denies anonymous reads. Your own curl hook can send a Bearer token.",
       },
       {
         q: "Can I use my own ntfy server?",
@@ -1004,7 +1004,7 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "Can I approve a Codex or Claude Code permission from my phone?",
-        a: "Not with anotifier (as of 1.7.1). The urgent push gets you back to the keyboard fast; the decision itself stays in the terminal.",
+        a: "Not with anotifier (as of 1.8.0). The urgent push gets you back to the keyboard fast; the decision itself stays in the terminal.",
       },
     ],
   },

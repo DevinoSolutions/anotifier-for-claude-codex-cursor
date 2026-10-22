@@ -143,17 +143,15 @@ const WHAT_ANOTIFIER_ADDS: Block[] = [
   },
 ];
 
-/** anotifier reads no project folder from Cursor's stop event and hooks only
-    `stop`, so three of the shared rows don't hold for Cursor. Cursor also has
-    its own OS notification (cursor.com/changelog/1-5), so the desktop toast row
-    changes in the Built-in column too. */
+/** anotifier hooks only `stop` for Cursor, so one of the shared rows doesn't
+    hold for Cursor. Cursor also has its own OS notification
+    (cursor.com/changelog/1-5), so the desktop toast row changes in the
+    Built-in column too. */
 const CURSOR_ROWS: Record<string, { builtIn?: string; anotifier?: string }> = {
   "Desktop toast": { builtIn: "Yes, Cursor's OS notification setting" },
-  "Names the project": { anotifier: "No, the title is `Cursor`" },
   "Urgent for approvals, calm for done": {
     anotifier: "No, finished runs only",
   },
-  "Click to focus the window": { anotifier: "No" },
 };
 
 const WHAT_ANOTIFIER_ADDS_CURSOR: Block[] = WHAT_ANOTIFIER_ADDS.map((block) =>
@@ -518,7 +516,7 @@ const AGENT_GUIDES: Guide[] = [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: "The wizard detects Claude Code, registers the `Stop` and `Notification` hooks in `~/.claude/settings.json` (backing the file up first), checks the desktop toast backend for your OS, and offers to create an ntfy topic for phone push. Restart Claude Code and you are done. It also works as a Claude Code plugin: `/plugin marketplace add DevinoSolutions/anotifier-for-claude-codex-cursor` then `/plugin install anotifier@anotifier`. The same setup covers [Codex CLI](/codex/), [Cursor](/cursor/) and [Gemini CLI](/gemini-cli/), and the webhook channel reaches [Slack](/slack/), [Discord](/discord/) and [Telegram](/telegram/).",
+            text: "The wizard detects Claude Code, registers the `Stop` and `Notification` hooks (plus a `UserPromptSubmit` timing hook, 1.8.0 and later) in `~/.claude/settings.json` (backing the file up first), checks the desktop toast backend for your OS, and offers to create an ntfy topic for phone push. Restart Claude Code and you are done. It also works as a Claude Code plugin: `/plugin marketplace add DevinoSolutions/anotifier-for-claude-codex-cursor` then `/plugin install anotifier@anotifier`. The same setup covers [Codex CLI](/codex/), [Cursor](/cursor/) and [Gemini CLI](/gemini-cli/), and the webhook channel reaches [Slack](/slack/), [Discord](/discord/) and [Telegram](/telegram/).",
           },
           {
             kind: "ul",
@@ -571,7 +569,7 @@ const AGENT_GUIDES: Guide[] = [
           {
             kind: "ol",
             items: [
-              "Restart Claude Code after changing hooks, then type `/hooks` and confirm the hook is listed under `Stop` and `Notification`.",
+              "Restart Claude Code after changing hooks, then type `/hooks` and confirm the hook is listed under `Stop` and `Notification` (and `UserPromptSubmit` from 1.8.0).",
               "Built-in notifications only appear in Ghostty, Kitty and iTerm2. Elsewhere set `preferredNotifChannel` to `terminal_bell` or add a hook; inside tmux turn on `allow-passthrough`.",
               "Expect delays by design: `permission_prompt` waits about six seconds and each keystroke defers it, and `idle_prompt` comes about 60 seconds after Claude finishes.",
               "With anotifier, `anotifier status` shows which tools are wired and whether you are snoozed, `anotifier test` fires a test notification (add `toast`, `ntfy`, `webhook`, `bell` or `both` to test one channel), and `anotifier doctor` diagnoses each channel.",
@@ -711,7 +709,7 @@ const AGENT_GUIDES: Guide[] = [
           { kind: "code", lang: "bash", code: "npx anotifier@latest setup" },
           {
             kind: "p",
-            text: "The wizard detects `~/.codex`, writes `Stop`, `PermissionRequest`, and `SessionStart` hooks into `~/.codex/hooks.json`, enables the hooks feature flag, records the trust hashes in `config.toml`, and backs up `hooks.json` first. A finished turn arrives as `my-app · Codex` at default priority; an approval request arrives urgent, on your desktop and phone, so the run never sits blocked while you are in another window. The approval path is proven in CI by driving the real Codex TUI through a permission modal.",
+            text: "The wizard detects `~/.codex`, writes `Stop`, `PermissionRequest`, and `SessionStart` hooks, plus `UserPromptSubmit` (1.8.0 and later), into `~/.codex/hooks.json`, enables the hooks feature flag, records the trust hashes in `config.toml`, and backs up `hooks.json` first. A finished turn arrives as `my-app · Codex` at default priority; an approval request arrives urgent, on your desktop and phone, so the run never sits blocked while you are in another window. The approval path is proven in CI by driving the real Codex TUI through a permission modal.",
           },
           ...WHAT_ANOTIFIER_ADDS,
         ],
@@ -760,7 +758,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "To skip the wiring, run `npx anotifier@latest setup` in PowerShell. On Windows it writes `Stop`, `PermissionRequest`, and `SessionStart` hooks into `%USERPROFILE%\\.codex\\hooks.json`, turns on the hooks feature flag, records the trust hashes in `config.toml`, and backs up `hooks.json` first. It then checks for PowerShell 7 (`pwsh`) and installs the BurntToast module for your user with `Install-Module BurntToast -Scope CurrentUser`; if `pwsh` is missing it prints `winget install --id Microsoft.PowerShell --source winget`. Toasts then arrive as `my-app · Codex` with the Codex icon and a Windows notification sound, and clicking one brings the terminal window forward. `anotifier test toast` confirms it works. The [Windows and WSL guide](/guides/windows-wsl-notifications/#native-windows) has the details, including click-to-focus and a fix table for toasts that do not show.",
+            text: "To skip the wiring, run `npx anotifier@latest setup` in PowerShell. On Windows it writes `Stop`, `PermissionRequest`, and `SessionStart` hooks, plus `UserPromptSubmit` (1.8.0 and later), into `%USERPROFILE%\\.codex\\hooks.json`, turns on the hooks feature flag, records the trust hashes in `config.toml`, and backs up `hooks.json` first. It then checks for PowerShell 7 (`pwsh`) and installs the BurntToast module for your user with `Install-Module BurntToast -Scope CurrentUser`; if `pwsh` is missing it prints `winget install --id Microsoft.PowerShell --source winget`. Toasts then arrive as `my-app · Codex` with the Codex icon and a Windows notification sound, and clicking one brings the terminal window forward. `anotifier test toast` confirms it works. The [Windows and WSL guide](/guides/windows-wsl-notifications/#native-windows) has the details, including click-to-focus and a fix table for toasts that do not show.",
           },
           {
             kind: "note",
@@ -966,10 +964,10 @@ const AGENT_GUIDES: Guide[] = [
           {
             kind: "ul",
             items: [
-              "**One alert per finished run,** titled `Cursor` and saying `Task complete`, as a toast, a phone push and a webhook message (whichever you enabled). A second `stop` within 1.5 seconds is dropped, because Cursor can fire the hook twice in quick succession.",
-              "**No project name.** Cursor's docs list `workspace_roots` in the hook input, but anotifier reads `cwd` and `workspacePaths` and not `workspace_roots`, so every Cursor alert looks the same. With several windows open, the hand-written script above is the way to name the project.",
-              "**No status.** anotifier doesn't read `status`, so a run you stopped or one that ended in an error says `Task complete` too.",
-              "**No click-to-focus.** The Windows toast jumps to a window by project folder, and a Cursor alert has none, so there is no click action.",
+              "**One alert per finished run,** titled `my-app · Cursor` and saying `my-app: Task complete` (just `Cursor` and `Task complete` before 1.8.0), as a toast, a phone push and a webhook message (whichever you enabled). A second `stop` for the same conversation within 1.5 seconds is dropped, because Cursor can fire the hook twice in quick succession.",
+              "**Project name from 1.8.0.** Cursor's docs list `workspace_roots` in the hook input, and anotifier 1.8.0 and later names the project from the first one. Before 1.8.0 every Cursor alert looked the same and the hand-written script above was the way to name the project.",
+              "**Status from 1.8.0.** anotifier 1.8.0 and later reads `status`: a run that ended in an error says `Task failed`, and a run you aborted sends no alert. Before 1.8.0 both said `Task complete`.",
+              "**Click-to-focus on Windows from 1.8.0.** The Windows toast jumps to a window by project folder, which a Cursor alert now has. Before 1.8.0 it had none, so there was no click action.",
               '**Only `stop`.** There is no alert for "waiting for approval". Leave Cursor\'s own OS notification on for that.',
               "**Not driven by a live Cursor.** CI checks that setup writes and removes the hook correctly; it doesn't run a real Cursor agent end to end.",
             ],
@@ -992,7 +990,7 @@ const AGENT_GUIDES: Guide[] = [
           { kind: "code", lang: "json", code: CURSOR_HOOK_NTFY },
           {
             kind: "p",
-            text: "With anotifier, answer yes to the ntfy question during setup. It creates a random topic, you subscribe to it in the app, and `anotifier test ntfy` should buzz your phone. The push is titled `Cursor` with the body `Task complete`. The full walkthrough is in the [phone push guide](/guides/ntfy-phone-notifications/).",
+            text: "With anotifier, answer yes to the ntfy question during setup. It creates a random topic, you subscribe to it in the app, and `anotifier test ntfy` should buzz your phone. The push is titled `my-app · Cursor` with the body `my-app: Task complete` (1.8.0 and later; earlier versions say just `Cursor` and `Task complete`). The full walkthrough is in the [phone push guide](/guides/ntfy-phone-notifications/).",
           },
           {
             kind: "p",
@@ -1058,8 +1056,8 @@ const AGENT_GUIDES: Guide[] = [
               ],
               [
                 "`Task complete` after I stopped the agent or it errored",
-                "anotifier doesn't read the event's `status`",
-                "Use the script above, which prints `completed`, `aborted` or `error`",
+                "anotifier before 1.8.0 didn't read the event's `status`",
+                "Update to anotifier 1.8.0 or later (an error says `Task failed`, an abort sends nothing), or use the script above, which prints `completed`, `aborted` or `error`",
               ],
               [
                 "Toast works, phone doesn't",

@@ -273,7 +273,7 @@ export const WSL_GUIDES: Guide[] = [
               "**`setup`** looks for a reachable Windows PowerShell. If it finds none, it turns the toast channel off and tells you to enable interop (`[interop] enabled=true` in `/etc/wsl.conf`). Run `setup` again once it works and toasts come back on. Toasts you turned off yourself stay off.",
               "**`doctor`** checks that `wslpath` exists and that one of the PowerShell executables above is reachable. It fails with a hint if either is missing. It does not fire a toast, and `doctor --deep` has no WSL read-back, so `anotifier test toast` is the real delivery check.",
               "**A toast that fails** is logged to `~/.anotifier/errors.log` as `toast:wsl`, and `status` shows the recent errors. Each attempt has a 7 second limit.",
-              "**Limits:** the toast has a title and a message and nothing else: no custom sound, no per-agent icon, no click-to-focus. It shows under Windows PowerShell's name, like the script above. The terminal bell and phone push behave as on native Linux. There is no end-to-end CI test of a WSL toast landing on a Windows desktop. Detection and the interop call are unit-tested.",
+              "**Limits:** the toast has a title and a message and nothing else: no per-agent icon, no click-to-focus, and no sound unless `toastSound` is the path of an audio file of your own (1.8.0 and later, played by Windows). It shows under Windows PowerShell's name, like the script above. The terminal bell and phone push behave as on native Linux. There is no end-to-end CI test of a WSL toast landing on a Windows desktop. Detection and the interop call are unit-tested.",
               "`status` and `doctor` have named WSL as its own platform since 1.3.0. Older versions describe it as Linux and may warn that `notify-send` is missing, which does not apply here.",
             ],
           },
@@ -315,7 +315,7 @@ export const WSL_GUIDES: Guide[] = [
       },
       {
         q: "What does anotifier do in WSL?",
-        a: "It detects WSL, wires the agent hooks in your Linux home directory, and sends each toast through a bundled PowerShell script run via interop. status and doctor report WSL as its own platform, and a failed toast is logged to ~/.anotifier/errors.log. The toast has no custom sound, icon, or click-to-focus.",
+        a: "It detects WSL, wires the agent hooks in your Linux home directory, and sends each toast through a bundled PowerShell script run via interop. status and doctor report WSL as its own platform, and a failed toast is logged to ~/.anotifier/errors.log. The toast has no icon or click-to-focus, and no sound unless the toastSound setting is an audio file of your own (1.8.0 and later).",
       },
     ],
   },
