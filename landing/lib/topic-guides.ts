@@ -435,7 +435,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "agent-hooks-explained",
-    updated: "2026-10-12",
+    updated: "2026-10-22",
     kind: "topic",
     name: "Agent hooks",
     title: "Agent Hooks Explained: Claude Code, Codex, Cursor, Gemini",
@@ -443,12 +443,16 @@ export const TOPIC_GUIDES: Guide[] = [
       "Which hook events Claude Code, Codex CLI, Cursor and Gemini CLI fire when they finish or need you, where each is configured, and what anotifier writes.",
     h1: "How agent hooks power your notifications",
     intro:
-      "Every coding agent anotifier supports can run a command at fixed points in its lifecycle. Those hooks are all anotifier uses: setup adds one entry per event to each agent's own config file, the agent runs it, and the hook turns the event into a notification. No wrapper, no daemon, no polling. This page lists exactly what gets written where, and what happens when a hook fires. A hook runs with your user permissions, so see [Claude Code hooks security](/guides/claude-code-hooks-security/) for how to audit hooks and what anotifier's own hooks send.",
+      "Every coding agent anotifier supports can run a command at fixed points in its lifecycle. Those hooks are all anotifier uses: setup adds one entry per event to each agent's own config file, the agent runs it, and the hook turns the event into a notification. No wrapper, no daemon, no polling. This page lists exactly what gets written where, and what happens when a hook fires. Hooks run with your user permissions, so audit them before you trust them.",
     sections: [
       {
         id: "events",
         title: "The events, per agent",
         blocks: [
+          {
+            kind: "note",
+            text: "Wondering whether hooks are safe? That has its own guide: [Claude Code hooks security](/guides/claude-code-hooks-security/) shows where hooks come from, how to audit them with `/hooks`, and how to lock them down.",
+          },
           {
             kind: "table",
             head: ["Agent", "Config file", "Finished", "Needs you", "Timeout"],

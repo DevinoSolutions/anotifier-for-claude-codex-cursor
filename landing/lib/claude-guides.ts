@@ -39,7 +39,7 @@ export const WINDOWS_SOUND = (file: string) =>
 export const CLAUDE_GUIDES: Guide[] = [
   {
     slug: "claude-code-permission-notifications",
-    updated: "2026-10-16",
+    updated: "2026-10-22",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code permissions",
@@ -273,7 +273,7 @@ export const CLAUDE_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "Anyone who knows a public ntfy.sh topic can read it, so send generic text only. The [ntfy guide](/guides/ntfy-phone-notifications/) covers private topics and self-hosting.",
+            text: "Anyone who knows a public ntfy.sh topic can read it, so send generic text only. The [ntfy guide](/guides/ntfy-phone-notifications/) covers private topics and self-hosting. If your team already lives in Discord, anotifier can also post the same alerts to a [Discord channel](/discord/) through a webhook.",
           },
         ],
       },
@@ -288,7 +288,7 @@ export const CLAUDE_GUIDES: Guide[] = [
               '**Test the command by itself.** In a POSIX shell (WSL on Windows), pipe a sample event into it: `echo \'{"notification_type":"permission_prompt","message":"test"}\' | sh ~/.claude/hooks/needs-you.sh`. If no banner appears, the problem is the command (a missing `jq`, `notify-send` or Script Editor permission), not Claude Code.',
               "**Confirm the hook is registered.** Type `/hooks` in Claude Code and select `Notification`. The matcher must be one of the [types above](#types), spelled exactly.",
               "**You answered too fast.** `permission_prompt` only runs after the prompt has waited about six seconds, and an answer from you before that cancels it (in Claude Desktop and VS Code, an answer from a `PermissionRequest` hook does too). In a terminal, each keystroke while the prompt is open pushes the timer back again.",
-              "**You are in Claude Desktop or the VS Code extension.** They answer permission requests through the Agent SDK. The notification fires about six seconds after the request there, typing does not delay it, and before v2.1.233 it did not fire at all. Check that `CLAUDE_CODE_DISABLE_PERMISSION_PROMPT_NOTIFY_HOOKS` is not set to `1`.",
+              "**You are in Claude Desktop or the VS Code extension.** They answer permission requests through the Agent SDK. The notification fires about six seconds after the request there, typing does not delay it, and before v2.1.233 it did not fire at all. Check that `CLAUDE_CODE_DISABLE_PERMISSION_PROMPT_NOTIFY_HOOKS` is not set to `1`. anotifier's hooks fire in the VS Code extension too; [anotifier in VS Code](/vscode/) shows how.",
               "**Another dialog is already open: the alert can come early.** A permission request that arrives behind an open dialog keeps the six-second gate, timed from when it arrives, so its notification can reach you while the request still waits in the queue. That is not a missing alert, just an early one.",
               "**A sandboxed command's network request in an older terminal.** `permission_prompt` covers it from v2.1.246. A `PermissionRequest` hook never runs for it, so use `permission_prompt` there.",
               "**Desktop notifications being off is not the cause.** Hooks run even when `preferredNotifChannel` is `notifications_disabled`; that setting only changes how Claude Code alerts you itself.",
@@ -1494,18 +1494,37 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
   },
   {
     slug: "claude-code-hooks-security",
-    updated: "2026-10-12",
+    updated: "2026-10-22",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code hooks security",
     icon: "/assets/icons/claude.png",
-    title: "Claude Code Hooks Security: What Runs and How to Audit It",
+    title: "Claude Code Hooks Security: Are They Safe? How to Audit",
     description:
-      "Claude Code hooks run shell commands with your full user permissions. See where they come from, how to audit them with /hooks, and how to lock them down.",
-    h1: "Claude Code hooks security: what hooks can run and how to audit them",
+      "Claude Code hooks security: hooks run shell commands with your full user permissions. Audit them with /hooks, then lock them down with a few settings.",
+    h1: "Claude Code hooks security: are hooks safe, and how to audit them",
     intro:
-      "A Claude Code hook is a shell command that runs with your full user permissions. Anyone who can put one in a settings file, a plugin or a repository you trust can run code as you. Hooks come from your user, project and local settings files, from plugins, from skill and subagent frontmatter, and from managed policy. Type `/hooks` to see every active hook and where it came from. Set `disableAllHooks` to switch them all off, and an admin can set `allowManagedHooksOnly` to block everything except managed hooks. Codex CLI, Gemini CLI and Cursor work the same way, each with its own review step. The last section lists exactly what anotifier's own hooks do.",
+      "A Claude Code hook is a shell command that runs with your full user permissions, so anyone who can add one to a settings file, plugin or repository you trust can run code as you. Type `/hooks` to see every active hook and where it came from.",
     sections: [
+      {
+        id: "answer",
+        title: "Are Claude Code hooks safe? The short answer",
+        blocks: [
+          {
+            kind: "p",
+            text: "Hooks are safe when you know where each one came from, and unsafe when you don't. A `command` hook is a shell command with your full user permissions, so it can read or change anything your account can and can make network requests. The risk is who gets to add one: a cloned repository, a plugin or a skill can all carry hooks. Claude Code gives you the tools to check, covered below.",
+          },
+          {
+            kind: "ol",
+            items: [
+              "**List every hook.** Type `/hooks` in Claude Code. It shows each hook, where it came from and the full text of what it runs.",
+              "**Read the sources.** Open `~/.claude/settings.json`, each project's `.claude/settings.json` and `.claude/settings.local.json`, and each enabled plugin's `hooks/hooks.json`.",
+              "**Review a repository before you trust it.** After a `git pull`, read the diff of `.claude/` as well as the code.",
+              "**Switch hooks off for untrusted code.** Pass `claude --settings '{\"disableAllHooks\": true}'`, or have an admin set `allowManagedHooksOnly`.",
+            ],
+          },
+        ],
+      },
       {
         id: "what",
         title: "What a hook is allowed to run",
@@ -1832,6 +1851,10 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
       },
     ],
     faqs: [
+      {
+        q: "Are Claude Code hooks safe to use?",
+        a: "They are safe when you know where each one came from. A command hook runs with your full user permissions, so the risk is a hook you did not write: one in a repository you cloned, a plugin or a skill. Type /hooks to list every active hook with its source, read the settings files it points to, and use disableAllHooks or allowManagedHooksOnly for code you do not trust.",
+      },
       {
         q: "Can a Claude Code hook run any command?",
         a: "Yes. A command hook runs a shell command with your full user permissions, so it can read, change or delete anything your user account can, and it can make network requests. Claude Code's docs say to review and test every hook command before you add it.",
