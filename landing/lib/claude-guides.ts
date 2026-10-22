@@ -824,7 +824,7 @@ export const CLAUDE_GUIDES: Guide[] = [
       },
       {
         q: "Where do I run claude config set --global preferredNotifChannel terminal_bell?",
-        a: 'In your shell, in a normal terminal, not at the Claude Code prompt inside a session. Claude Code\'s current docs don\'t list a claude config set command, though; they show the same setting as a line in ~/.claude/settings.json: { "preferredNotifChannel": "terminal_bell" }. Add that line to the file.',
+        a: 'You don\'t. That command comes from older Claude Code tutorials. Current Claude Code has no claude config subcommand, and the current docs don\'t list one. Set the same option by adding { "preferredNotifChannel": "terminal_bell" } to ~/.claude/settings.json.',
       },
       {
         q: "Why doesn't Claude Code make a sound in Apple Terminal?",

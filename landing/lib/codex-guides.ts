@@ -99,7 +99,7 @@ export const CODEX_GUIDES: Guide[] = [
           },
           {
             kind: "note",
-            text: "`notifications = true`, the default, allows every type, and `false` turns them all off. There is no `none` method, so use `notifications = false` to silence Codex. The type names come from Codex CLI 0.157; Codex ignores a name it doesn't know, so an older version simply never matches the newer ones.",
+            text: "`notifications = true`, the default, allows every type, and `false` turns them all off. There is no `none` method, so use `notifications = false` to silence Codex. The type names are current as of Codex CLI 0.163; Codex ignores a name it doesn't know, so an older version simply never matches the newer ones.",
           },
         ],
       },
@@ -160,9 +160,10 @@ export const CODEX_GUIDES: Guide[] = [
             items: [
               "**Turn them all off:** set `notifications = false` under `[tui]` in `~/.codex/config.toml`.",
               '**Keep only some:** list the types you want, such as `notifications = ["approval-requested"]`, and leave out `agent-turn-complete` to stop the ding on every finished turn. The types are in the table [above](#config).',
-              '**It is the terminal\'s bell:** with `notification_method = "bel"`, or `auto` in a terminal that has no desktop notifications, the sound is your terminal\'s. Mute it there: `"bellStyle": "none"` in Windows Terminal, `"accessibility.signals.terminalBell": { "sound": "off" }` in VS Code, or turn off Audible bell under Settings > Profiles > Advanced in Apple Terminal.',
+              '**It is the terminal\'s bell:** with `notification_method = "bel"`, or `auto` in any terminal other than Ghostty, iTerm2, Kitty, Warp and WezTerm, the sound is your terminal\'s. Mute it there: `"bellStyle": "none"` in Windows Terminal, `"accessibility.signals.terminalBell": { "sound": "off" }` in VS Code, or turn off Audible bell under Settings > Profiles > Advanced in Apple Terminal.',
+              "**It is a desktop banner from your terminal app:** in Ghostty, iTerm2, Kitty, Warp or WezTerm, `auto` sends a desktop notification, so turn off banners or sounds for that app in your OS notification settings.",
               "**It is a notify program:** remove or comment out the `notify = [...]` line in `~/.codex/config.toml`. Codex runs that program on each finished turn, whatever `[tui]` says.",
-              "**It is a hook:** delete the `Stop` or `PermissionRequest` entry from `~/.codex/hooks.json`.",
+              "**It is a hook:** delete the `Stop` or `PermissionRequest` entry wherever you added it, such as `~/.codex/hooks.json`.",
             ],
           },
           {
