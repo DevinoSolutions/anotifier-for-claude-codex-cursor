@@ -79,14 +79,17 @@ const FAQ: { q: string; a: Part[] }[] = [
       { href: "/guides/codex-cli-notifications/", text: "Codex CLI" },
       " or ",
       { href: "/guides/gemini-cli-notifications/", text: "Gemini CLI" },
-      ". Each one lists the built-in option first, then the hook that never misses.",
+      ". Each one lists the built-in option first, then the hook route.",
     ],
   },
   {
     q: "I want a ping on my phone when I am away from my desk.",
     a: [
       "Follow the ",
-      { href: "/guides/ntfy-phone-notifications/", text: "ntfy phone push guide" },
+      {
+        href: "/guides/ntfy-phone-notifications/",
+        text: "ntfy phone push guide",
+      },
       ". To post into a team chat instead, set up a ",
       { href: "/discord/", text: "Discord webhook" },
       ".",
@@ -96,17 +99,23 @@ const FAQ: { q: string; a: Part[] }[] = [
     q: "I use Windows with WSL and no toast appears.",
     a: [
       "Read ",
-      { href: "/guides/windows-wsl-notifications/", text: "Windows and WSL notifications" },
+      {
+        href: "/guides/windows-wsl-notifications/",
+        text: "Windows and WSL notifications",
+      },
       ", then ",
       { href: "/guides/wsl-notify-send/", text: "the WSL toast guide" },
-      ", which shows a toast through powershell.exe with nothing extra to install.",
+      ", which covers several options, and one of them calls powershell.exe with nothing extra to install.",
     ],
   },
   {
     q: "I only want a sound, not a banner.",
     a: [
       "Use the ",
-      { href: "/guides/claude-code-notification-sound/", text: "Claude Code sound guide" },
+      {
+        href: "/guides/claude-code-notification-sound/",
+        text: "Claude Code sound guide",
+      },
       " or the guide to ",
       { href: "/guides/codex-notification-sound/", text: "making Codex ding" },
       ".",
@@ -116,7 +125,10 @@ const FAQ: { q: string; a: Part[] }[] = [
     q: "Everything is set up but nothing arrives.",
     a: [
       "Run anotifier doctor, then work through the ",
-      { href: "/guides/notifications-not-working/", text: "troubleshooting guide" },
+      {
+        href: "/guides/notifications-not-working/",
+        text: "troubleshooting guide",
+      },
       " in order.",
     ],
   },
@@ -177,7 +189,8 @@ export default function GuidesIndex() {
     },
     {
       "@context": "https://schema.org",
-      "@type": "BreadcrumbList",      itemListElement: [
+      "@type": "BreadcrumbList",
+      itemListElement: [
         {
           "@type": "ListItem",
           position: 1,
@@ -215,19 +228,18 @@ export default function GuidesIndex() {
             The guides are grouped by what you are trying to do. Start with the
             guide for your agent. If you already know the piece you need, such
             as a sound, a phone alert or a Windows fix, jump to that group.
-            Every guide works on the same hooks, so the setup you do for one
-            agent carries over to the others. Running <code>npx anotifier@latest setup</code>{" "}
-            once wires the agents it detects, and the guides explain what it
-            wrote and how to change it.
+            Running <code>npx anotifier@latest setup</code> once wires every
+            agent it detects, each in its own hook file, and the guides explain
+            what it wrote and how to change it.
           </p>
           <p>
-            Agents that run inside an editor are covered too. Claude Code and Codex
-            CLI both work from VS Code&apos;s integrated terminal, and Claude
-            Code also runs as an extension, so see{" "}
+            Agents that run inside an editor are covered too. Claude Code and
+            Codex CLI both work from VS Code&apos;s integrated terminal, and
+            Claude Code also runs as an extension, so see{" "}
             <Link href="/vscode/">anotifier in VS Code</Link> for what the hooks
             do there. Gemini CLI has its own page at{" "}
-            <Link href="/gemini-cli/">/gemini-cli/</Link> with the hook events
-            and config it uses.
+            <Link href="/gemini-cli/">Gemini CLI notifications</Link> with the
+            hook events and config it uses.
           </p>
         </section>
 
@@ -236,7 +248,7 @@ export default function GuidesIndex() {
           <p>
             One main guide per agent covers the built-in option, the hooks you
             can write yourself and the one-command setup. Claude Code has the
-            most follow-ups because it fires the most events.
+            most follow-up guides.
           </p>
           {AGENT_GROUPS.map((group) => (
             <div key={group.name}>
