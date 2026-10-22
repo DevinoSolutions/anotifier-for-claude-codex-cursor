@@ -4,7 +4,7 @@ import { WINDOWS_SOUND, json } from "./claude-guides";
 /**
  * Codex CLI deep dive: sounds and approval alerts. Codex facts follow its docs
  * (developers.openai.com/codex/config-advanced and /codex/hooks) and the
- * openai/codex source at rust-v0.157.1 (tui/src/notifications,
+ * openai/codex source at rust-v0.163.0 (tui/src/notifications,
  * tui/src/chatwidget/notifications.rs, config/src/types.rs); anotifier facts
  * are checked against the package source for the version in lib/site.ts.
  */
@@ -23,7 +23,7 @@ const soundHook = (macSound: string, windowsFile: string) => ({
 export const CODEX_GUIDES: Guide[] = [
   {
     slug: "codex-notification-sound",
-    updated: "2026-10-16",
+    updated: "2026-10-22",
     kind: "topic",
     agentSlug: "codex",
     name: "Codex CLI sounds",
@@ -33,7 +33,7 @@ export const CODEX_GUIDES: Guide[] = [
       'Make Codex ding when it needs approval or a response: set notification_condition = "always" under [tui] in ~/.codex/config.toml, or play a sound from a hook.',
     h1: "Make Codex CLI ding when it needs your approval or a response",
     intro:
-      'Codex CLI already notifies you when it needs approval or a response from you, but by default only while its terminal is in the background, and in some terminals as a silent banner. Under `[tui]` in `~/.codex/config.toml`, set `notification_condition = "always"` to be alerted even when the window is in front, and `notification_method = "bel"` to get the terminal bell instead of a banner. For a real sound file, add a `PermissionRequest` hook that plays one. Here are both, plus how to ding only when Codex is waiting on you. For the rest of the notification setup (desktop toasts, the `notify` command, phone alerts) see [Codex CLI notifications](/guides/codex-cli-notifications/).',
+      'Codex CLI already notifies you when it needs approval or a response from you, but by default only while its terminal is in the background, and in some terminals as a silent banner. Under `[tui]` in `~/.codex/config.toml`, set `notification_condition = "always"` to be alerted even when the window is in front, and `notification_method = "bel"` to get the terminal bell instead of a banner. For a real sound file, add a `PermissionRequest` hook that plays one. Here are both, plus how to ding only when Codex is waiting on you. For the rest of the notification setup (desktop toasts, the `notify` command, phone alerts) see [Codex CLI notifications](/guides/codex-cli-notifications/). To turn the alerts off instead, see [how to mute them](#mute).',
     sections: [
       {
         id: "builtin",
@@ -148,6 +148,35 @@ export const CODEX_GUIDES: Guide[] = [
         ],
       },
       {
+        id: "mute",
+        title: "How to mute or turn off Codex notifications",
+        blocks: [
+          {
+            kind: "p",
+            text: "Codex keeps notifying because the TUI notifications are on by default. It sends one each time a turn ends, when it asks to run a command or edit files, when an MCP server asks for approval, and when a Plan mode prompt or a question is waiting, and by default it does so while the terminal is unfocused. Pick the way to quiet it that matches what you hear:",
+          },
+          {
+            kind: "ul",
+            items: [
+              "**Turn them all off:** set `notifications = false` under `[tui]` in `~/.codex/config.toml`.",
+              '**Keep only some:** list the types you want, such as `notifications = ["approval-requested"]`, and leave out `agent-turn-complete` to stop the ding on every finished turn. The types are in the table [above](#config).',
+              '**It is the terminal\'s bell:** with `notification_method = "bel"`, or `auto` in a terminal that has no desktop notifications, the sound is your terminal\'s. Mute it there: `"bellStyle": "none"` in Windows Terminal, `"accessibility.signals.terminalBell": { "sound": "off" }` in VS Code, or turn off Audible bell under Settings > Profiles > Advanced in Apple Terminal.',
+              "**It is a notify program:** remove or comment out the `notify = [...]` line in `~/.codex/config.toml`. Codex runs that program on each finished turn, whatever `[tui]` says.",
+              "**It is a hook:** delete the `Stop` or `PermissionRequest` entry from `~/.codex/hooks.json`.",
+            ],
+          },
+          {
+            kind: "code",
+            lang: "toml",
+            code: "[tui]\nnotifications = false",
+          },
+          {
+            kind: "p",
+            text: "If you installed anotifier, its alerts are separate from Codex's own. `npx anotifier@latest snooze 2h` silences every anotifier channel for two hours (`snooze off` cancels it). To turn the toast off for good, set `toast.enabled` to `false` in `~/.anotifier/config.json`, and set `terminalBell.enabled` to `false` for its terminal bell. `npx anotifier@latest uninstall` removes its hooks.",
+          },
+        ],
+      },
+      {
         id: "anotifier",
         title: "Sounds and phone alerts with anotifier",
         blocks: [
@@ -185,6 +214,14 @@ export const CODEX_GUIDES: Guide[] = [
       {
         q: "Can Codex ding only when it is waiting on me, not when it finishes?",
         a: 'Yes. List only the types that wait on you, such as notifications = ["approval-requested", "plan-mode-prompt", "async-question"], and leave out agent-turn-complete. A PermissionRequest hook also fires only for approvals.',
+      },
+      {
+        q: "How do I mute Codex CLI notifications?",
+        a: 'Set notifications = false under [tui] in ~/.codex/config.toml to turn them all off, or list only the types you want, such as notifications = ["approval-requested"]. If what you hear is the terminal bell, mute it in the terminal: bellStyle none in Windows Terminal, accessibility.signals.terminalBell off in VS Code, or Audible bell off in Apple Terminal. Also remove any notify = [...] line or hook you added.',
+      },
+      {
+        q: "Why do Codex notifications keep coming up?",
+        a: "Codex notifies when a turn ends, when it asks to run a command or edit files, and when a Plan mode prompt or question is waiting. By default it does this while its terminal is unfocused, so switching to another window triggers them. Set notifications = false under [tui] in ~/.codex/config.toml to stop them.",
       },
       {
         q: "Why doesn't Codex make a sound?",
