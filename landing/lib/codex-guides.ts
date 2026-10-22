@@ -33,7 +33,7 @@ export const CODEX_GUIDES: Guide[] = [
       'Make Codex ding when it needs approval or a response: set notification_condition = "always" under [tui] in ~/.codex/config.toml, or play a sound from a hook.',
     h1: "Make Codex CLI ding when it needs your approval or a response",
     intro:
-      'Codex CLI already notifies you when it needs approval or a response from you, but by default only while its terminal is in the background, and in some terminals as a silent banner. Under `[tui]` in `~/.codex/config.toml`, set `notification_condition = "always"` to be alerted even when the window is in front, and `notification_method = "bel"` to get the terminal bell instead of a banner. For a real sound file, add a `PermissionRequest` hook that plays one. Here are both, plus how to ding only when Codex is waiting on you. For the rest of the notification setup (desktop toasts, the `notify` command, phone alerts) see [Codex CLI notifications](/guides/codex-cli-notifications/). To turn the alerts off instead, see [how to mute them](#mute).',
+      'To make Codex CLI play a sound when it finishes, keep `agent-turn-complete` in the `[tui]` `notifications` list and set `notification_method = "bel"`; for a sound file of your own, add a `Stop` hook that plays it. The same settings cover approval prompts. Codex CLI already notifies you when it needs approval or a response from you, but by default only while its terminal is in the background, and in some terminals as a silent banner. Under `[tui]` in `~/.codex/config.toml`, set `notification_condition = "always"` to be alerted even when the window is in front, and `notification_method = "bel"` to get the terminal bell instead of a banner. For a real sound file, add a `PermissionRequest` hook that plays one. Here are both, plus how to ding only when Codex is waiting on you. For the rest of the notification setup (desktop toasts, the `notify` command, phone alerts) see [Codex CLI notifications](/guides/codex-cli-notifications/). To turn the alerts off instead, see [how to mute them](#mute).',
     sections: [
       {
         id: "builtin",
@@ -229,8 +229,8 @@ export const CODEX_GUIDES: Guide[] = [
         a: "By default Codex notifies only while its terminal is unfocused, and in Ghostty, iTerm2, Kitty, Warp and WezTerm it sends a desktop notification instead of ringing the bell. Also check that your terminal's bell isn't muted and that notifications isn't set to false under [tui].",
       },
       {
-        q: "Can Codex play a sound when it finishes?",
-        a: "Yes. Keep agent-turn-complete in the [tui] notifications list, or add a Stop hook that plays a file. The notify setting also fires on agent-turn-complete and can run any script.",
+        q: "How do I make Codex play a sound when it finishes?",
+        a: 'Keep agent-turn-complete in the [tui] notifications list and set notification_method = "bel" to get the terminal bell, or add a Stop hook that plays a sound file. Add notification_condition = "always" to hear it even while the Codex window is in front. The notify setting also fires on agent-turn-complete and can run any script that plays a sound.',
       },
       {
         q: "Does a sound hook slow Codex down?",
