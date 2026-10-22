@@ -640,7 +640,7 @@ const AGENT_GUIDES: Guide[] = [
       "Get a desktop toast, a sound or a phone alert when Codex CLI finishes or needs approval: built-in settings, hooks, or one setup command.",
     h1: "Codex CLI notifications: get alerted when it finishes or needs approval",
     intro:
-      "Codex CLI already notifies you when a turn ends or an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else, including Windows Terminal and VS Code. For alerts you can't miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option, then [Codex on Windows](#windows) and [how to turn the alerts off](#mute).",
+      'To get Codex CLI to notify you when it is done, you often need no setup. The built-in `[tui]` notifications fire when a turn finishes and when an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else, including Windows Terminal and VS Code. Set `notification_condition = "always"` to get them with the window in front too. For alerts you will not miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option, then [Codex on Windows](#windows), [how to make Codex play a sound](/guides/codex-notification-sound/) and [how to turn the alerts off](#mute).',
     sections: [
       {
         id: "builtin",
@@ -828,6 +828,10 @@ const AGENT_GUIDES: Guide[] = [
       },
     ],
     faqs: [
+      {
+        q: "How do I get Codex to notify me when it is done?",
+        a: 'Codex already does when a turn finishes, as long as its terminal is in the background: set notification_condition = "always" under [tui] in ~/.codex/config.toml to get it even while the window is in front. To run your own script on every finished turn, set notify = ["python3", "/path/to/script.py"] at the top level of config.toml, above any [table] header; Codex calls it on agent-turn-complete with a JSON payload as the last argument. For a desktop toast and, if you set it up, a phone alert, run npx anotifier@latest setup.',
+      },
       {
         q: "Does Codex CLI have built-in desktop notifications?",
         a: "Yes. The Codex TUI notifies when a turn ends and when an approval, Plan mode prompt, or question is waiting: an OSC 9 desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, the terminal bell elsewhere (including Windows Terminal and the VS Code terminal), and by default only while the terminal is unfocused. It doesn't reach your phone.",
