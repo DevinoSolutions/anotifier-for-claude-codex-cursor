@@ -396,7 +396,7 @@ export const CLAUDE_GUIDES: Guide[] = [
   },
   {
     slug: "claude-code-notification-sound",
-    updated: "2026-10-16",
+    updated: "2026-10-22",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code sounds",
@@ -821,6 +821,10 @@ export const CLAUDE_GUIDES: Guide[] = [
       {
         q: "How do I make Claude Code play a sound when it's done?",
         a: 'Set "preferredNotifChannel": "terminal_bell" in ~/.claude/settings.json for the terminal bell, or add a Stop hook that plays a file: afplay /System/Library/Sounds/Glass.aiff on macOS, paplay with a freedesktop sound on Linux, or a PowerShell Media.SoundPlayer on Windows.',
+      },
+      {
+        q: "Where do I run claude config set --global preferredNotifChannel terminal_bell?",
+        a: 'You don\'t. That command comes from older Claude Code tutorials. Current Claude Code has no claude config subcommand, and the current docs don\'t list one. Set the same option by adding { "preferredNotifChannel": "terminal_bell" } to ~/.claude/settings.json.',
       },
       {
         q: "Why doesn't Claude Code make a sound in Apple Terminal?",
