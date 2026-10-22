@@ -39,7 +39,7 @@ export const WINDOWS_SOUND = (file: string) =>
 export const CLAUDE_GUIDES: Guide[] = [
   {
     slug: "claude-code-permission-notifications",
-    updated: "2026-10-16",
+    updated: "2026-10-22",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code permissions",
