@@ -630,22 +630,26 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "codex-cli-notifications",
-    updated: "2026-10-16",
+    updated: "2026-10-22",
     kind: "agent",
     agentSlug: "codex",
     name: "Codex CLI",
     icon: "/assets/icons/codex.png",
-    title: "Codex CLI Notifications: Desktop, Phone & Windows Setup",
+    title: "Codex CLI Notifications: Desktop, Sound & Phone Alerts",
     description:
-      "Codex CLI already notifies you, but only while its terminal is unfocused. Tune [tui] in config.toml, add a notify command or hooks, or get phone alerts.",
-    h1: "How to get notified when Codex CLI finishes or needs approval",
+      "Get a desktop toast, a sound or a phone alert when Codex CLI finishes or needs approval: built-in settings, hooks, or one setup command.",
+    h1: "Codex CLI notifications: get alerted when it finishes or needs approval",
     intro:
-      "Codex CLI already notifies you when a turn ends or an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else, including Windows Terminal and VS Code. For alerts you can't miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option, then [Codex on Windows](#windows) and [how to turn the alerts off](#mute). Want a sound? See how to [make Codex ding when it needs approval](/guides/codex-notification-sound/).",
+      "Codex CLI already notifies you when a turn ends or an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else, including Windows Terminal and VS Code. For alerts you can't miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option, then [Codex on Windows](#windows) and [how to turn the alerts off](#mute).",
     sections: [
       {
         id: "builtin",
         title: "Option 1: Codex's built-in TUI notifications",
         blocks: [
+          {
+            kind: "note",
+            text: "Only want a ding when Codex needs a response? See [how to make Codex ding when it needs your response](/guides/codex-notification-sound/).",
+          },
           {
             kind: "p",
             text: "The Codex TUI notifies you out of the box when a turn ends, when it asks to run a command or edit files, and when a Plan mode prompt or a question is waiting. It sends an OSC 9 desktop notification in terminals that support it and rings the bell in the rest, and by default only while the terminal is unfocused. Tune it under `[tui]` in `~/.codex/config.toml`:",
@@ -764,7 +768,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "Codex running inside WSL is the Linux build: it reads `~/.codex` in the distribution, so run `npx anotifier@latest setup` inside WSL. The toast then goes through Windows interop. See [how the WSL toast reaches Windows](/guides/windows-wsl-notifications/#wsl) and [Windows toast from WSL](/guides/wsl-notify-send/).",
+            text: "Codex running inside WSL is the Linux build: it reads `~/.codex` in the distribution, so run `npx anotifier@latest setup` inside WSL. The toast then goes through Windows interop. See [how the WSL toast reaches Windows](/guides/windows-wsl-notifications/#wsl) and [Windows toast from WSL](/guides/wsl-notify-send/). Codex also runs in VS Code's terminal; the [VS Code page](/vscode/) covers what changes over Remote-SSH and in dev containers.",
           },
         ],
       },
@@ -852,7 +856,7 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "cursor-agent-notifications",
-    updated: "2026-10-16",
+    updated: "2026-10-22",
     kind: "agent",
     agentSlug: "cursor",
     name: "Cursor",
@@ -997,7 +1001,7 @@ const AGENT_GUIDES: Guide[] = [
           { kind: "code", lang: "json", code: CURSOR_SLACK_CONFIG },
           {
             kind: "p",
-            text: "See the [Slack page](/slack/) for the webhook steps. Discord and Telegram use a different `format`.",
+            text: "See the [Slack page](/slack/) for the webhook steps. Discord and Telegram use a different `format`; the [Discord page](/discord/) has the webhook steps for a Discord channel.",
           },
         ],
       },
@@ -1015,7 +1019,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "Details for both are in [Claude Code and Codex notifications on Windows and WSL](/guides/windows-wsl-notifications/) and [Windows toast from WSL](/guides/wsl-notify-send/).",
+            text: "Details for both are in [Claude Code and Codex notifications on Windows and WSL](/guides/windows-wsl-notifications/) and [Windows toast from WSL](/guides/wsl-notify-send/). Cursor is a VS Code fork, and the [VS Code page](/vscode/) covers what changes when the agent runs inside the editor, including Remote-SSH and dev containers.",
           },
         ],
       },
