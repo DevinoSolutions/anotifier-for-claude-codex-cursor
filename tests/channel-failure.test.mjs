@@ -292,47 +292,53 @@ async function deadUrl() {
   return url;
 }
 
-// A server that holds every request until `hold.open()`, then answers `status`.
-function slowServer(hold, status) {
-  return http.createServer((req, res) => {
-    req.resume();
-    req.on('end', () => { hold.p.then(() => { res.statusCode = status; res.end('x'); }); });
-  });
-}
+const respondWith = (status) => http.createServer((req, res) => {
+  req.resume();
+  req.on('end', () => { res.statusCode = status; res.end('x'); });
+});
 const listen = (srv) => new Promise((r) => srv.listen(0, '127.0.0.1', r));
 const close = (srv) => { srv.closeAllConnections?.(); return new Promise((r) => srv.close(r)); };
 const urlOf = (srv) => `http://127.0.0.1:${srv.address().port}`;
 const gate = () => { let open; const p = new Promise((r) => { open = r; }); return { p, open }; };
 
+// Start `send` as its own scoped send, but keep it from finishing until
+// release() is called. By the time `noted` resolves, the send has already
+// recorded its failure reason, so a competing send run in between can only
+// disturb it if the two share state.
+function parked(send) {
+  const release = gate();
+  const noted = gate();
+  const result = scoped(async () => {
+    const ok = await send();
+    noted.open();
+    await release.p;
+    return ok;
+  });
+  return { result, noted: noted.p, release: release.open };
+}
+
 describe('concurrent sends on one channel keep their own reason', () => {
   const quiet = () => {};
   const killed = Object.assign(new Error('x'), { killed: true, signal: 'SIGTERM', code: null });
+  const fail = (props) => (c, a, o, cb) => cb(Object.assign(new Error('x'), props), '', '');
+  const note = { title: 'T', message: 'M' };
 
-  it('toast: a timeout is not turned into other by a second toast finishing first', async () => {
-    const slow = gate();
-    // First toast fails as a timeout, but only after the second one has finished.
-    const first = scoped(() => sendWindowsToast({ title: 'T', message: 'M' }, {
-      platform: 'win32', log: quiet,
-      execFileImpl: (c, a, o, cb) => { slow.p.then(() => cb(killed, '', '')); },
-    }));
-    // The second fails differently and settles while the first is still pending.
-    const second = await scoped(() => sendWindowsToast({ title: 'T', message: 'M' }, {
-      platform: 'win32', log: quiet, execFileImpl: (c, a, o, cb) => cb(Object.assign(new Error('x'), { code: 'ENOENT' }), '', ''),
-    }));
-    assert.deepEqual(second, { ok: false, reason: 'spawn_error' });
-    slow.open();
-    assert.deepEqual(await first, { ok: false, reason: 'timeout' });
+  it('windows toast: a timeout survives a second toast failing differently in between', async () => {
+    const a = parked(() => sendWindowsToast(note, { platform: 'win32', log: quiet, execFileImpl: fail(killed) }));
+    await a.noted;
+    const b = await scoped(() => sendWindowsToast(note, { platform: 'win32', log: quiet, execFileImpl: fail({ code: 'ENOENT' }) }));
+    a.release();
+    assert.deepEqual(b, { ok: false, reason: 'spawn_error' });
+    assert.deepEqual(await a.result, { ok: false, reason: 'timeout' });
   });
 
-  it('toast: a failing toast and a successful toast do not share a reason', async () => {
-    const slow = gate();
-    const failing = scoped(() => sendLinuxToast({ title: 'T', message: 'M' }, {
-      log: quiet, execFileImpl: (c, a, o, cb) => { slow.p.then(() => cb(Object.assign(new Error('x'), { code: 1 }), '', '')); },
-    }));
-    const ok = await scoped(() => sendLinuxToast({ title: 'T', message: 'M' }, { log: quiet, execFileImpl: (c, a, o, cb) => cb(null, '', '') }));
-    assert.equal(ok.ok, true);
-    slow.open();
-    assert.deepEqual(await failing, { ok: false, reason: 'exit_nonzero' });
+  it('linux toast: a non-zero exit survives a second toast failing differently in between', async () => {
+    const a = parked(() => sendLinuxToast(note, { log: quiet, execFileImpl: fail({ code: 1 }) }));
+    await a.noted;
+    const b = await scoped(() => sendLinuxToast(note, { log: quiet, execFileImpl: fail(killed) }));
+    a.release();
+    assert.deepEqual(b, { ok: false, reason: 'timeout' });
+    assert.deepEqual(await a.result, { ok: false, reason: 'exit_nonzero' });
   });
 
   it('wsl toast: the reason survives another toast finishing while the sound player is pending', async () => {
@@ -344,47 +350,46 @@ describe('concurrent sends on one channel keep their own reason', () => {
     const soundFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'aan-snd-')), 'a.wav');
     fs.writeFileSync(soundFile, 'x');
     const slowRun = { ...base, runToast: async () => timedOut, runPowerShell: async () => { await playerGate.p; return missing; } };
-    const first = scoped(() => sendWslToast({ title: 'T', message: 'M', toastSound: soundFile }, { log: quiet, run: slowRun }));
-    const second = await scoped(() => sendWslToast({ title: 'T', message: 'M' }, { log: quiet, run: { ...base, runToast: async () => missing } }));
+    const first = scoped(() => sendWslToast({ ...note, toastSound: soundFile }, { log: quiet, run: slowRun }));
+    const second = await scoped(() => sendWslToast(note, { log: quiet, run: { ...base, runToast: async () => missing } }));
     assert.deepEqual(second, { ok: false, reason: 'spawn_error' });
     playerGate.open();
     assert.deepEqual(await first, { ok: false, reason: 'timeout' });
   });
 
   it('ntfy: a send that fails over to a working fallback does not erase another send\'s failure', async () => {
-    const hold = gate();
-    const live = http.createServer((req, res) => { req.resume(); req.on('end', () => { res.statusCode = 200; res.end('x'); }); });
-    const broken = http.createServer((req, res) => { req.resume(); req.on('end', () => { res.statusCode = 503; res.end('x'); }); });
-    const slow = slowServer(hold, 503);
-    await Promise.all([live, broken, slow].map(listen));
+    const live = respondWith(200);
+    const broken = respondWith(503);
+    await Promise.all([live, broken].map(listen));
     try {
       const n = { title: 'T', message: 'm' };
-      // A: slow primary that ends in a 503, no fallback; finishes last.
-      const a = scoped(() => sendNtfy({ server: urlOf(slow), topic: 't' }, n));
-      // B: primary 503, then a working fallback; succeeds while A is in flight.
+      // A fails with a 503 and has recorded it; then B fails its primary, succeeds
+      // on the fallback and finishes; only then does A finish.
+      const a = parked(() => sendNtfy({ server: urlOf(broken), topic: 't' }, n));
+      await a.noted;
       const b = await scoped(() => sendNtfy({ server: urlOf(broken), topic: 't', fallbackServer: urlOf(live) }, n));
+      a.release();
       assert.equal(b.ok, true);
-      hold.open();
-      assert.deepEqual(await a, { ok: false, reason: 'http_5xx' });
+      assert.deepEqual(await a.result, { ok: false, reason: 'http_5xx' });
     } finally {
-      await Promise.all([live, broken, slow].map(close));
+      await Promise.all([live, broken].map(close));
     }
   });
 
-  it('ntfy: two failures at once keep different categories', async () => {
-    const hold = gate();
-    const slow = slowServer(hold, 404);
-    await listen(slow);
+  it('ntfy: two failures keep different categories', async () => {
+    const refusing = respondWith(404);
+    await listen(refusing);
     const dead = await deadUrl();
     try {
       const n = { title: 'T', message: 'm' };
-      const a = scoped(() => sendNtfy({ server: urlOf(slow), topic: 't' }, n));
+      const a = parked(() => sendNtfy({ server: urlOf(refusing), topic: 't' }, n));
+      await a.noted;
       const b = await scoped(() => sendNtfy({ server: dead, topic: 't' }, n));
+      a.release();
       assert.deepEqual(b, { ok: false, reason: 'network' });
-      hold.open();
-      assert.deepEqual(await a, { ok: false, reason: 'http_4xx' });
+      assert.deepEqual(await a.result, { ok: false, reason: 'http_4xx' });
     } finally {
-      await close(slow);
+      await close(refusing);
     }
   });
 });
