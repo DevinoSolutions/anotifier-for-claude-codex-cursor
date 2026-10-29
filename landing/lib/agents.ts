@@ -111,12 +111,12 @@ powershell.exe -Command "[System.Reflection.Assembly]::LoadWithPartialName('Syst
 export const AGENTS: Agent[] = [
   {
     slug: "claude-code",
-    updated: "2026-10-16",
+    updated: "2026-10-29",
     name: "Claude Code",
     linkText: "Claude Code notifier",
     title: "Claude Code Notifier — Desktop, Phone & Slack Alerts",
     description:
-      "anotifier is a free Claude Code notifier for Windows, macOS, Linux and WSL: a desktop, phone or Slack alert when Claude finishes or needs input.",
+      "anotifier is a free Claude notifier for Claude Code on Windows, macOS, Linux and WSL: a desktop, phone or Slack alert when Claude finishes or needs input.",
     h1: {
       pre: "anotifier: the ",
       em: "Claude Code notifier",
@@ -353,6 +353,11 @@ export const AGENTS: Agent[] = [
       },
     ],
     faqs: [
+      {
+        q: "What is a Claude Code notifier?",
+        aHtml:
+          "<p>A Claude Code notifier is a small tool that alerts you when Claude Code finishes a turn or needs your input, so you don't have to watch the terminal. anotifier is one: it registers <code>Stop</code> and <code>Notification</code> hooks in Claude Code's settings and sends a desktop toast, a phone push or a Slack, Discord or Telegram message. It runs on Windows, macOS, Linux and WSL, and starts with <code>npx anotifier@latest setup</code>.</p>",
+      },
       {
         q: "What is the best Claude Code notifier?",
         aHtml:
