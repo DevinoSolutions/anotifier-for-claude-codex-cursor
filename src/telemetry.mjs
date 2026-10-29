@@ -35,6 +35,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { getConfigDir, loadConfigResult } from './config-loader.mjs';
+import { failureReason } from './channel-failure.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -332,7 +333,7 @@ export async function flushTelemetry() {
 // ── Hook path: local counters + one daily summary ───────────────────
 
 // Record one hook run. `run` = { outcome, source, event, rawEvent?,
-// channels?: [{ channel, ok }], latencyMs? }. Writes nothing when telemetry is
+// channels?: [{ channel, ok, reason? }], latencyMs? }. Writes nothing when telemetry is
 // off — an opted-out install never grows a state file.
 export function recordHookRun(config, run, { env = process.env, statePath = STATE_PATH, now = Date.now() } = {}) {
   try {
@@ -355,10 +356,13 @@ export function recordHookRun(config, run, { env = process.env, statePath = STAT
       if (full && !(key in c.unmapped_events)) key = 'other';
       bump(c.unmapped_events, key);
     }
-    for (const { channel, ok } of run.channels || []) {
+    for (const { channel, ok, reason } of run.channels || []) {
       c.channels ??= {};
       const slot = (c.channels[pick(channel, KNOWN_CHANNELS)] ??= { ok: 0, fail: 0 });
       bump(slot, ok ? 'ok' : 'fail');
+      // Why it failed, from the fixed list only (a missing or unknown reason is
+      // 'other'). Counted beside ok/fail, which keep their old meaning.
+      if (!ok) { slot.reasons ??= {}; bump(slot.reasons, failureReason(reason)); }
     }
     if (typeof run.latencyMs === 'number' && run.latencyMs >= 0) {
       c.latency ??= {}; bump(c.latency, latencyBucket(run.latencyMs));

@@ -17,6 +17,7 @@ import { enableSentryMirror, logHookError, flushErrorReporting } from './error-l
 import { maybeNotifyUpdate } from './update-check.mjs';
 import { isSuppressed } from './suppress.mjs';
 import { recordHookRun, maybeSendHookSummary } from './telemetry.mjs';
+import { takeFailure } from './channel-failure.mjs';
 import { recordTurnStart, finishTurn, supportsTurnTiming, isBelowMinDuration } from './turn-timer.mjs';
 
 // Some tools (Cursor) fire the same hook twice simultaneously. Exclusive file
@@ -94,10 +95,12 @@ function readStdin() {
 // Run one channel send. Senders resolve booleans and log their own failure
 // detail at the source; this wrapper only has to catch unexpected throws so
 // one broken channel can never take down the others.
-function trackChannel(channel, promise) {
+export function trackChannel(channel, promise) {
   return promise.then(
-    (ok) => ({ channel, ok }),
-    (err) => { logHookError(channel, err); return { channel, ok: false }; },
+    // A failed send says why through noteFailure (a fixed enum, see
+    // channel-failure.mjs); the reason only rides along when it failed.
+    (ok) => (ok ? { channel, ok } : { channel, ok, reason: takeFailure(channel) }),
+    (err) => { logHookError(channel, err); return { channel, ok: false, reason: 'other' }; },
   );
 }
 

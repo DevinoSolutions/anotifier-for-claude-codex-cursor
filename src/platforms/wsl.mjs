@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import fs from 'node:fs';
 import { logHookError } from '../error-log.mjs';
+import { execFailureReason, noteFailure } from '../channel-failure.mjs';
 import { PLAY_SCRIPT, prepareSoundFile, windowsPlayerArgs } from './sound.mjs';
 
 // --- Detection -------------------------------------------------------------
@@ -170,6 +171,7 @@ export async function sendToast(notification, { log = logHookError, run = { toWi
   if (!cachedWinPath) cachedWinPath = await run.toWindowsPath(TOAST_SCRIPT);
   if (!cachedWinPath) {
     log('toast:wsl', new Error('wslpath could not translate the toast script path'), { script: TOAST_SCRIPT });
+    noteFailure('toast', 'unsupported');
     return false;
   }
 
@@ -187,7 +189,10 @@ export async function sendToast(notification, { log = logHookError, run = { toWi
 async function deliverToast(run, log, title, message, silent) {
   if (cachedExe) {
     const r = await run.runToast(cachedExe, cachedWinPath, title, message, silent);
-    if (!r.ok) log('toast:wsl', r.err, { exe: cachedExe, stderr: r.stderr });
+    if (!r.ok) {
+      log('toast:wsl', r.err, { exe: cachedExe, stderr: r.stderr });
+      noteFailure('toast', execFailureReason(r.err));
+    }
     return r.ok;
   }
 
@@ -195,15 +200,20 @@ async function deliverToast(run, log, title, message, silent) {
   // missing exe or disabled interop just errors (ENOENT/timeout); we move on,
   // and only when every candidate failed is one error logged, naming each.
   const tried = [];
+  const reasons = [];
   for (const exe of EXE_CANDIDATES) {
     const r = await run.runToast(exe, cachedWinPath, title, message, silent);
     if (r.ok) {
       cachedExe = exe;
       return true;
     }
+    reasons.push(execFailureReason(r.err));
     tried.push({ exe, error: (r.err && (r.err.code || r.err.message)) || 'failed', stderr: r.stderr || undefined });
   }
   log('toast:wsl', new Error('no Windows PowerShell reachable through WSL interop'), { tried });
+  // A candidate that started and then failed or hung says more than the ones
+  // that never started, so it names the failure when there is one.
+  noteFailure('toast', reasons.find((r) => r !== 'spawn_error') ?? 'spawn_error');
   return false;
 }
 

@@ -1,6 +1,7 @@
 // src/platforms/macos.mjs
 import { execFile } from 'node:child_process';
 import { logHookError } from '../error-log.mjs';
+import { execFailureReason, noteFailure } from '../channel-failure.mjs';
 import { playFirst, prepareSoundFile } from './sound.mjs';
 
 // The 14 built-in macOS system sounds (files in /System/Library/Sounds).
@@ -40,7 +41,10 @@ export async function sendToast(notification, deps = {}) {
     const script = `display notification "${esc(notification.message)}" with title "${esc(notification.title)}"${soundClause}`;
 
     execFileImpl('osascript', ['-e', script], { timeout: 5000 }, (err, stdout, stderr) => {
-      if (err) log('toast:macos', err, { stderr: (stderr || '').slice(0, 400) });
+      if (err) {
+        log('toast:macos', err, { stderr: (stderr || '').slice(0, 400) });
+        noteFailure('toast', execFailureReason(err));
+      }
       resolve(!err);
     });
   });
