@@ -1,7 +1,7 @@
 import https from 'node:https';
 import http from 'node:http';
 import { logHookError } from './error-log.mjs';
-import { clearFailure, httpFailureReason, networkFailureReason, noteFailure } from './channel-failure.mjs';
+import { httpFailureReason, networkFailureReason, noteFailure } from './channel-failure.mjs';
 
 // HTTP header values are bytes, not text: node writes them as latin-1 and
 // throws ERR_INVALID_CHAR on anything above U+00FF, so a title carrying the
@@ -61,13 +61,9 @@ export async function sendNtfyDetailed(ntfyConfig, notification) {
   const hasFallback = Boolean(fallback) && fallback !== primary;
   const timeoutMs = hasFallback ? TIMEOUT_WITH_FALLBACK_MS : TIMEOUT_MS;
 
-  if (await postNtfy(ntfyConfig, notification, timeoutMs, 'ntfy')) {
-    clearFailure('ntfy');
-    return { ok: true, via: 'server', fallback: null };
-  }
+  if (await postNtfy(ntfyConfig, notification, timeoutMs, 'ntfy')) return { ok: true, via: 'server', fallback: null };
   if (!hasFallback) return { ok: false, via: null, fallback: null };
   const ok = await postNtfy({ ...ntfyConfig, server: fallback }, notification, timeoutMs, 'ntfy:fallback');
-  if (ok) clearFailure('ntfy');
   return { ok, via: ok ? 'fallback' : null, fallback };
 }
 

@@ -2,10 +2,14 @@
 //
 // Senders resolve booleans (every caller and test relies on that), so the
 // reason travels beside the boolean: a sender that fails calls noteFailure(),
-// and the hook's trackChannel reads it back with takeFailure(). The value is
-// ALWAYS one of FAILURE_REASONS: never a message, stderr, path, URL, topic or
+// and the hook's trackChannel reads it back after the send. The reason is
+// scoped to ONE send with AsyncLocalStorage, never a shared slot, so two sends
+// on the same channel running at once each keep their own category. A sender
+// called outside a scope (the CLI test command, doctor) notes nothing. The value
+// is ALWAYS one of FAILURE_REASONS: never a message, stderr, path, URL, topic or
 // exit code, because it ends up in the opt-in daily summary (see telemetry.mjs).
 // Nothing here can throw.
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 export const FAILURE_REASONS = [
   'timeout', 'spawn_error', 'exit_nonzero', 'no_tty', 'http_4xx', 'http_5xx', 'network', 'unsupported', 'other',
@@ -52,24 +56,29 @@ export function networkFailureReason(err) {
   return 'other';
 }
 
-const noted = new Map();
+const scopes = new AsyncLocalStorage();
 
-// Remember why `channel` just failed. The last call before takeFailure wins, so
-// a fallback server's failure replaces the primary's.
+// Remember why the send running in the current scope just failed. The last call
+// wins, so a fallback server's failure replaces the primary's. Outside a scope
+// this is a no-op.
 export function noteFailure(channel, reason) {
-  try { noted.set(String(channel), failureReason(reason)); } catch { /* never throws */ }
-}
-
-// The reason noted for `channel`, or 'other' when its sender noted none. Clears it.
-export function takeFailure(channel) {
   try {
-    const reason = noted.get(String(channel));
-    noted.delete(String(channel));
-    return failureReason(reason);
-  } catch { return 'other'; }
+    const scope = scopes.getStore();
+    if (scope) scope.reason = failureReason(reason);
+  } catch { /* never throws */ }
 }
 
-// Forget a stale reason before a new send starts.
-export function clearFailure(channel) {
-  try { noted.delete(String(channel)); } catch { /* never throws */ }
+// Start one send inside its own scope. `work` is the send itself, as a function
+// (the scope only covers what that function starts) or an already-made promise
+// (nothing to scope, so a failure reads as 'other'). Returns { promise, reason }
+// where reason() is the category noted by that send alone, 'other' if none.
+export function runScoped(work) {
+  const scope = { reason: undefined };
+  let promise;
+  try {
+    promise = typeof work === 'function' ? scopes.run(scope, () => Promise.resolve(work())) : Promise.resolve(work);
+  } catch (err) {
+    promise = Promise.reject(err);
+  }
+  return { promise, reason: () => failureReason(scope.reason) };
 }
