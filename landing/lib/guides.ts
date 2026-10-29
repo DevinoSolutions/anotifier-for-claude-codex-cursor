@@ -919,6 +919,7 @@ const AGENT_GUIDES: Guide[] = [
               'A `stop` hook can print `{"followup_message": "..."}`, and Cursor sends that as the next message, up to `loop_limit` times (5 by default). A notification hook should print nothing or `{}`; a `followup_message` field would be sent as the next prompt.',
               "For user hooks, relative `command` paths resolve from `~/.cursor/`, so `./hooks/notify.sh` means `~/.cursor/hooks/notify.sh`. Project hooks run from the project root.",
               "To debug, open the Hooks tab under Customize or the Hooks output channel. If a new hook still doesn't load, restart Cursor.",
+              "User-level hooks in `~/.cursor/hooks.json` are not available in Cursor's cloud agents, so a `stop` hook there (or `npx anotifier@latest setup`) sends nothing for a cloud run; those agents run only the hooks in a project's `.cursor/hooks.json`.",
             ],
           },
           {
@@ -1039,6 +1040,11 @@ const AGENT_GUIDES: Guide[] = [
                 "Nothing at all after a run",
                 "The hook isn't in the file Cursor reads, or didn't load",
                 "Run `anotifier status` and look for Cursor IDE `wired`. Open the Hooks tab under Customize and the Hooks output channel for errors; restart Cursor if the hook still doesn't load",
+              ],
+              [
+                "No alert from a cloud agent",
+                "Cloud agents don't read your `~/.cursor/hooks.json`, where `anotifier setup` writes its hook",
+                "Add a `stop` hook to the project's `.cursor/hooks.json`, which cloud agents do run, or use the push notification the Cursor mobile app sends when an agent finishes a turn",
               ],
               [
                 "`anotifier test toast` works, real runs are silent",
