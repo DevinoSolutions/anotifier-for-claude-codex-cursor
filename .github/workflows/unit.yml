@@ -31,5 +31,5 @@ jobs:
       - name: Unit + integration tests
         run: npm test
         env:
-          # optional: when the secret is set, the live Sentry envelope delivery test runs; absent = auto-skip
-          AAN_SENTRY_TEST_DSN: ${{ secrets.AAN_SENTRY_TEST_DSN }}
+          # live Sentry delivery test runs on ONE leg (ubuntu, node 22): one leg proves delivery, the others would only flood the prod Sentry project; empty = auto-skip
+          AAN_SENTRY_TEST_DSN: ${{ (matrix.os == 'ubuntu-latest' && matrix.node == 22) && secrets.AAN_SENTRY_TEST_DSN || '' }}
