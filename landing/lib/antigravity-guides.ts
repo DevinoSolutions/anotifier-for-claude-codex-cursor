@@ -150,7 +150,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "Google's hooks docs let Antigravity CLI read hooks from three places: `.agents/hooks.json` at your project root, `~/.gemini/config/hooks.json` for every project, or the `hooks.json` inside an installed plugin. The global hooks can also sit inside `~/.gemini/antigravity-cli/settings.json`, but the docs don't show the key layout there, so this guide uses `hooks.json`. The docs write every path with `~` and give no separate Windows path, so on Windows it is the same path under your home folder. This guide uses `~/.gemini/config/hooks.json`. Type `/hooks` inside the CLI to see what it loaded.",
+            text: "Google's hooks docs let Antigravity CLI read hooks from three places: `.agents/hooks.json` at your project root, `~/.gemini/config/hooks.json` for every project, or the `hooks.json` inside an installed plugin. Hooks in `~/.gemini/antigravity-cli/settings.json` aren't loaded, so use `hooks.json`. The docs write every path with `~` and give no separate Windows path, so on Windows it is the same path under your home folder. This guide uses `~/.gemini/config/hooks.json`. Type `/hooks` inside the CLI to see what it loaded.",
           },
           {
             kind: "p",
@@ -495,7 +495,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
     faqs: [
       {
         q: "How do I get Antigravity notifications?",
-        a: "In the Antigravity CLI, set notifications to true in ~/.gemini/antigravity-cli/settings.json or switch it on in /config; it sends a desktop notification and a terminal bell when the agent needs your approval or an answer, or finishes. For the Antigravity app and IDE, Google's settings docs list no notifications setting, but its hooks docs say they read the same global ~/.gemini/config/hooks.json as the CLI, so a Stop hook that runs a script and prints a stop decision is the documented route. One forum report from August 2026 says Stop hooks in a project's .agents/hooks.json never ran in the Windows IDE, so use the global file. npx anotifier@latest setup wires the hook when ~/.gemini/antigravity-cli exists, and neither app has been tested.",
+        a: "In Antigravity CLI, set notifications to true in ~/.gemini/antigravity-cli/settings.json or switch it on in /config; it shows a desktop notification and rings the terminal bell when the agent needs your approval or an answer, or finishes its turn. Google documents no notifications setting for the Antigravity app or IDE, but both read the same global ~/.gemini/config/hooks.json as the CLI, so a Stop hook there that runs a script and prints a stop decision is the documented route for all three. npx anotifier@latest setup writes that hook when ~/.gemini/antigravity-cli exists.",
       },
       {
         q: "How do I get a notification when Antigravity CLI finishes?",
