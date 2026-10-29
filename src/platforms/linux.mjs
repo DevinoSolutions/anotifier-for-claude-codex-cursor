@@ -2,6 +2,7 @@
 import { execFile } from 'node:child_process';
 import { getConfigDir } from '../config-loader.mjs';
 import { logHookError } from '../error-log.mjs';
+import { execFailureReason, noteFailure } from '../channel-failure.mjs';
 import { linuxPlayers, playFirst, prepareSoundFile } from './sound.mjs';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -53,7 +54,10 @@ export async function sendToast(notification, deps = {}) {
     const args = buildNotifySendArgs(notification, fs.existsSync(iconPath) ? iconPath : '');
 
     execFileImpl('notify-send', args, { timeout: 5000 }, (err, stdout, stderr) => {
-      if (err) log('toast:linux', err, { stderr: (stderr || '').slice(0, 400) });
+      if (err) {
+        log('toast:linux', err, { stderr: (stderr || '').slice(0, 400) });
+        noteFailure('toast', execFailureReason(err));
+      }
       resolve(!err);
     });
   });

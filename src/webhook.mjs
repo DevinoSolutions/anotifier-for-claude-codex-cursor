@@ -9,6 +9,7 @@
 import https from 'node:https';
 import http from 'node:http';
 import { logHookError } from './error-log.mjs';
+import { httpFailureReason, networkFailureReason, noteFailure } from './channel-failure.mjs';
 
 // ntfy-parity 5s (not sentry.mjs's 1.5s): a webhook is a primary channel, not
 // an observability mirror. Worst-case wall clock stays under the 10s hook budget.
@@ -53,6 +54,7 @@ export function sendWebhook(webhookConfig, notification, { timeoutMs = SEND_TIME
   return new Promise((resolve) => {
     if (!webhookConfig.url) {
       logHookError('webhook', new Error('webhook is enabled but no url is configured'));
+      noteFailure('webhook', 'other');
       resolve(false);
       return;
     }
@@ -65,6 +67,7 @@ export function sendWebhook(webhookConfig, notification, { timeoutMs = SEND_TIME
     } catch {
       // Never surface the offending value — a malformed webhook URL is still a secret.
       logHookError('webhook', new Error('webhook url is not a valid URL'));
+      noteFailure('webhook', 'other');
       resolve(false);
       return;
     }
@@ -83,23 +86,29 @@ export function sendWebhook(webhookConfig, notification, { timeoutMs = SEND_TIME
       }, (res) => {
         res.resume(); // drain
         const ok = res.statusCode >= 200 && res.statusCode < 300;
-        if (!ok) logHookError('webhook', new Error(`webhook endpoint responded ${res.statusCode}`), { url: parsed.origin });
+        if (!ok) {
+          logHookError('webhook', new Error(`webhook endpoint responded ${res.statusCode}`), { url: parsed.origin });
+          noteFailure('webhook', httpFailureReason(res.statusCode));
+        }
         resolve(ok);
       });
 
       req.on('error', (err) => {
         logHookError('webhook', err, { url: parsed.origin });
+        noteFailure('webhook', networkFailureReason(err));
         resolve(false);
       });
       req.on('timeout', () => {
         req.destroy();
         logHookError('webhook', new Error(`webhook request timed out after ${timeoutMs}ms`), { url: parsed.origin });
+        noteFailure('webhook', 'timeout');
         resolve(false);
       });
       req.end(body);
     } catch (err) {
       // err.message for these node errors names the protocol/header, never the URL value.
       logHookError('webhook', err, { url: parsed.origin });
+      noteFailure('webhook', 'other');
       resolve(false);
     }
   });

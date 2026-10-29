@@ -17,6 +17,7 @@ import { enableSentryMirror, logHookError, flushErrorReporting } from './error-l
 import { maybeNotifyUpdate } from './update-check.mjs';
 import { isSuppressed } from './suppress.mjs';
 import { recordHookRun, maybeSendHookSummary } from './telemetry.mjs';
+import { runScoped } from './channel-failure.mjs';
 import { recordTurnStart, finishTurn, supportsTurnTiming, isBelowMinDuration } from './turn-timer.mjs';
 
 // Some tools (Cursor) fire the same hook twice simultaneously. Exclusive file
@@ -94,10 +95,14 @@ function readStdin() {
 // Run one channel send. Senders resolve booleans and log their own failure
 // detail at the source; this wrapper only has to catch unexpected throws so
 // one broken channel can never take down the others.
-function trackChannel(channel, promise) {
+export function trackChannel(channel, work) {
+  // `work` is the send as a function, so its failure reason stays scoped to this
+  // one send (channel-failure.mjs); a bare promise is accepted but reads 'other'.
+  const { promise, reason } = runScoped(work);
   return promise.then(
-    (ok) => ({ channel, ok }),
-    (err) => { logHookError(channel, err); return { channel, ok: false }; },
+    // The reason only rides along when the send failed.
+    (ok) => (ok ? { channel, ok } : { channel, ok, reason: reason() }),
+    (err) => { logHookError(channel, err); return { channel, ok: false, reason: 'other' }; },
   );
 }
 
@@ -346,17 +351,17 @@ export async function main({ focus } = {}) {
     // Toast
     if (config.toast?.enabled !== false && eventConfig.toastEnabled !== false) {
       const sendToast = await resolveToastBackend();
-      tasks.push(trackChannel('toast', sendToast(views.toast)));
+      tasks.push(trackChannel('toast', () => sendToast(views.toast)));
     }
 
     // ntfy
     if (config.ntfy?.enabled && config.ntfy?.topic && eventConfig.ntfyEnabled !== false) {
-      tasks.push(trackChannel('ntfy', sendNtfy(config.ntfy, views.ntfy)));
+      tasks.push(trackChannel('ntfy', () => sendNtfy(config.ntfy, views.ntfy)));
     }
 
     // webhook
     if (config.webhook?.enabled && config.webhook?.url && eventConfig.webhookEnabled !== false) {
-      tasks.push(trackChannel('webhook', sendWebhook(config.webhook, views.webhook)));
+      tasks.push(trackChannel('webhook', () => sendWebhook(config.webhook, views.webhook)));
     }
 
     // Terminal bell (best-effort by design: `ok: false` here usually just
@@ -369,7 +374,7 @@ export async function main({ focus } = {}) {
         // tmux. Still report `bell` as a channel result so it stays observable.
         tasks.push(trackChannel('bell', Promise.resolve(true)));
       } else {
-        tasks.push(trackChannel('bell', sendBell()));
+        tasks.push(trackChannel('bell', () => sendBell()));
       }
     }
 
