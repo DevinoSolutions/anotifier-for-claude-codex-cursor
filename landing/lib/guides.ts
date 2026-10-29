@@ -870,7 +870,7 @@ const AGENT_GUIDES: Guide[] = [
       "Get a Cursor notification when the agent is done: the built-in sound and OS alert, a stop hook in hooks.json for a toast, phone push or Slack, and fixes.",
     h1: "How to get notified when the Cursor agent finishes",
     intro:
-      "To get a notification when Cursor is done, turn on Cursor's own settings (Settings → Features → Chat → Play sound on finish, plus native OS notifications from Settings), or add a `stop` hook for a toast, phone push or webhook. Cursor's own settings only reach the computer running Cursor. For your own text, a phone push or a Slack message, add a `stop` hook to `~/.cursor/hooks.json`, which Cursor runs when the agent loop ends, or let `npx anotifier@latest setup` write it. This guide covers each option, the exact hook format, and what to check when nothing arrives.",
+      "To get a notification when Cursor is done, try Cursor's own completion sound and OS notification first (both in Cursor's Settings), or add a `stop` hook to `~/.cursor/hooks.json`, which Cursor runs when the agent loop ends. The sound and OS notification only reach the computer running Cursor; a hook can show your own text, push to your phone or post to Slack, and `npx anotifier@latest setup` writes one for you. This guide covers each option, the exact hook format, and what to check when nothing arrives.",
     sections: [
       {
         id: "built-in",
@@ -1115,7 +1115,7 @@ const AGENT_GUIDES: Guide[] = [
     faqs: [
       {
         q: "How do I get a notification when Cursor is done?",
-        a: "Two routes. First, Cursor's own settings: Cursor 0.48 added a beta sound option at Settings > Features > Chat > Play sound on finish, and Cursor 1.5 added native OS notifications for a finished agent run, enabled from Settings. Second, a stop hook in ~/.cursor/hooks.json, which Cursor runs when the agent loop ends. npx anotifier@latest setup writes that hook for you and sends a desktop toast, phone push or webhook message titled Cursor that says Task complete.",
+        a: "Two routes. First, Cursor's own settings: Cursor 0.48 added a beta option to play a sound when a chat is ready for review (its changelog gave the path as Settings > Features > Chat > Play sound on finish; if it has moved, search Cursor's settings for sound), and Cursor 1.5 added native OS notifications for a finished agent run, enabled from Settings. Second, a stop hook in ~/.cursor/hooks.json, which Cursor runs when the agent loop ends. npx anotifier@latest setup writes that hook for you and sends a desktop toast, phone push or webhook message titled Cursor that says Task complete.",
       },
       {
         q: "Does Cursor have a built-in notification when the agent finishes?",
