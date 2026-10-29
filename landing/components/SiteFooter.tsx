@@ -69,6 +69,9 @@ export default function SiteFooter() {
             </Link>
           ))}
         </nav>
+        <p style={{ flexBasis: "100%", margin: 0 }}>
+          anotifier is an independent open-source project, not affiliated with or endorsed by Anthropic, OpenAI, Google, Anysphere (Cursor) or Microsoft. Product names are trademarks of their owners.
+        </p>
       </div>
     </footer>
   );
