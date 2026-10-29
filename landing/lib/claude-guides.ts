@@ -726,7 +726,7 @@ export const CLAUDE_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: 'The quickest way to mute Claude Code is `"preferredNotifChannel": "notifications_disabled"` in `~/.claude/settings.json`; it also shows up in `/config` as **Local notifications**. It silences only Claude Code\'s own alert. A sound from a hook you added, from your terminal\'s bell, or from anotifier comes from somewhere else, so check which of these you have:',
+            text: 'The main switch to mute Claude Code is `"preferredNotifChannel": "notifications_disabled"` in `~/.claude/settings.json`; it also shows up in `/config` as **Local notifications**. It silences Claude Code\'s own alerts (and those of any mods you use), nothing else. A sound from a hook you added, from your terminal\'s bell, or from anotifier comes from somewhere else, so check which of these you have:',
           },
           {
             kind: "table",
@@ -756,7 +756,7 @@ export const CLAUDE_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "To keep the alerts and lose only the noise, leave the channel alone and mute the terminal's bell instead (the third row above), or delete the sound hook and keep the rest. The Claude desktop app's Code tab sends an OS notification when a session finishes while you're looking at another one; its docs don't describe a switch for that, so use your operating system's notification or Focus settings for the app.",
+            text: "To keep the alerts and lose only the noise, leave the channel alone and mute the terminal's bell (the third row above) if that is the sound, or turn off sounds for the terminal in your OS notification settings if it comes with a desktop banner, or delete the sound hook and keep the rest. The Claude desktop app's Code tab sends an OS notification when a session finishes a task and you aren't viewing that session. For a session in a project, turn them off with **Notifications** in the project's sidebar menu. For other sessions the docs describe no switch, so use your operating system's notification or Focus settings for the app.",
           },
           {
             kind: "p",
@@ -856,7 +856,7 @@ export const CLAUDE_GUIDES: Guide[] = [
       },
       {
         q: "How do I mute Claude?",
-        a: 'To mute Claude Code, set "preferredNotifChannel": "notifications_disabled" in ~/.claude/settings.json, or pick it under Local notifications in /config. That silences only its built-in alert. A sound can also come from a Stop or Notification hook you added (delete it), from your terminal\'s bell (turn the bell off in the terminal), or from anotifier (run npx anotifier@latest snooze 2h). To keep alerts but lose the sound, mute the terminal bell and leave the rest.',
+        a: "To mute Claude Code, set \"preferredNotifChannel\": \"notifications_disabled\" in ~/.claude/settings.json, or change Local notifications in /config. That silences only its built-in alert. A sound can also come from a Stop or Notification hook you added (delete it), from your terminal's bell (turn the bell off in the terminal), or from anotifier (run npx anotifier@latest snooze 2h). To keep alerts but lose the sound, turn the bell off in the terminal if the sound is its bell, or turn off sounds for your terminal app in your operating system's notification settings if it comes with a desktop banner. In the Claude desktop app, turn off a project's notifications with Notifications in its sidebar menu, or mute the app in your operating system's notification settings.",
       },
       {
         q: "Can Claude Code play a different sound when it needs permission?",
