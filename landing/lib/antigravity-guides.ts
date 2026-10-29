@@ -86,12 +86,12 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
     agentSlug: "antigravity-cli",
     name: "Antigravity CLI",
     icon: "/assets/icons/gemini.png",
-    title: "Antigravity CLI Notifications: Setting, Hooks & Phone Alerts",
+    title: "Antigravity Notifications: CLI Setting, Hooks & Phone Alerts",
     description:
-      "Get an Antigravity CLI notification when a run ends or needs you: the built-in notifications setting, or a Stop hook with toast, sound and ntfy phone push.",
+      "Get Antigravity notifications for the CLI, app and IDE: the CLI's built-in notifications setting, or a Stop hook with toast, sound and ntfy phone push.",
     h1: "How to get notified when Antigravity CLI finishes",
     intro:
-      'To make Antigravity CLI notify you, set `notifications` to `true` in `~/.gemini/antigravity-cli/settings.json` (or switch it on in `/config`). It sends a desktop notification and a terminal bell chime when a task completes or needs you. For your own toast, sound or phone push, add a `Stop` hook to `~/.gemini/config/hooks.json` that ends by printing `{"decision":"stop"}`. To wire a desktop and phone alert in one go, run `npx anotifier@latest setup`. Here is every option, then [fixes by symptom](#fix). Coming from Gemini CLI? Its hooks and settings are different; see [Gemini CLI vs Antigravity CLI](#gemini).',
+      'To make Antigravity CLI notify you, set `notifications` to `true` in `~/.gemini/antigravity-cli/settings.json` (or switch it on in `/config`). It sends a desktop notification and a terminal bell chime when a task completes or needs you. For your own toast, sound or phone push, add a `Stop` hook to `~/.gemini/config/hooks.json` that ends by printing `{"decision":"stop"}`. To wire a desktop and phone alert in one go, run `npx anotifier@latest setup`. Here is every option, then [fixes by symptom](#fix). Using the Antigravity app or IDE? Google documents no notifications setting for them, so use the `Stop` hook ([details](#fix)). Coming from Gemini CLI? Its hooks and settings are different; see [Gemini CLI vs Antigravity CLI](#gemini).',
     sections: [
       {
         id: "quick",
@@ -493,6 +493,10 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
       },
     ],
     faqs: [
+      {
+        q: "How do I get Antigravity notifications?",
+        a: "In the Antigravity CLI, set notifications to true in ~/.gemini/antigravity-cli/settings.json or switch it on in /config; it sends a desktop notification and a terminal bell when the agent needs your approval or an answer, or finishes. For the Antigravity app and IDE, Google's settings docs list no notifications setting, but its hooks docs say they read the same global ~/.gemini/config/hooks.json as the CLI, so a Stop hook that runs a script and prints a stop decision is the documented route. One forum report from August 2026 says Stop hooks in a project's .agents/hooks.json never ran in the Windows IDE, so use the global file. npx anotifier@latest setup wires the hook when ~/.gemini/antigravity-cli exists, and neither app has been tested.",
+      },
       {
         q: "How do I get a notification when Antigravity CLI finishes?",
         a: "Set notifications to true in ~/.gemini/antigravity-cli/settings.json, or switch Notifications on in /config. Antigravity CLI then sends a desktop notification and a terminal bell chime when a task completes or needs you. For your own toast, sound or phone push, add a Stop hook to ~/.gemini/config/hooks.json that runs a script and prints a stop decision, or run npx anotifier@latest setup.",
