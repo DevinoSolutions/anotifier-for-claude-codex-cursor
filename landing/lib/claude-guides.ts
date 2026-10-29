@@ -396,7 +396,7 @@ export const CLAUDE_GUIDES: Guide[] = [
   },
   {
     slug: "claude-code-notification-sound",
-    updated: "2026-10-22",
+    updated: "2026-10-29",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code sounds",
@@ -722,11 +722,11 @@ export const CLAUDE_GUIDES: Guide[] = [
       },
       {
         id: "mute",
-        title: "Turn the sound off",
+        title: "How to mute Claude Code",
         blocks: [
           {
             kind: "p",
-            text: "Which switch you need depends on where the sound comes from:",
+            text: 'The quickest way to mute Claude Code is `"preferredNotifChannel": "notifications_disabled"` in `~/.claude/settings.json`; it also shows up in `/config` as **Local notifications**. It silences only Claude Code\'s own alert. A sound from a hook you added, from your terminal\'s bell, or from anotifier comes from somewhere else, so check which of these you have:',
           },
           {
             kind: "table",
@@ -753,6 +753,10 @@ export const CLAUDE_GUIDES: Guide[] = [
           {
             kind: "note",
             text: "Hooks keep running when you turn the built-in alert off. Claude Code's docs say `Notification` hooks fire even when desktop notifications are off, because `preferredNotifChannel` only changes how you're alerted. Muting the bell doesn't mute a hook.",
+          },
+          {
+            kind: "p",
+            text: "To keep the alerts and lose only the noise, leave the channel alone and mute the terminal's bell instead (the third row above), or delete the sound hook and keep the rest. The Claude desktop app's Code tab sends an OS notification when a session finishes while you're looking at another one; its docs don't describe a switch for that, so use your operating system's notification or Focus settings for the app.",
           },
           {
             kind: "p",
@@ -849,6 +853,10 @@ export const CLAUDE_GUIDES: Guide[] = [
       {
         q: "How do I turn off the Claude Code sound?",
         a: 'Set "preferredNotifChannel": "notifications_disabled" in ~/.claude/settings.json to silence the built-in alert. Hooks still run, so also delete any sound hook, or set "disableAllHooks": true to pause your own hooks (managed hooks keep running unless it is set in managed settings). anotifier\'s toast has its own sound, so turning its terminal bell off is not enough: run npx anotifier@latest snooze 2h, or set toast.enabled to false in ~/.anotifier/config.json.',
+      },
+      {
+        q: "How do I mute Claude?",
+        a: 'To mute Claude Code, set "preferredNotifChannel": "notifications_disabled" in ~/.claude/settings.json, or pick it under Local notifications in /config. That silences only its built-in alert. A sound can also come from a Stop or Notification hook you added (delete it), from your terminal\'s bell (turn the bell off in the terminal), or from anotifier (run npx anotifier@latest snooze 2h). To keep alerts but lose the sound, mute the terminal bell and leave the rest.',
       },
       {
         q: "Can Claude Code play a different sound when it needs permission?",
