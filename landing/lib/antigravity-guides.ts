@@ -91,7 +91,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
       "Get Antigravity notifications for the CLI, app and IDE: the CLI's built-in notifications setting, or a Stop hook with toast, sound and ntfy phone push.",
     h1: "How to get notified when Antigravity CLI finishes",
     intro:
-      'To make Antigravity CLI notify you, set `notifications` to `true` in `~/.gemini/antigravity-cli/settings.json` (or switch it on in `/config`). It sends a desktop notification and a terminal bell chime when a task completes or needs you. For your own toast, sound or phone push, add a `Stop` hook to `~/.gemini/config/hooks.json` that ends by printing `{"decision":"stop"}`. To wire a desktop and phone alert in one go, run `npx anotifier@latest setup`. Here is every option, then [fixes by symptom](#fix). Using the Antigravity app or IDE? Google documents no notifications setting for them, so use the `Stop` hook ([details](#fix)). Coming from Gemini CLI? Its hooks and settings are different; see [Gemini CLI vs Antigravity CLI](#gemini).',
+      'To make Antigravity CLI notify you, set `notifications` to `true` in `~/.gemini/antigravity-cli/settings.json` (or switch it on in `/config`). It sends a desktop notification and a terminal bell chime when a task completes or needs you. For your own toast, sound or phone push, add a `Stop` hook to `~/.gemini/config/hooks.json` that ends by printing `{"decision":"stop"}`. To wire a desktop and phone alert in one go, run `npx anotifier@latest setup`. Here is every option, then [fixes by symptom](#fix). Using the Antigravity IDE or app, on Windows included? Google documents no notifications setting for them, but its hooks page lists the same `Stop` event and the same global `~/.gemini/config/hooks.json` for the IDE, so use the `Stop` hook ([Windows script](#toast-sound), [if it does not fire](#fix)); the page never mentions Windows, so run a test. Coming from Gemini CLI? Its hooks and settings are different; see [Gemini CLI vs Antigravity CLI](#gemini).',
     sections: [
       {
         id: "quick",
@@ -520,6 +520,10 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
       {
         q: "Do hooks work in the Antigravity 2.0 app and the IDE?",
         a: "Google's docs say the app and the IDE read the same global ~/.gemini/config/hooks.json as the CLI, and you manage them under Settings > Customizations > Hooks in the app, or the ... menu's Customizations > Hooks in the IDE's agent side panel. One forum report from August 2026 says Stop hooks in a project's .agents/hooks.json never ran in the Windows IDE. npx anotifier setup only wires Antigravity when ~/.gemini/antigravity-cli exists, and neither app has been tested.",
+      },
+      {
+        q: "How do I get a notification from the Antigravity IDE on Windows?",
+        a: 'Google documents the notifications setting for the CLI only, not the IDE. It does list hooks for the IDE: put a Stop hook in the global ~/.gemini/config/hooks.json (on Windows, presumably the .gemini folder under your user folder; Google never mentions Windows) or in .agents/hooks.json in the open project, and check it under the ... menu\'s Customizations > Hooks in the agent side panel. Use the Windows PowerShell script above as the hook command; it prints {"decision":"stop"}. One forum report says Stop hooks in .agents/hooks.json never ran in the Windows IDE, so run a test. npx anotifier setup only wires Antigravity when ~/.gemini/antigravity-cli exists, and it has not been tested with the IDE.',
       },
       {
         q: "Does anotifier work with Antigravity CLI?",
