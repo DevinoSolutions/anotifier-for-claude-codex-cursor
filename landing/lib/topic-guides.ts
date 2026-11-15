@@ -279,7 +279,7 @@ export const TOPIC_GUIDES: Guide[] = [
       {
         id: "powershell-exit-code",
         title:
-          'VS Code "terminal process powershell.exe terminated with exit code" and "path to shell executable does not exist"',
+          '"Terminal process powershell.exe terminated with exit code" in VS Code',
         blocks: [
           {
             kind: "p",
@@ -288,11 +288,11 @@ export const TOPIC_GUIDES: Guide[] = [
           {
             kind: "code",
             lang: "text",
-            code: 'the terminal process "c:\\windows\\system32\\windowspowershell\\v1.0\\powershell.exe" terminated with exit code: 1.\nthe terminal process "c:\\program files\\powershell\\7\\pwsh.exe" terminated with exit code: 1.\nthe terminal process failed to launch: path to shell executable "c:\\windows\\system32\\windowspowershell\\v1.0\\powershell.exe" does not exist.',
+            code: 'The terminal process "c:\\windows\\system32\\windowspowershell\\v1.0\\powershell.exe" terminated with exit code: 1.\nThe terminal process "c:\\program files\\powershell\\7\\pwsh.exe" terminated with exit code: 1.\nThe terminal process failed to launch: Path to shell executable "c:\\windows\\system32\\windowspowershell\\v1.0\\powershell.exe" does not exist.',
           },
           {
             kind: "p",
-            text: "The exit code comes from the shell or from Windows, not from VS Code, and VS Code's terminal troubleshooting page says an exit code alone is not a diagnosis. It explains only a few: code 1 for WSL, code 259 (which on its own does not say which component failed), and 3221225786, which is 0xC000013A, `STATUS_CONTROL_C_EXIT`, Windows' code for termination by Ctrl+C. It does not explain 1 or 2 for PowerShell, -65536, or any other value, so this guide cannot tell you what they mean. Microsoft's list of NTSTATUS values does define three negative codes people report, as the signed form of the hex value: -1073741819 is 0xC0000005 (`STATUS_ACCESS_VIOLATION`), -1073741790 is 0xC0000022 (`STATUS_ACCESS_DENIED`) and -1073740791 is 0xC0000409 (`STATUS_STACK_BUFFER_OVERRUN`). Neither Microsoft's list nor VS Code's page says what in your setup caused one.",
+            text: "The exit code comes from the shell or from Windows, not from VS Code, and VS Code's terminal troubleshooting page says an exit code alone is not a diagnosis. It mentions only a few: code 1 from WSL (which it says is not unique to a missing default distribution), code 259 (which on its own does not say which component failed), and 3221225786, which is 0xC000013A, `STATUS_CONTROL_C_EXIT`, Windows' code for termination by Ctrl+C. It does not explain 1 or 2 for PowerShell, -65536, or any other value, so this guide cannot tell you what they mean. Some reported codes are NTSTATUS values written as signed 32-bit numbers. Microsoft's NTSTATUS list defines the hex values: -1073741819 is 0xC0000005 (`STATUS_ACCESS_VIOLATION`), -1073741790 is 0xC0000022 (`STATUS_ACCESS_DENIED`) and -1073740791 is 0xC0000409 (`STATUS_STACK_BUFFER_OVERRUN`). Neither Microsoft's list nor VS Code's page says what in your setup caused one.",
           },
           {
             kind: "p",
@@ -301,16 +301,17 @@ export const TOPIC_GUIDES: Guide[] = [
           {
             kind: "ul",
             items: [
-              'For "path to shell executable ... does not exist", the terminal profile points at a shell that is not there. Pick an installed shell from the dropdown next to New Terminal, or run Terminal: Select Default Profile. In settings, check `terminal.integrated.defaultProfile.windows` and `terminal.integrated.profiles.windows`: the executable path must exist and its arguments must be valid for that shell.',
-              "Run the same shell outside the editor. `powershell.exe -NoProfile` is Windows PowerShell without its startup files, and `pwsh -NoProfile` is PowerShell 7. If it fails there too, look at the shell or Windows first. If it works, a profile script or shell integration is next: set `terminal.integrated.shellIntegration.enabled` to false, open a new terminal, and restore the value afterwards.",
+              "For \"path to shell executable ... does not exist\", the terminal profile, or a task's or extension's shell setting, points at a shell that is not there. Pick an installed shell from the dropdown next to New Terminal, or run Terminal: Select Default Profile. In settings, check `terminal.integrated.defaultProfile.windows` and `terminal.integrated.profiles.windows`: the executable path must exist and its arguments must be valid for that shell.",
+              'For "terminated with exit code", the shell may have started and then exited: check the last terminal output and the command that ran before it closed.',
+              "Run the same shell with the same arguments outside the editor. If it fails there too, look at the shell or Windows first. If it works, try `powershell.exe -NoProfile` (Windows PowerShell) or `pwsh -NoProfile` (PowerShell 7); if that works, a profile script is the suspect. Then set `terminal.integrated.shellIntegration.enabled` to false, open a new terminal, and restore the value afterwards.",
               'Make sure compatibility mode is off: in Properties for the VS Code executable, open the Compatibility tab and clear "Run this program in compatibility mode".',
               'If the message says "A native exception occurred during launch", read the detail after it. For access denied (error code 5), check permissions on the shell executable and the starting directory, and any security software block notifications. The page says not to disable protection or add broad exclusions as a workaround.',
-              "Update VS Code, your shell and Windows. If it still fails, run Developer: Set Log Level... and choose Trace, reproduce it, then read the Terminal and Pty Host logs under Developer: Open Log.... Remove secrets before sharing them.",
+              "Update VS Code, your shell and Windows. To capture logs, start from a fresh reproduction before changing more settings: run Developer: Set Log Level... and choose Trace, reproduce it, read the Terminal and Pty Host logs under Developer: Open Log..., then restore the previous level. Remove secrets before sharing them.",
             ],
           },
           {
             kind: "p",
-            text: "Why a notification guide covers this: anotifier does not use your VS Code terminal profile, but it needs the same executables. On Windows it sends the toast with `pwsh` (PowerShell 7), not `powershell.exe`, so a missing `pwsh.exe` stops toasts there. From inside WSL it tries Windows PowerShell's `powershell.exe` under `/mnt/c`, then `powershell.exe` from PATH, then PowerShell 7's `pwsh.exe` under `/mnt/c/Program Files/PowerShell/7/`, then `pwsh.exe` from PATH, and fails only when none is reachable. `anotifier doctor` checks this: on Windows it fails when `pwsh` is missing, and in WSL it fails when `wslpath` or every Windows PowerShell is missing. `anotifier test toast` then confirms delivery.",
+            text: "Why a notification guide covers this: anotifier does not use your VS Code terminal profile, but it does run PowerShell itself. On Windows it sends the toast with `pwsh` (PowerShell 7), not `powershell.exe`, so a missing `pwsh.exe` stops toasts there. From inside WSL it tries Windows PowerShell's `powershell.exe` under `/mnt/c`, then `powershell.exe` from PATH, then PowerShell 7's `pwsh.exe` under `/mnt/c/Program Files/PowerShell/7/`, then `pwsh.exe` from PATH, moving to the next one when a try fails, and the toast fails when none of them works or when `wslpath` cannot translate the script path. `anotifier doctor` checks this: on Windows it fails when `pwsh` is missing, and in WSL it fails when `wslpath` or every Windows PowerShell is missing. `anotifier test toast` then sends a real toast through the same path, so you can see whether it arrives.",
           },
         ],
       },
@@ -362,11 +363,11 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: 'What does "the terminal process powershell.exe terminated with exit code" or "path to shell executable does not exist" mean?',
-        a: "It is a VS Code terminal message, not an anotifier error: the PowerShell your terminal profile launches failed to start or exited. The exit code comes from the shell or Windows, and VS Code's troubleshooting page says a code alone is not a diagnosis; it does not explain 1, 2 or -65536 for PowerShell. For a missing path, it says to check the terminal profile and pick an installed shell. For an exit code, it says to run the same shell outside the editor with -NoProfile, try with shell integration off, clear compatibility mode, update VS Code and Windows, and capture the Terminal and Pty Host trace logs.",
+        a: "It is a VS Code terminal message, not an anotifier error: the PowerShell your terminal profile launches failed to start or exited. The exit code comes from the shell or Windows, and VS Code's troubleshooting page says a code alone is not a diagnosis; it does not explain 1, 2 or -65536 for PowerShell. For a missing path, it says to check the terminal profile and pick an installed shell. For an exit code, it says to check the last output and the command that ran before the exit, run the same shell outside the editor with -NoProfile, try with shell integration off, clear compatibility mode on Windows, update VS Code, the shell and Windows, and capture the Terminal and Pty Host trace logs.",
       },
       {
         q: "If powershell.exe or pwsh.exe is broken, do anotifier notifications stop?",
-        a: "Sometimes. Windows toasts are sent by pwsh (PowerShell 7), so a missing pwsh stops them, and powershell.exe is not used there. In WSL, anotifier tries powershell.exe and then pwsh.exe through Windows interop, and fails only when none is reachable. A broken VS Code terminal profile on its own does not stop toasts, because anotifier does not use it. Run anotifier doctor, then anotifier test toast.",
+        a: "Sometimes. Windows toasts are sent by pwsh (PowerShell 7), so a missing pwsh stops them, and powershell.exe is not used there. In WSL, anotifier tries powershell.exe and then pwsh.exe through Windows interop, moving on when one fails, and the toast fails when none of them works. A broken VS Code terminal profile on its own does not stop toasts, because anotifier does not use it. Run anotifier doctor, then anotifier test toast.",
       },
       {
         q: "Are Windows notifications tested?",
