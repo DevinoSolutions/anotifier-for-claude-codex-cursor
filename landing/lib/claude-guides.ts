@@ -1899,7 +1899,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
   },
   {
     slug: "ccnotify",
-    updated: "2026-11-15",
+    updated: "2026-11-14",
     kind: "topic",
     agentSlug: "claude-code",
     name: "ccnotify",
@@ -2236,7 +2236,6 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
               "Helmi/CCNotify: [README and source](https://github.com/Helmi/CCNotify), [PyPI package](https://pypi.org/project/ccnotify/), [changelog](https://github.com/Helmi/CCNotify/blob/main/CHANGELOG.md)",
               "MoYeRanqianzhi/CCNotify: [README](https://github.com/MoYeRanqianzhi/CCNotify)",
               "tez-Szymon/CCNotify: [README](https://github.com/tez-Szymon/CCNotify)",
-              "daniil4545/ccnotify: its GitHub repository is no longer available (404 since November 2026)",
               "dmxj/ccnotify: [README](https://github.com/dmxj/ccnotify), [landing page](https://dmxj.github.io/ccnotify/)",
               "ningjiaen123/CCNotify-Windows: [README](https://github.com/ningjiaen123/CCNotify-Windows)",
               "anotifier: the [README](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor#readme), [docs](/docs/), and the [agent hooks](/guides/agent-hooks-explained/) and [Claude Code notifications](/guides/claude-code-notifications/) guides",
@@ -2248,7 +2247,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
     faqs: [
       {
         q: "What is ccnotify?",
-        a: "It is a name shared by several unrelated open-source tools that notify you about Claude Code: a macOS Python script (dazuiba/CCNotify), an npm package that writes Stop hooks for Discord, ntfy and macOS (foxytanuki/ccnotify), a PyPI package that speaks notifications (Helmi/CCNotify), a Rust binary for Windows, macOS and Linux (MoYeRanqianzhi/CCNotify) and three newer macOS or tray apps. They have different authors and different code.",
+        a: "It is a name shared by several unrelated open-source tools that notify you about Claude Code: a macOS Python script (dazuiba/CCNotify), an npm package that writes Stop hooks for Discord, ntfy and macOS (foxytanuki/ccnotify), a PyPI package that speaks notifications (Helmi/CCNotify), a Rust binary for Windows, macOS and Linux (MoYeRanqianzhi/CCNotify) and two newer macOS or tray apps. They have different authors and different code.",
       },
       {
         q: "Is the ccnotify on npm the same as the one on PyPI?",
@@ -2280,7 +2279,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
       },
       {
         q: "Are the ccnotify projects still maintained?",
-        a: "It varies. On 2026-10-12, dazuiba's last commit was 2025-10-14, the npm package's last release was 2025-07-31, and the PyPI package's last release was 2025-08-10. The Rust, Go, tray and menu-bar projects had releases between April and September 2026. Check a repository's recent commits before you depend on it.",
+        a: "It varies. On 2026-10-12, dazuiba's last commit was 2025-10-14, the npm package's last release was 2025-07-31, and the PyPI package's last release was 2025-08-10. The Rust, tray and menu-bar projects had releases between April and September 2026. Check a repository's recent commits before you depend on it.",
       },
     ],
   },
