@@ -150,7 +150,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "Google's hooks docs let Antigravity CLI read hooks from three places: `.agents/hooks.json` at your project root, `~/.gemini/config/hooks.json` for every project, or the `hooks.json` inside an installed plugin. Hooks in `~/.gemini/antigravity-cli/settings.json` aren't loaded, so use `hooks.json`. The docs write every path with `~` and give no separate Windows path, so on Windows anotifier writes it to the same path under your user folder (`%USERPROFILE%\\.gemini\\config\\hooks.json`); Google's docs give no Windows path. This guide uses `~/.gemini/config/hooks.json`. Type `/hooks` inside the CLI to see what it loaded.",
+            text: "Google's hooks docs let Antigravity CLI read hooks from three places: `.agents/hooks.json` at your project root, `~/.gemini/config/hooks.json` for every project, or the `hooks.json` inside an installed plugin. Hooks in `~/.gemini/antigravity-cli/settings.json` aren't loaded, so use `hooks.json`. The docs write every path with `~` and give no separate Windows path, so on Windows anotifier writes it to the same path under your user folder (`%USERPROFILE%\\.gemini\\config\\hooks.json`). This guide uses `~/.gemini/config/hooks.json`. Type `/hooks` inside the CLI to see what it loaded.",
           },
           {
             kind: "p",
