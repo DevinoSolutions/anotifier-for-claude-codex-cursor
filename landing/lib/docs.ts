@@ -748,7 +748,7 @@ export const DOCS: DocSection[] = [
       {
         kind: "ul",
         items: [
-          'Turn it on with `anotifier config focus` or in `~/.anotifier/config.json`. When it is on, every alert (task complete, needs input, and a new session if you turned that alert on) sends nothing on any channel (toast, ntfy, webhook, bell). `anotifier status` shows it as `When focused`, and a `projects` rule can turn it on or off for one folder.',
+          "Turn it on with `anotifier config focus` or in `~/.anotifier/config.json`. When it is on, every alert (task complete, needs input, and a new session if you turned that alert on) sends nothing on any channel (toast, ntfy, webhook, bell). `anotifier status` shows it as `When focused`, and a `projects` rule can turn it on or off for one folder.",
           "It is opt-in because every alert waits for a short window probe: about 1 s on Windows and WSL, a fraction of a second on macOS and Linux. If the probe fails or takes too long, the alert is sent.",
           'Only a clear "yes, in front" skips. When anotifier cannot tell it sends as usual: under tmux, screen or zellij, over ssh, on Wayland, on Linux without `xdotool`, and for an editor on macOS.',
           "It compares the foreground window with the first window up the agent's process tree. For VS Code (Insiders, VSCodium and Code - OSS included), Cursor, Windsurf and Antigravity, whose windows share one process, the window title must also have the project folder name as one of its ` - `-separated parts.",
