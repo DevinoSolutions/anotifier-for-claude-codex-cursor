@@ -92,7 +92,7 @@ export default function ChannelPage({ slug }: { slug: string }) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <nav>
+      <nav aria-label="Primary">
         <div className="wrap">
           <Link
             href="/"
@@ -123,7 +123,7 @@ export default function ChannelPage({ slug }: { slug: string }) {
         </div>
       </nav>
 
-      <div className="wrap">
+      <main className="wrap">
         <header>
           <div className="crumb">
             <Link href="/">anotifier</Link> / <span>{channel.slug}</span>
@@ -350,7 +350,7 @@ export default function ChannelPage({ slug }: { slug: string }) {
             .
           </p>
         </section>
-      </div>
+      </main>
 
       <SiteFooter />
     </>

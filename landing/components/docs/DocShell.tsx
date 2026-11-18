@@ -20,7 +20,7 @@ export default function DocShell({
 }) {
   return (
     <>
-      <nav>
+      <nav aria-label="Primary">
         <div className="wrap">
           <Link
             href="/"
@@ -54,12 +54,12 @@ export default function DocShell({
         </div>
       </nav>
 
-      <div className="wrap">
+      <main className="wrap">
         <div className="crumb" style={{ paddingTop: "40px" }}>
           <Link href="/">anotifier</Link> / <span>{crumb}</span>
         </div>
         {children}
-      </div>
+      </main>
 
       <SiteFooter />
     </>

@@ -140,7 +140,7 @@ export default async function AgentPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <nav>
+      <nav aria-label="Primary">
         <div className="wrap">
           <Link
             href="/"
@@ -171,7 +171,7 @@ export default async function AgentPage({
         </div>
       </nav>
 
-      <div className="wrap">
+      <main className="wrap">
         <header>
           <div className="crumb">
             <Link href="/">anotifier</Link> / <span>{agent.slug}</span>
@@ -364,7 +364,7 @@ export default async function AgentPage({
             .
           </p>
         </section>
-      </div>
+      </main>
 
       <SiteFooter />
     </>
