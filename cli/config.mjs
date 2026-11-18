@@ -82,8 +82,8 @@ async function configMinDuration(rl, conf) {
 export async function configFocus(rl, config) {
   log('\n  Focus Configuration\n', 'bold');
   log('  Skip every alert (toast, ntfy, webhook, bell) while the window running the agent is the one in front.', 'dim');
-  log('  Needs a short window probe before each alert: adds about 1 s to each alert on Windows while it is on.', 'dim');
-  log('  A window left in front while you are away still counts as in front, so the idle reminder and `anotifier away` are never suppressed.', 'dim');
+  log('  Needs a short window probe before each alert: adds about 1 s to each alert on Windows and WSL while it is on.', 'dim');
+  log('  A window left in front while you are away still counts as in front, so the idle reminder is never suppressed.', 'dim');
   log('  Unknown cases (tmux, screen, zellij, ssh, Wayland) still send. Another tab of the same terminal counts as in front.', 'dim');
   config.suppressWhenFocused = await askYN(rl, 'Skip alerts while the agent window is in front?', config.suppressWhenFocused === true);
 }
