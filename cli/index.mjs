@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // cli/index.mjs
 import { createRequire } from 'node:module';
-import { checkForUpdate, isNewer } from '../src/update-check.mjs';
+import { checkForUpdate } from '../src/update-check.mjs';
+import { printUpdateBanner } from './update-banner.mjs';
 import { COMMUNITY_URL, DOCS_URL, SUPPORT_URL } from '../src/support.mjs';
 import { track, flushTelemetry, clampIdent } from '../src/telemetry.mjs';
 
@@ -40,18 +41,6 @@ const KNOWN_ARGS = new Set([
   'sounds', 'events', 'sentry', 'focus', 'off',
 ]);
 const argShape = (args) => args.filter(Boolean).map((a) => (KNOWN_ARGS.has(a) ? a : 'other'));
-
-async function printUpdateBanner(c, updatePromise) {
-  const latest = await updatePromise;
-  // Re-assert the semver gate instead of trusting the cached hit: the shared
-  // .update-check.json can hold a version recorded BEFORE the user upgraded,
-  // and for the rest of the 24h TTL that would render as "v1.3.0 → v1.3.0".
-  // Same guard maybeNotifyUpdate applies on the hook path.
-  if (latest && isNewer(latest, pkg.version)) {
-    console.log(`  ${c.warn('↑')} ${c.warn(`Update available: v${pkg.version} → v${latest}`)}`);
-    console.log(`    ${c.muted('npm i -g anotifier@latest')}\n`);
-  }
-}
 
 async function main() {
   const { c, banner } = await import('./ui.mjs');
@@ -96,9 +85,10 @@ async function main() {
   }
   await flushTelemetry();
 
-  // Show update banner after command output. status prints its own; doctor
-  // --json must stay machine-parseable (valid JSON only), so suppress it there.
-  const suppressBanner = command === 'status'
+  // Show update banner after command output. A command that places the banner
+  // itself (status, above its support line) says so with printsOwnUpdateBanner;
+  // doctor --json must stay machine-parseable (valid JSON only), so suppress it there.
+  const suppressBanner = mod.printsOwnUpdateBanner === true
     || (command === 'doctor' && process.argv.slice(3).includes('--json'));
   if (!suppressBanner) {
     await printUpdateBanner(c, updatePromise);

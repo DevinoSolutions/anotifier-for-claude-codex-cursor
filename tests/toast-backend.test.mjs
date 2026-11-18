@@ -7,8 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  applyToastBackendResult, toastOffBySetup, toastOffNoBackendLabel, TOAST_INSTALL_HINT,
-  probeCommand, isProbeTimeout,
+  applyToastBackendResult, toastOffBySetup, toastOffNoBackendLabel, PLATFORM_INFO,
 } from '../cli/toast-backend.mjs';
 import { noteSetupDisabledToast, has } from '../cli/doctor-checks.mjs';
 import { loadConfigResult, saveConfig } from '../src/config-loader.mjs';
@@ -68,33 +67,11 @@ describe('applyToastBackendResult', () => {
   });
 });
 
-describe('probeCommand / isProbeTimeout / has', () => {
+// The probe itself is tested in probe-binary.test.mjs; this pins doctor's wrapper.
+describe('doctor has()', () => {
   const failing = (props) => () => { throw Object.assign(new Error('x'), props); };
 
-  it('uses command -v through /bin/sh, not the which binary', () => {
-    let call;
-    const r = probeCommand('notify-send', (cmd, args) => { call = [cmd, args]; });
-    assert.equal(r, 'found');
-    assert.equal(call[0], '/bin/sh');
-    assert.match(call[1][1], /^command -v/);
-    assert.equal(call[1].at(-1), 'notify-send');
-  });
-
-  it('a clean not-found exit is missing; a timeout, kill or unstartable shell is unknown', () => {
-    assert.equal(probeCommand('x', failing({ status: 1 })), 'missing');
-    assert.equal(probeCommand('x', failing({ status: 127 })), 'missing');
-    assert.equal(probeCommand('x', failing({ code: 'ETIMEDOUT', status: null })), 'unknown');
-    assert.equal(probeCommand('x', failing({ killed: true, signal: 'SIGTERM', status: null })), 'unknown');
-    assert.equal(probeCommand('x', failing({ code: 'ENOENT' })), 'unknown');
-  });
-
-  it('isProbeTimeout recognises timeouts and kills only', () => {
-    assert.equal(isProbeTimeout(Object.assign(new Error(), { code: 'ETIMEDOUT' })), true);
-    assert.equal(isProbeTimeout(Object.assign(new Error(), { killed: true })), true);
-    assert.equal(isProbeTimeout(Object.assign(new Error(), { status: 1 })), false);
-  });
-
-  it('doctor has(): unix goes through command -v; windows still uses where', () => {
+  it('unix goes through command -v; windows still uses where', () => {
     const calls = [];
     const run = (cmd, args) => { calls.push(cmd); };
     assert.equal(has('notify-send', { platform: 'linux', run }), true);
@@ -102,13 +79,40 @@ describe('probeCommand / isProbeTimeout / has', () => {
     assert.deepEqual(calls, ['/bin/sh', 'where']);
     assert.equal(has('x', { platform: 'linux', run: failing({ status: 1 }) }), false);
   });
+
+  it('a timed-out probe is not a hit on either platform', () => {
+    const timeout = failing({ code: 'ETIMEDOUT', killed: true });
+    assert.equal(has('x', { platform: 'linux', run: timeout }), false);
+    assert.equal(has('x', { platform: 'win32', run: timeout }), false);
+  });
+});
+
+describe('PLATFORM_INFO (one table, keyed by toastPlatform())', () => {
+  it('names every platform and its toast backend exactly as setup and status print them', () => {
+    assert.deepEqual(
+      Object.fromEntries(Object.entries(PLATFORM_INFO).map(([k, v]) => [k, [v.label, v.toast]])),
+      {
+        win32: ['Windows', 'BurntToast'],
+        darwin: ['macOS', 'osascript'],
+        wsl: ['WSL', 'Windows toast (WSL interop)'],
+        linux: ['Linux', 'notify-send'],
+      },
+    );
+  });
+
+  it('every platform has an install hint', () => {
+    for (const [key, info] of Object.entries(PLATFORM_INFO)) {
+      assert.equal(typeof info.installHint, 'string', key);
+      assert.ok(info.installHint.length > 0, key);
+    }
+  });
 });
 
 describe('status / doctor wording', () => {
   const off = { toast: { enabled: false, disabledBySetup: true } };
 
   it('toastOffNoBackendLabel names what to install per platform', () => {
-    assert.equal(toastOffNoBackendLabel(off, 'linux'), `off, no backend (${TOAST_INSTALL_HINT.linux})`);
+    assert.equal(toastOffNoBackendLabel(off, 'linux'), `off, no backend (${PLATFORM_INFO.linux.installHint})`);
     assert.match(toastOffNoBackendLabel(off, 'linux'), /^off, no backend \(install libnotify/);
     assert.match(toastOffNoBackendLabel(off, 'win32'), /PowerShell 7/);
     assert.match(toastOffNoBackendLabel(off, 'wsl'), /interop/);
@@ -123,7 +127,7 @@ describe('status / doctor wording', () => {
   it('doctor folds it into the existing backend row (no second row)', () => {
     const row = { id: 'toast-backend', channel: 'toast', status: 'warn', detail: 'notify-send missing', hint: 'install libnotify-bin' };
     noteSetupDisabledToast(row, off, 'linux');
-    assert.equal(row.detail, `toast: off, no backend (${TOAST_INSTALL_HINT.linux})`);
+    assert.equal(row.detail, `toast: off, no backend (${PLATFORM_INFO.linux.installHint})`);
     assert.equal(row.status, 'warn');
     assert.match(row.hint, /re-run: anotifier setup/);
   });

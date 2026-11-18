@@ -3,14 +3,15 @@ import os from 'node:os';
 import readline from 'node:readline';
 import path from 'node:path';
 import { getConfigDir } from '../src/config-loader.mjs';
-import { unpatchAll, unpatchClaudeApproval } from '../setup/patch-config.mjs';
+import { TOOL_EVENTS, unpatchAll, unpatchClaudeApproval } from '../setup/patch-config.mjs';
 import { execFileSync } from 'node:child_process';
 import { track } from '../src/telemetry.mjs';
 import { removeTurnState } from '../src/turn-timer.mjs';
 import { c, spinner } from './ui.mjs';
 
 // The only tool labels an uninstall_result may carry; anything else is "other".
-const KNOWN_TOOLS = ['Claude Code', 'Codex CLI', 'Cursor IDE', 'Gemini CLI', 'Antigravity CLI', 'agentfocus://'];
+// The tools are the registry's labels, the same ones unpatchAll reports under.
+const KNOWN_TOOLS = [...Object.values(TOOL_EVENTS).map((t) => t.label), 'agentfocus://'];
 const FOCUS_KEY = 'HKCU\\Software\\Classes\\agentfocus';
 
 // toast.ps1 registers the agentfocus:// click-to-focus protocol in HKCU on the
