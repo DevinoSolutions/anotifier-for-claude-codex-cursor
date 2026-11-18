@@ -31,6 +31,5 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - run: npm install
       - name: Validate Cursor config patching (hard-fails if key missing)
         run: node scripts/live-cursor.mjs

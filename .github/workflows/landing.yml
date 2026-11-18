@@ -1,9 +1,11 @@
 # Landing site (anotifier.io) — source lives in landing/.
 #
-# Runs only when the site changes. Dokploy builds and deploys landing/ from
-# main on its own; this workflow is the pre-merge gate (lint, format, unused
-# code, types, static export). Every check step carries `if: ${{ !cancelled() }}`
-# so one red check never hides the others.
+# Runs only when the site changes. This workflow is the pre-merge gate (lint,
+# format, unused code, types, static export, then the site tests against the
+# production nginx.conf). It deploys nothing: since #159 dokploy.yml builds the
+# image on a GitHub-hosted runner when a push to main touches landing/ and
+# publishes it as a Dokploy release. Every check step carries
+# `if: ${{ !cancelled() }}` so one red check never hides the others.
 name: Landing
 
 on:
@@ -20,9 +22,9 @@ on:
 concurrency:
   group: '${{ github.workflow }}-${{ github.ref }}'
   # Supersede runs on every ref, main included. This workflow is the pre-merge
-  # gate and nothing else — Dokploy builds and deploys landing/ from main on its
-  # own — so a run against a commit that a newer push has already replaced is
-  # holding a runner for a result nobody reads.
+  # gate and nothing else (dokploy.yml builds and publishes the image), so a run
+  # against a commit that a newer push has already replaced is holding a runner
+  # for a result nobody reads.
   cancel-in-progress: true
 
 defaults:

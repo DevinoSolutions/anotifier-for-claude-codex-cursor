@@ -21,12 +21,8 @@ jobs:
     permissions:
       contents: read # checkout
       id-token: write # OIDC token DevinoSolutions/artifact trades for storage credentials
-    name: Live Toast Native (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest]
-    runs-on: ${{ matrix.os }}
+    name: Live Toast Native (windows-latest)
+    runs-on: windows-latest
     timeout-minutes: 30
     env:
       AAN_TOAST_LIVE: '1'
@@ -35,16 +31,13 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - run: npm install
       - name: Install BurntToast (Windows)
-        if: runner.os == 'Windows'
         shell: pwsh
         run: Install-Module -Name BurntToast -Force -Scope CurrentUser -AllowClobber
       - name: Fire the real native toast backend and assert success (layer 1)
         run: node --test tests/platforms.test.mjs
 
       - name: Layer-2 read-back gate — toast recorded in wpndatabase.db (nonce in title + body)
-        if: runner.os == 'Windows'
         env:
           RENDER_OUT: ${{ runner.temp }}/win-readback-proof
         run: node scripts/live-toast-windows.mjs
