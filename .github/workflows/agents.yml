@@ -3,9 +3,9 @@ name: Agents
 on:
   push:
     branches: [main]
-    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore', 'landing/**']
   pull_request:
-    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore', 'landing/**']
 
 concurrency:
   group: '${{ github.workflow }}-${{ github.ref }}'
@@ -28,7 +28,6 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-      - run: npm install
       - name: Install agent CLIs (npm)
         # pinned — bump deliberately; drift canary tracks @latest
         run: npm install -g @anthropic-ai/claude-code@2.1.205 @google/gemini-cli@0.50.0 @openai/codex@0.144.0
