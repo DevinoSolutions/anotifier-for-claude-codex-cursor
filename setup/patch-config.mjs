@@ -669,7 +669,6 @@ export function unpatchAll(homeDir, backupDir) {
         results.push({ tool: tool.label, ok: true, reason: 'nothing to remove' });
         continue;
       }
-      backup(filePath, backupDir);
 
       // Capture our codex trust-state keys BEFORE removal — they encode each hook's
       // array index, which changes once the hook is gone.
@@ -692,6 +691,15 @@ export function unpatchAll(homeDir, backupDir) {
         }
       }
       if (tool.dir === '.claude' && unwireClaudeStatusline(data)) removedAny = true;
+
+      // Nothing of ours in this file: leave it exactly as the user has it. No
+      // backup, and no rewrite (which would reformat it as 2-space JSON).
+      if (!removedAny) {
+        results.push({ tool: tool.label, ok: true, reason: 'nothing to remove' });
+        continue;
+      }
+
+      backup(filePath, backupDir);
       writeJSON(filePath, data);
 
       // Codex keeps hook trust hashes in config.toml [hooks.state]. Remove ours so
@@ -707,7 +715,7 @@ export function unpatchAll(homeDir, backupDir) {
         }
       }
 
-      results.push({ tool: tool.label, ok: true, reason: removedAny ? 'hooks removed' : 'nothing to remove' });
+      results.push({ tool: tool.label, ok: true, reason: 'hooks removed' });
     } catch (err) {
       results.push({ tool: tool.label, ok: false, reason: err.message });
     }
