@@ -62,10 +62,17 @@ describe('pruneStaleLocks', () => {
   });
 
   it('the age boundary: exactly the prune age is kept, one second more goes', () => {
-    put('.lock-a-x-1', new Date(NOW - LOCK_PRUNE_AGE_MS));
-    put('.lock-a-x-2', new Date(NOW - LOCK_PRUNE_AGE_MS - 1000));
-    pruneStaleLocks(dir, { now: NOW });
-    assert.deepEqual(names(), ['.lock-a-x-1']);
+    // Deterministic on every filesystem: the mtime is a whole second (exactly
+    // representable, so it survives utimes and stat unchanged on ext4, APFS and
+    // NTFS alike) and the clock handed to the sweep is derived from it, never
+    // from Date.now() minus a sub-millisecond-lossy mtime.
+    const mtime = 1_700_000_000_000;
+    const file = put('.lock-a-x-1', new Date(mtime));
+    assert.equal(fs.lstatSync(file).mtimeMs, mtime, 'the filesystem kept the whole-second mtime exactly');
+    pruneStaleLocks(dir, { now: mtime + LOCK_PRUNE_AGE_MS });
+    assert.deepEqual(names(), ['.lock-a-x-1'], 'exactly the prune age old: kept');
+    pruneStaleLocks(dir, { now: mtime + LOCK_PRUNE_AGE_MS + 1 });
+    assert.deepEqual(names(), [], 'one millisecond older: removed');
   });
 
   it('a lock from the future (clock stepped back) is kept', () => {
