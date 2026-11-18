@@ -19,6 +19,7 @@ import {
   softwareApplicationLd,
 } from "@/lib/jsonld";
 import { stripTags } from "@/lib/strip-tags";
+import { pageMetadata } from "@/lib/page-metadata";
 import "./agent-page.css";
 import "../docs/docs.css";
 
@@ -58,23 +59,12 @@ export async function generateMetadata({
   if (!agent) return {};
 
   const url = `${SITE_URL}/${agent.slug}/`;
-  return {
+  return pageMetadata({
+    url,
     title: agent.title,
     description: agent.description,
-    alternates: { canonical: url },
-    openGraph: {
-      type: "website",
-      siteName: "anotifier",
-      url,
-      title: agent.title,
-      description: agent.description,
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: agent.title,
-      description: agent.description,
-    },
-  };
+    ogType: "website",
+  });
 }
 
 export default async function AgentPage({

@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import CodeBlock from "@/components/docs/CodeBlock";
 import DocShell from "@/components/docs/DocShell";
@@ -13,6 +12,7 @@ import {
 } from "@/lib/alternatives";
 import { breadcrumbListLd, techArticleLd } from "@/lib/jsonld";
 import { GITHUB_URL, INSTALL_CMD, PAGE_UPDATED, SITE_URL } from "@/lib/site";
+import { pageMetadata } from "@/lib/page-metadata";
 import "../[slug]/agent-page.css";
 import "../docs/docs.css";
 
@@ -20,23 +20,12 @@ const URL = `${SITE_URL}/compare/`;
 const TITLE = COMPARE_TITLE;
 const DESCRIPTION = COMPARE_DESCRIPTION;
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
+  url: URL,
   title: TITLE,
   description: DESCRIPTION,
-  alternates: { canonical: URL },
-  openGraph: {
-    type: "article",
-    siteName: "anotifier",
-    url: URL,
-    title: TITLE,
-    description: DESCRIPTION,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: TITLE,
-    description: DESCRIPTION,
-  },
-};
+  ogType: "article",
+});
 
 export default function ComparePage() {
   const jsonLd = [

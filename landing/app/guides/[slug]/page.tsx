@@ -18,6 +18,7 @@ import {
   SITE_URL,
   SUPPORT_URL,
 } from "@/lib/site";
+import { pageMetadata } from "@/lib/page-metadata";
 import "../../[slug]/agent-page.css";
 import "../../docs/docs.css";
 
@@ -36,23 +37,12 @@ export async function generateMetadata({
   const guide = getGuide(slug);
   if (!guide) return {};
   const url = `${SITE_URL}/guides/${guide.slug}/`;
-  return {
+  return pageMetadata({
+    url,
     title: guide.title,
     description: guide.description,
-    alternates: { canonical: url },
-    openGraph: {
-      type: "article",
-      siteName: "anotifier",
-      url,
-      title: guide.title,
-      description: guide.description,
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: guide.title,
-      description: guide.description,
-    },
-  };
+    ogType: "article",
+  });
 }
 
 export default async function GuidePage({

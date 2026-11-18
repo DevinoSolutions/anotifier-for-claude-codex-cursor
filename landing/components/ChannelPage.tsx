@@ -17,29 +17,19 @@ import {
   softwareApplicationLd,
 } from "@/lib/jsonld";
 import { stripTags } from "@/lib/strip-tags";
+import { pageMetadata } from "@/lib/page-metadata";
 
 export function buildChannelMetadata(slug: string): Metadata {
   const channel = getChannel(slug);
   if (!channel) return {};
 
   const url = `${SITE_URL}/${channel.slug}/`;
-  return {
+  return pageMetadata({
+    url,
     title: channel.title,
     description: channel.description,
-    alternates: { canonical: url },
-    openGraph: {
-      type: "website",
-      siteName: "anotifier",
-      url,
-      title: channel.title,
-      description: channel.description,
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: channel.title,
-      description: channel.description,
-    },
-  };
+    ogType: "website",
+  });
 }
 
 export default function ChannelPage({ slug }: { slug: string }) {

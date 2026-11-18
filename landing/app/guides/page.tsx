@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import DocShell from "@/components/docs/DocShell";
 import JsonLd from "@/components/JsonLd";
@@ -6,6 +5,7 @@ import { breadcrumbListLd, faqPageLd } from "@/lib/jsonld";
 import { GUIDES, GUIDES_DESCRIPTION, GUIDES_TITLE } from "@/lib/guides";
 import { CHANNELS } from "@/lib/channels";
 import { SITE_URL } from "@/lib/site";
+import { pageMetadata } from "@/lib/page-metadata";
 import "../[slug]/agent-page.css";
 import "../docs/docs.css";
 
@@ -13,23 +13,12 @@ const URL = `${SITE_URL}/guides/`;
 const TITLE = GUIDES_TITLE;
 const DESCRIPTION = GUIDES_DESCRIPTION;
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
+  url: URL,
   title: TITLE,
   description: DESCRIPTION,
-  alternates: { canonical: URL },
-  openGraph: {
-    type: "website",
-    siteName: "anotifier",
-    url: URL,
-    title: TITLE,
-    description: DESCRIPTION,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: TITLE,
-    description: DESCRIPTION,
-  },
-};
+  ogType: "website",
+});
 
 type Part = string | { href: string; text: string };
 

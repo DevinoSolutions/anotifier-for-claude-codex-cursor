@@ -1,30 +1,19 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import DocShell from "@/components/docs/DocShell";
 import { GITHUB_URL, PAGE_UPDATED, SITE_URL } from "@/lib/site";
 import "../[slug]/agent-page.css";
 import "../docs/docs.css";
 import { PRIVACY_DESCRIPTION, PRIVACY_TITLE } from "./copy";
+import { pageMetadata } from "@/lib/page-metadata";
 
 const URL = `${SITE_URL}/privacy/`;
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
+  url: URL,
   title: PRIVACY_TITLE,
   description: PRIVACY_DESCRIPTION,
-  alternates: { canonical: URL },
-  openGraph: {
-    type: "article",
-    siteName: "anotifier",
-    url: URL,
-    title: PRIVACY_TITLE,
-    description: PRIVACY_DESCRIPTION,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: PRIVACY_TITLE,
-    description: PRIVACY_DESCRIPTION,
-  },
-};
+  ogType: "article",
+});
 
 /* A plain description of what the site does, written from the code. Each
    sentence matches a component or a config: app/layout.tsx, components/PostHog.tsx,

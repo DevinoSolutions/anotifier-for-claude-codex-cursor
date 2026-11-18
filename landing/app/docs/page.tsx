@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import DiscordIcon from "@/components/DiscordIcon";
 import Blocks from "@/components/docs/Blocks";
@@ -18,28 +17,19 @@ import {
   SUPPORT_URL,
   VERSION,
 } from "@/lib/site";
+import { pageMetadata } from "@/lib/page-metadata";
 import "../[slug]/agent-page.css";
 import "./docs.css";
 
 const URL = `${SITE_URL}/docs/`;
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
+  url: URL,
   title: `${DOCS_TITLE} — install, commands, config`,
+  shareTitle: DOCS_TITLE,
   description: DOCS_DESCRIPTION,
-  alternates: { canonical: URL },
-  openGraph: {
-    type: "article",
-    siteName: "anotifier",
-    url: URL,
-    title: DOCS_TITLE,
-    description: DOCS_DESCRIPTION,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: DOCS_TITLE,
-    description: DOCS_DESCRIPTION,
-  },
-};
+  ogType: "article",
+});
 
 export default function DocsPage() {
   const jsonLd = [
