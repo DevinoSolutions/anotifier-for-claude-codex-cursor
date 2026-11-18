@@ -4,6 +4,7 @@ import { platform } from 'node:process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { logHookError } from '../error-log.mjs';
+import { execFailureReason, noteFailure } from '../channel-failure.mjs';
 import { PLAY_SCRIPT, isSoundFilePath, playFirst, prepareSoundFile, windowsPlayerArgs } from './sound.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -42,7 +43,10 @@ export function toastFailureDetail(err, stderr, elapsedMs, timeoutMs = TOAST_TIM
 // the sound player, and the error logger.
 export async function sendToast(notification, deps = {}) {
   const { platform: host = platform, execFileImpl = execFile, log = logHookError, ...soundDeps } = deps;
-  if (host !== 'win32') return false;
+  if (host !== 'win32') {
+    noteFailure('toast', 'unsupported');
+    return false;
+  }
 
   // A custom sound file plays in its own detached pwsh and the toast is made
   // silent; if the file is unusable or the player cannot start, the toast keeps
@@ -88,6 +92,7 @@ export async function sendToast(notification, deps = {}) {
         // command line, which extra.command already keeps once.
         const logged = new Error(`toast.ps1 failed: ${detail.cause}`);
         log('toast:windows', logged, { ...detail, command: String(err.message || '').split('\n')[0].slice(0, 300) });
+        noteFailure('toast', execFailureReason(err));
       }
       resolve(!err);
     });

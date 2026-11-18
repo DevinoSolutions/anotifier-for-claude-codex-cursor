@@ -396,7 +396,7 @@ export const CLAUDE_GUIDES: Guide[] = [
   },
   {
     slug: "claude-code-notification-sound",
-    updated: "2026-10-22",
+    updated: "2026-10-29",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code sounds",
@@ -722,11 +722,11 @@ export const CLAUDE_GUIDES: Guide[] = [
       },
       {
         id: "mute",
-        title: "Turn the sound off",
+        title: "How to mute Claude Code",
         blocks: [
           {
             kind: "p",
-            text: "Which switch you need depends on where the sound comes from:",
+            text: 'The main switch to mute Claude Code is `"preferredNotifChannel": "notifications_disabled"` in `~/.claude/settings.json`; it also shows up in `/config` as **Local notifications**. It silences Claude Code\'s own alerts (and those of any mods you use), nothing else. A sound from a hook you added, from your terminal\'s bell, or from anotifier comes from somewhere else, so check which of these you have:',
           },
           {
             kind: "table",
@@ -753,6 +753,10 @@ export const CLAUDE_GUIDES: Guide[] = [
           {
             kind: "note",
             text: "Hooks keep running when you turn the built-in alert off. Claude Code's docs say `Notification` hooks fire even when desktop notifications are off, because `preferredNotifChannel` only changes how you're alerted. Muting the bell doesn't mute a hook.",
+          },
+          {
+            kind: "p",
+            text: "To keep the alerts and lose only the noise, leave the channel alone and mute the terminal's bell (the third row above) if that is the sound, or turn off sounds for the terminal in your OS notification settings if it comes with a desktop banner, or delete the sound hook and keep the rest. The Claude desktop app's Code tab sends an OS notification when a session finishes a task and you aren't viewing that session. For a session in a project, turn them off with **Notifications** in the project's sidebar menu. For other sessions the docs describe no switch, so use your operating system's notification or Focus settings for the app.",
           },
           {
             kind: "p",
@@ -849,6 +853,10 @@ export const CLAUDE_GUIDES: Guide[] = [
       {
         q: "How do I turn off the Claude Code sound?",
         a: 'Set "preferredNotifChannel": "notifications_disabled" in ~/.claude/settings.json to silence the built-in alert. Hooks still run, so also delete any sound hook, or set "disableAllHooks": true to pause your own hooks (managed hooks keep running unless it is set in managed settings). anotifier\'s toast has its own sound, so turning its terminal bell off is not enough: run npx anotifier@latest snooze 2h, or set toast.enabled to false in ~/.anotifier/config.json.',
+      },
+      {
+        q: "How do I mute Claude?",
+        a: "To mute Claude Code, set \"preferredNotifChannel\": \"notifications_disabled\" in ~/.claude/settings.json, or change Local notifications in /config. That silences only its built-in alert. A sound can also come from a Stop or Notification hook you added (delete it), from your terminal's bell (turn the bell off in the terminal), or from anotifier (run npx anotifier@latest snooze 2h). To keep alerts but lose the sound, turn the bell off in the terminal if the sound is its bell, or turn off sounds for your terminal app in your operating system's notification settings if it comes with a desktop banner. In the Claude desktop app, turn off a project's notifications with Notifications in its sidebar menu, or mute the app in your operating system's notification settings.",
       },
       {
         q: "Can Claude Code play a different sound when it needs permission?",
@@ -1893,7 +1901,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
   },
   {
     slug: "ccnotify",
-    updated: "2026-10-16",
+    updated: "2026-11-14",
     kind: "topic",
     agentSlug: "claude-code",
     name: "ccnotify",
@@ -1903,7 +1911,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
       "Several Claude Code tools are named ccnotify: a macOS script, an npm hook builder, a talking PyPI package and tray apps. What each does and how to tell yours.",
     h1: "ccnotify for Claude Code: which one is which?",
     intro:
-      "There is no single ccnotify. At least seven unrelated open-source projects use the name, and all of them send Claude Code notifications. The best known, [dazuiba/CCNotify](https://github.com/dazuiba/CCNotify), is a macOS-only Python script built on terminal-notifier. The `ccnotify` package on npm is a different tool that writes Stop hooks for Discord, ntfy and macOS. The `ccnotify` package on PyPI is a third, and it speaks its notifications aloud. Four newer projects are a Rust binary for Windows, macOS and Linux, a Go command line tool for macOS, and two tray or menu-bar apps. To find yours, look at the ccnotify entry in `~/.claude/settings.json` and match it against the table below. anotifier is a separate project and none of these; the comparison further down says where each of them does something anotifier doesn't.",
+      "There is no single ccnotify. At least six unrelated open-source projects use the name, and all of them send Claude Code notifications. The best known, [dazuiba/CCNotify](https://github.com/dazuiba/CCNotify), is a macOS-only Python script built on terminal-notifier. The `ccnotify` package on npm is a different tool that writes Stop hooks for Discord, ntfy and macOS. The `ccnotify` package on PyPI is a third, and it speaks its notifications aloud. Three newer projects are a Rust binary for Windows, macOS and Linux and two tray or menu-bar apps. To find yours, look at the ccnotify entry in `~/.claude/settings.json` and match it against the table below. anotifier is a separate project and none of these; the comparison further down says where each of them does something anotifier doesn't.",
     sections: [
       {
         id: "which",
@@ -1957,13 +1965,6 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
                 "Build from source, or a Windows installer from its releases; then use Install Hook in the tray menu or `--install-hook`",
                 "`permission_prompt` and `idle_prompt` handlers (the `Notification` event)",
                 "v0.2.0, 2026-07-01",
-              ],
-              [
-                "[daniil4545/ccnotify](https://github.com/daniil4545/ccnotify) (Go, MIT)",
-                "macOS notifications that name the project and the event, grouped per session, with cooldowns so it doesn't repeat itself. Clicking one raises the window that holds the project. A `ccnotify doctor` command checks the setup.",
-                "`go install github.com/daniil4545/ccnotify/cmd/ccnotify@latest`, `brew install terminal-notifier`, then `ccnotify init`",
-                "`Stop`, `Notification`",
-                "v0.1.0, 2026-09-02",
               ],
               [
                 "[dmxj/ccnotify](https://github.com/dmxj/ccnotify) (Swift, MIT)",
@@ -2026,10 +2027,6 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
               [
                 "`permission_prompt` and `idle_prompt` handlers that run `CCNotify.app` or `CCNotify.exe`, and a `settings.json.ccnotify-backup` file next to your settings",
                 "tez-Szymon/CCNotify",
-              ],
-              [
-                "A `~/.config/ccnotify/config.json` file, and `ccnotify doctor` works in a terminal",
-                "daniil4545/ccnotify",
               ],
               [
                 "A `~/.ccnotify/` folder holding `ccnotify-hook`, entries that mention `ccnotify-hook`, and a bell icon in the menu bar",
@@ -2125,16 +2122,6 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
                 "—",
               ],
               [
-                "daniil4545/ccnotify",
-                "Claude Code",
-                "macOS",
-                "Desktop (terminal-notifier, or plain `osascript` without click)",
-                "—",
-                "Set per event (macOS system sound names)",
-                "Yes, raises the window that holds the project",
-                "—",
-              ],
-              [
                 "dmxj/ccnotify",
                 "Claude Code, Codex CLI",
                 "macOS 13+",
@@ -2156,8 +2143,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
               "**dmxj/ccnotify** lets you approve or deny a tool call from the notification card. anotifier 1.8.0 only alerts you; there is no approval feature in a release.",
               "**Helmi/CCNotify** speaks, and it watches tool use (`PreToolUse`, `PostToolUse`) for risky commands and errors. anotifier plays a sound or rings the bell but never speaks, and it alerts on turn end and needs-input only.",
               "**dazuiba/CCNotify** puts how long the task took in the banner, and its click opens the project in VS Code on macOS. anotifier 1.8.0 and later also shows the turn length for Claude Code, Codex CLI and Gemini CLI, but its click-to-focus works on Windows only.",
-              "**tez-Szymon, daniil4545 and dmxj** return you to the terminal when you click a macOS banner. tez-Szymon does the same on Windows and sends iPhone alerts through a web app, so you don't need the ntfy app, and it waits until your computer has been idle for 15 seconds before it forwards one.",
-              "**daniil4545/ccnotify** can mute permission and idle banners while the window is focused. anotifier's opt-in `suppressWhenFocused` (1.8.0 and later) skips \"task complete\" and needs-input alerts while the agent's window is in front, with no per-kind choice and never the idle reminder. It also has [snooze and quiet hours](/docs/), which silence every channel.",
+              "**tez-Szymon and dmxj** return you to the terminal when you click a macOS banner. tez-Szymon does the same on Windows and sends iPhone alerts through a web app, so you don't need the ntfy app, and it waits until your computer has been idle for 15 seconds before it forwards one.",
             ],
           },
           {
@@ -2197,10 +2183,6 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
               [
                 "tez-Szymon/CCNotify",
                 "Documented: run the app with `--uninstall-hook` (`/Applications/CCNotify.app/Contents/MacOS/CCNotify --uninstall-hook` on macOS, `.\\CCNotify.exe --uninstall-hook` on Windows)",
-              ],
-              [
-                "daniil4545/ccnotify",
-                "No uninstall section in its README. Remove its entries from `settings.json`; `ccnotify init` left a `.bak` of the file it changed",
               ],
               [
                 "dmxj/ccnotify",
@@ -2256,7 +2238,6 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
               "Helmi/CCNotify: [README and source](https://github.com/Helmi/CCNotify), [PyPI package](https://pypi.org/project/ccnotify/), [changelog](https://github.com/Helmi/CCNotify/blob/main/CHANGELOG.md)",
               "MoYeRanqianzhi/CCNotify: [README](https://github.com/MoYeRanqianzhi/CCNotify)",
               "tez-Szymon/CCNotify: [README](https://github.com/tez-Szymon/CCNotify)",
-              "daniil4545/ccnotify: [README](https://github.com/daniil4545/ccnotify)",
               "dmxj/ccnotify: [README](https://github.com/dmxj/ccnotify), [landing page](https://dmxj.github.io/ccnotify/)",
               "ningjiaen123/CCNotify-Windows: [README](https://github.com/ningjiaen123/CCNotify-Windows)",
               "anotifier: the [README](https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor#readme), [docs](/docs/), and the [agent hooks](/guides/agent-hooks-explained/) and [Claude Code notifications](/guides/claude-code-notifications/) guides",
@@ -2268,7 +2249,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
     faqs: [
       {
         q: "What is ccnotify?",
-        a: "It is a name shared by several unrelated open-source tools that notify you about Claude Code: a macOS Python script (dazuiba/CCNotify), an npm package that writes Stop hooks for Discord, ntfy and macOS (foxytanuki/ccnotify), a PyPI package that speaks notifications (Helmi/CCNotify), a Rust binary for Windows, macOS and Linux (MoYeRanqianzhi/CCNotify) and three newer macOS or tray apps. They have different authors and different code.",
+        a: "It is a name shared by several unrelated open-source tools that notify you about Claude Code: a macOS Python script (dazuiba/CCNotify), an npm package that writes Stop hooks for Discord, ntfy and macOS (foxytanuki/ccnotify), a PyPI package that speaks notifications (Helmi/CCNotify), a Rust binary for Windows, macOS and Linux (MoYeRanqianzhi/CCNotify) and two newer macOS or tray apps. They have different authors and different code.",
       },
       {
         q: "Is the ccnotify on npm the same as the one on PyPI?",
@@ -2300,7 +2281,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
       },
       {
         q: "Are the ccnotify projects still maintained?",
-        a: "It varies. On 2026-10-12, dazuiba's last commit was 2025-10-14, the npm package's last release was 2025-07-31, and the PyPI package's last release was 2025-08-10. The Rust, Go, tray and menu-bar projects had releases between April and September 2026. Check a repository's recent commits before you depend on it.",
+        a: "It varies. On 2026-10-12, dazuiba's last commit was 2025-10-14, the npm package's last release was 2025-07-31, and the PyPI package's last release was 2025-08-10. The Rust, tray and menu-bar projects had releases between April and September 2026. Check a repository's recent commits before you depend on it.",
       },
     ],
   },

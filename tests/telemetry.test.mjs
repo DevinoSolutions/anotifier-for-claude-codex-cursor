@@ -184,7 +184,8 @@ describe('recordHookRun', () => {
     assert.deepEqual(counters.outcomes, { dispatched: 1, suppressed_quiet: 1, unmapped: 1 });
     assert.deepEqual(counters.sources, { claude: 1, codex: 1, gemini: 1 });
     assert.deepEqual(counters.events, { task_complete: 1, needs_input: 1 });
-    assert.deepEqual(counters.channels, { toast: { ok: 1, fail: 0 }, ntfy: { ok: 0, fail: 1 } });
+    // a failure that names no reason is counted under "other"
+    assert.deepEqual(counters.channels, { toast: { ok: 1, fail: 0 }, ntfy: { ok: 0, fail: 1, reasons: { other: 1 } } });
     assert.deepEqual(counters.latency, { lt_500ms: 1 });
     assert.deepEqual(counters.unmapped_events, { PreToolUse: 1 });
   });

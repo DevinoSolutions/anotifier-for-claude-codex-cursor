@@ -638,7 +638,7 @@ const AGENT_GUIDES: Guide[] = [
       "Get a desktop toast, a sound or a phone alert when Codex CLI finishes or needs approval: built-in settings, hooks, or one setup command.",
     h1: "Codex CLI notifications: get alerted when it finishes or needs approval",
     intro:
-      "Codex CLI already notifies you when a turn ends or an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else, including Windows Terminal and VS Code. For alerts you can't miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option, then [Codex on Windows](#windows) and [how to turn the alerts off](#mute).",
+      'To get Codex CLI to notify you when it is done, you often need no setup. The built-in `[tui]` notifications fire when a turn finishes and when an approval is waiting, but by default only while its terminal is in the background: a desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, and the terminal bell everywhere else, including Windows Terminal and VS Code. Set `notification_condition = "always"` to get them with the window in front too. For alerts you will not miss, add `Stop` and `PermissionRequest` hooks to `~/.codex/hooks.json`, or run `npx anotifier@latest setup` to send both to your desktop and phone. Here is every option, then [Codex on Windows](#windows), [how to make Codex play a sound](/guides/codex-notification-sound/) and [how to turn the alerts off](#mute).',
     sections: [
       {
         id: "builtin",
@@ -827,6 +827,10 @@ const AGENT_GUIDES: Guide[] = [
     ],
     faqs: [
       {
+        q: "How do I get Codex to notify me when it is done?",
+        a: 'Codex already does when a turn finishes, as long as its terminal is in the background: set notification_condition = "always" under [tui] in ~/.codex/config.toml to get it even while the window is in front. To run your own script on every finished turn, set notify = ["python3", "/path/to/script.py"] at the top level of config.toml, above any [table] header; Codex calls it on agent-turn-complete with a JSON payload as the last argument. For a desktop toast and, if you set it up, a phone alert, run npx anotifier@latest setup.',
+      },
+      {
         q: "Does Codex CLI have built-in desktop notifications?",
         a: "Yes. The Codex TUI notifies when a turn ends and when an approval, Plan mode prompt, or question is waiting: an OSC 9 desktop notification in Ghostty, iTerm2, Kitty, Warp and WezTerm, the terminal bell elsewhere (including Windows Terminal and the VS Code terminal), and by default only while the terminal is unfocused. It doesn't reach your phone.",
       },
@@ -854,7 +858,7 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "cursor-agent-notifications",
-    updated: "2026-10-22",
+    updated: "2026-10-29",
     kind: "agent",
     agentSlug: "cursor",
     name: "Cursor",
@@ -864,7 +868,7 @@ const AGENT_GUIDES: Guide[] = [
       "Get a Cursor notification when the agent is done: the built-in sound and OS alert, a stop hook in hooks.json for a toast, phone push or Slack, and fixes.",
     h1: "How to get notified when the Cursor agent finishes",
     intro:
-      "Cursor can play a sound and raise an OS notification when the agent finishes, but both only reach the computer running Cursor. For your own text, a phone push or a Slack message, add a `stop` hook to `~/.cursor/hooks.json`, which Cursor runs when the agent loop ends, or let `npx anotifier@latest setup` write it. This guide covers each option, the exact hook format, and what to check when nothing arrives.",
+      "To get a notification when Cursor is done, try Cursor's own completion sound and OS notification first (both in Cursor's Settings), or add a `stop` hook to `~/.cursor/hooks.json`, which Cursor runs when the agent loop ends. The sound and OS notification only reach the computer running Cursor; a hook can show your own text, push to your phone or post to Slack, and `npx anotifier@latest setup` writes one for you. This guide covers each option, the exact hook format, and what to check when nothing arrives.",
     sections: [
       {
         id: "built-in",
@@ -913,6 +917,7 @@ const AGENT_GUIDES: Guide[] = [
               'A `stop` hook can print `{"followup_message": "..."}`, and Cursor sends that as the next message, up to `loop_limit` times (5 by default). A notification hook should print nothing or `{}`; a `followup_message` field would be sent as the next prompt.',
               "For user hooks, relative `command` paths resolve from `~/.cursor/`, so `./hooks/notify.sh` means `~/.cursor/hooks/notify.sh`. Project hooks run from the project root.",
               "To debug, open the Hooks tab under Customize or the Hooks output channel. If a new hook still doesn't load, restart Cursor.",
+              "User-level hooks in `~/.cursor/hooks.json` are not available in Cursor's cloud agents, so a `stop` hook there (or `npx anotifier@latest setup`) sends nothing for a cloud run; those agents run a project's `.cursor/hooks.json` (and, on Enterprise plans, team and enterprise-managed hooks), on Cursor's machine rather than yours. Hooks don't run during a cloud agent's early read-only turns.",
             ],
           },
           {
@@ -1035,6 +1040,11 @@ const AGENT_GUIDES: Guide[] = [
                 "Run `anotifier status` and look for Cursor IDE `wired`. Open the Hooks tab under Customize and the Hooks output channel for errors; restart Cursor if the hook still doesn't load",
               ],
               [
+                "No alert from a cloud agent",
+                "Cloud agents don't read your `~/.cursor/hooks.json`, where `anotifier setup` writes its hook",
+                "Add a `stop` hook to the project's `.cursor/hooks.json` that sends something off the cloud machine, such as the ntfy `curl` hook above. A toast or sound plays on the cloud machine, not on yours, and anotifier's own hook doesn't run there. The file is committed, so anyone who can read the repo can read the topic or webhook URL in it. Or use the push notification the Cursor mobile app sends when an agent finishes a turn",
+              ],
+              [
                 "`anotifier test toast` works, real runs are silent",
                 "The problem is between Cursor and anotifier",
                 "Check `~/.cursor/hooks.json` has a `stop` entry, then check `anotifier status` for snooze and quiet hours, which silence every channel on purpose",
@@ -1107,6 +1117,10 @@ const AGENT_GUIDES: Guide[] = [
       },
     ],
     faqs: [
+      {
+        q: "How do I get a notification when Cursor is done?",
+        a: "Two routes. First, Cursor's own settings: Cursor 0.48 added a beta option to play a sound when a chat is ready for review (its changelog gave the path as Settings > Features > Chat > Play sound on finish; if it has moved, search Cursor's settings for sound), and Cursor 1.5 added native OS notifications for a finished agent run, enabled from Settings. Second, a stop hook in ~/.cursor/hooks.json, which Cursor runs when the agent loop ends. npx anotifier@latest setup writes that hook for you and sends a desktop toast, phone push or webhook message titled Cursor that says Task complete.",
+      },
       {
         q: "Does Cursor have a built-in notification when the agent finishes?",
         a: "Yes, two. Cursor 0.48 added an option to play a sound when a chat is ready for review, and Cursor 1.5 added native OS notifications for a finished agent run or when input is required. Both stay on the computer running Cursor and use Cursor's own wording; for a phone push, Slack or your own text, add a stop hook.",
