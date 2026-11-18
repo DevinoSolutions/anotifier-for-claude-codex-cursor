@@ -4,18 +4,17 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { seedFreshUpdateCache } from './fake-home.mjs';
+import { seedFreshUpdateCache, makeTmpHome } from './fake-home.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 describe('remote approval CLI gate', () => {
   let home;
   before(() => {
-    home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-approval-gate-'));
+    home = makeTmpHome('aan-approval-gate-');
     seedFreshUpdateCache(home);
   });
   after(() => fs.rmSync(home, { recursive: true, force: true }));

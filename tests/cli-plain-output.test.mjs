@@ -11,16 +11,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { makeTmpHome, seedFreshUpdateCache } from './fake-home.mjs';
 import { colorEnabled } from '../cli/ui.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ANSI = /\x1b\[/;
 
 function runCli(args, extraEnv) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-plain-'));
-  const cfgDir = path.join(home, '.anotifier');
-  fs.mkdirSync(cfgDir, { recursive: true });
-  fs.writeFileSync(path.join(cfgDir, '.update-check.json'), JSON.stringify({ checkedAt: Date.now(), latest: null }));
+  const home = makeTmpHome('aan-plain-');
+  seedFreshUpdateCache(home);
   const env = { ...process.env, HOME: home, USERPROFILE: home, ANOTIFIER_TELEMETRY: '0' };
   delete env.NO_COLOR;
   delete env.FORCE_COLOR;

@@ -9,6 +9,10 @@ import net from 'node:net';
 import path from 'node:path';
 import os from 'node:os';
 import { resolveUpdate, fetchLatest, REGISTRY_URL, UPDATE_TTL_MS, isNewer } from '../src/update-check.mjs';
+import { useFakeHome } from './fake-home.mjs';
+
+// An unreadable cache is logged to errors.log under the home directory.
+useFakeHome();
 
 const tmpDir = path.join(os.tmpdir(), 'update-check-test-' + Date.now());
 const cachePath = () => path.join(tmpDir, `.update-check-${Math.random().toString(36).slice(2)}.json`);

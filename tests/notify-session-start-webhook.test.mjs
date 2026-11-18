@@ -6,13 +6,8 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
-import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SCRUB = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'CURSOR_API_KEY', 'NTFY_TOKEN'];
+import { makeTmpHome } from './fake-home.mjs';
+import { runHook } from './hook-runner.mjs';
 
 describe('session_start webhook default', () => {
   let server;
@@ -33,10 +28,7 @@ describe('session_start webhook default', () => {
 
   after(() => new Promise((resolve) => { server.closeAllConnections?.(); server.close(resolve); }));
 
-  function run(hookEvent, events) {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-ss-webhook-'));
-    const cfgDir = path.join(home, '.anotifier');
-    fs.mkdirSync(cfgDir, { recursive: true });
+  async function run(hookEvent, events) {
     const config = {
       toast: { enabled: false },
       ntfy: { enabled: false },
@@ -45,21 +37,13 @@ describe('session_start webhook default', () => {
       webhook: { enabled: true, url: `${base}/hook`, format: 'generic' },
     };
     if (events) config.events = events;
-    fs.writeFileSync(path.join(cfgDir, 'config.json'), JSON.stringify(config));
-    const env = { ...process.env, HOME: home, USERPROFILE: home };
-    for (const k of SCRUB) delete env[k];
-    const input = JSON.stringify({ hook_event_name: hookEvent, cwd: '/work/app', session_id: `s-${Math.random()}` });
-    return new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, ['src/notify.mjs', '--source', 'claude'], { cwd: repoRoot, env, timeout: 30000 });
-      let stderr = '';
-      child.stderr.setEncoding('utf8').on('data', (d) => { stderr += d; });
-      child.on('error', reject);
-      child.on('close', (status) => {
-        fs.rmSync(home, { recursive: true, force: true });
-        resolve({ status, stderr });
-      });
-      child.stdin.end(input);
-    });
+    const home = makeTmpHome('aan-ss-webhook-', { config });
+    try {
+      const payload = { hook_event_name: hookEvent, cwd: '/work/app', session_id: `s-${Math.random()}` };
+      return await runHook({ payload, home });
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
   }
 
   it('sends NO webhook for session_start by default', async () => {

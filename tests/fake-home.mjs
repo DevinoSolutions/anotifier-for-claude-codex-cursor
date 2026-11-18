@@ -43,3 +43,19 @@ export function seedFreshUpdateCache(home, now = Date.now()) {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(file, JSON.stringify({ checkedAt: now, latest: null }));
 }
+
+// Test helper: a throwaway HOME for a test that spawns the hook or the CLI (or
+// feeds a module an explicit base dir). Returns the directory; the caller removes
+// it. With `config`, also writes it as `<home>/.anotifier/config.json`, the one
+// setup step nearly every hook test repeats. useFakeHome() is the other tool: it
+// redirects THIS process's HOME for a whole file, this one hands out a HOME for a
+// child process or an injected path.
+export function makeTmpHome(prefix = 'aan-home-', { config } = {}) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  if (config !== undefined) {
+    const dir = path.join(home, '.anotifier');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'config.json'), typeof config === 'string' ? config : JSON.stringify(config));
+  }
+  return home;
+}

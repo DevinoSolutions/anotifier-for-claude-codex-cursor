@@ -7,17 +7,13 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { loadEffectiveConfig } from '../src/notify.mjs';
 import { loadConfigResult } from '../src/config-loader.mjs';
 import { parseInput } from '../src/parse-input.mjs';
 import { route } from '../src/router.mjs';
-
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SCRUB = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'CURSOR_API_KEY', 'NTFY_TOKEN'];
+import { makeTmpHome } from './fake-home.mjs';
+import { runHook } from './hook-runner.mjs';
 
 // Paths are only ever compared as strings, so they need not exist.
 const PROJECT = '/work/acme/app';
@@ -57,27 +53,8 @@ describe('per-project overrides on the hook path', () => {
     };
   }
 
-  function newHome(config) {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-proj-wire-'));
-    fs.mkdirSync(path.join(home, '.anotifier'), { recursive: true });
-    fs.writeFileSync(path.join(home, '.anotifier', 'config.json'), JSON.stringify(config));
-    return home;
-  }
-
-  function runIn(home, payload, { source = 'claude', args = [] } = {}) {
-    const env = { ...process.env, HOME: home, USERPROFILE: home };
-    for (const k of SCRUB) delete env[k];
-    return new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, ['src/notify.mjs', '--source', source, ...args], { cwd: repoRoot, env, timeout: 30000 });
-      let stdout = '';
-      let stderr = '';
-      child.stdout.setEncoding('utf8').on('data', (d) => { stdout += d; });
-      child.stderr.setEncoding('utf8').on('data', (d) => { stderr += d; });
-      child.on('error', reject);
-      child.on('close', (status) => resolve({ status, stdout, stderr }));
-      child.stdin.end(JSON.stringify(payload));
-    });
-  }
+  const newHome = (config) => makeTmpHome('aan-proj-wire-', { config });
+  const runIn = (home, payload, { source = 'claude', args = [] } = {}) => runHook({ source, args, payload, home });
 
   // One run against a fresh HOME. Returns the requests this run caused.
   async function run(config, payload, opts) {
@@ -193,7 +170,7 @@ describe('per-project overrides on the hook path', () => {
   });
 
   it('the loader reports no problem for that telegram rule', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-proj-wire-cfg-'));
+    const dir = makeTmpHome('aan-proj-wire-cfg-');
     try {
       const file = path.join(dir, 'config.json');
       fs.writeFileSync(file, JSON.stringify({
@@ -264,7 +241,7 @@ describe('per-project overrides on the hook path', () => {
 
 describe('loadEffectiveConfig (the one wiring point)', () => {
   function withConfig(config, fn) {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-proj-wire-cfg-'));
+    const dir = makeTmpHome('aan-proj-wire-cfg-');
     try {
       const file = path.join(dir, 'config.json');
       fs.writeFileSync(file, JSON.stringify(config));

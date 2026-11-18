@@ -5,18 +5,15 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { seedFreshUpdateCache } from './fake-home.mjs';
+import { makeTmpHome } from './fake-home.mjs';
+import { runHookSync } from './hook-runner.mjs';
 import { parseInput } from '../src/parse-input.mjs';
 import { route } from '../src/router.mjs';
 import { loadConfig } from '../src/config-loader.mjs';
 import { defaultResponseBody } from '../src/notify.mjs';
 import { patchAntigravity, unpatchAll, detectAntigravityEvents } from '../setup/patch-config.mjs';
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NOTIFY = '/home/user/.npm/anotifier/src/notify.mjs';
 
 const stopPayload = {
@@ -95,13 +92,8 @@ describe('antigravity hook response', () => {
   });
 
   function run(input, config) {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-agy-sub-'));
-    fs.mkdirSync(path.join(home, '.anotifier'), { recursive: true });
-    fs.writeFileSync(path.join(home, '.anotifier', 'config.json'), JSON.stringify(config));
-    seedFreshUpdateCache(home);
-    const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'antigravity', '--event', 'Stop'], {
-      cwd: repoRoot, input, env: { ...process.env, HOME: home, USERPROFILE: home }, encoding: 'utf8', timeout: 30000,
-    });
+    const home = makeTmpHome('aan-agy-sub-', { config });
+    const res = runHookSync({ source: 'antigravity', args: ['--event', 'Stop'], payload: input, home });
     fs.rmSync(home, { recursive: true, force: true });
     return res;
   }
@@ -131,7 +123,7 @@ describe('antigravity hook wiring', () => {
   let geminiDir;
   let hooksPath;
   beforeEach(() => {
-    home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-agy-home-'));
+    home = makeTmpHome('aan-agy-home-');
     geminiDir = path.join(home, '.gemini');
     hooksPath = path.join(geminiDir, 'config', 'hooks.json');
     fs.mkdirSync(path.join(geminiDir, 'antigravity-cli'), { recursive: true });

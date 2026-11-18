@@ -10,6 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { makeTmpHome, seedFreshUpdateCache } from './fake-home.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -17,12 +18,10 @@ describe('anotifier snooze (real CLI, throwaway HOME)', () => {
   let home, statePath;
 
   beforeEach(() => {
-    home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-cli-snooze-'));
+    home = makeTmpHome('aan-cli-snooze-');
     statePath = path.join(home, '.anotifier', '.snooze.json');
     // A fresh update cache keeps every run offline (no registry request).
-    fs.mkdirSync(path.join(home, '.anotifier'), { recursive: true });
-    fs.writeFileSync(path.join(home, '.anotifier', '.update-check.json'),
-      JSON.stringify({ checkedAt: Date.now(), latest: null }));
+    seedFreshUpdateCache(home);
   });
   afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
 

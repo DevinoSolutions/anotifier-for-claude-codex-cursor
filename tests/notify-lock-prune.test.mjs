@@ -15,8 +15,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runHookSync } from './hook-runner.mjs';
 import {
   pruneStaleLocks, pruneDedupLocks, acquireNotifyLock, dedupKey,
   LOCK_PRUNE_AGE_MS, LOCK_PRUNE_MAX_ENTRIES, LOCK_PRUNE_MAX_REMOVALS,
@@ -312,15 +313,15 @@ describe('dedup locks and the sweep after dispatch', () => {
     assert.equal(acquireNotifyLock('claude-task_complete', blocker), true);
   });
 
-  // A real hook run against `base` as HOME.
+  // A real hook run against `base` as HOME. `base` is the directory whose exact
+  // contents these tests assert, so no update cache is seeded into it: the config
+  // already opts out of the check.
   const hook = (event, extraConfig = {}, { source = 'claude', args = [] } = {}) => {
     fs.writeFileSync(path.join(cfg, 'config.json'), JSON.stringify({
       toast: { enabled: false }, updateCheck: { enabled: false }, terminalBell: { enabled: false }, ...extraConfig,
     }));
-    const env = { ...process.env, HOME: base, USERPROFILE: base };
-    for (const k of ['DO_NOT_TRACK', 'TMUX']) delete env[k];
-    const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', source, ...args], {
-      cwd: repoRoot, env, encoding: 'utf8', input: JSON.stringify(event),
+    const res = runHookSync({
+      source, args, payload: event, home: base, offline: false, env: { DO_NOT_TRACK: undefined, TMUX: undefined },
     });
     assert.equal(res.status, 0, res.stderr);
     assert.equal(res.stdout, '{}\n');

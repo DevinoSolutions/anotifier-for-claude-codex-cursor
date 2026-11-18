@@ -5,14 +5,14 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseInput } from '../src/parse-input.mjs';
 import { route } from '../src/router.mjs';
 import { dedupKey } from '../src/notify.mjs';
+import { makeTmpHome } from './fake-home.mjs';
+import { runHook as spawnHook } from './hook-runner.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const defaultConfig = JSON.parse(fs.readFileSync(path.join(repoRoot, 'config', 'default-config.json'), 'utf8'));
@@ -202,33 +202,22 @@ describe('notify.mjs with a Cursor stop (real subprocess, real local HTTP server
   // Toast stays off (a real backend would fire a desktop notification on the
   // test machine); the webhook points at the local server and carries the text.
   function makeHome() {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-cursor-'));
-    const cfgDir = path.join(home, '.anotifier');
-    fs.mkdirSync(cfgDir, { recursive: true });
-    fs.writeFileSync(path.join(cfgDir, 'config.json'), JSON.stringify({
-      toast: { enabled: false },
-      ntfy: { enabled: false },
-      webhook: { enabled: true, url: `${base}/hook`, format: 'generic' },
-      terminalBell: { enabled: false },
-      updateCheck: { enabled: false },
-    }));
-    return home;
-  }
-
-  // Async spawn: the server lives on this process's event loop.
-  function runHook(home, payload, prefix = '') {
-    const env = { ...process.env, HOME: home, USERPROFILE: home };
-    return new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, ['src/notify.mjs', '--source', 'cursor', '--event', 'stop'], { cwd: repoRoot, env });
-      let stdout = '';
-      let stderr = '';
-      child.stdout.on('data', (d) => { stdout += d; });
-      child.stderr.on('data', (d) => { stderr += d; });
-      child.on('error', reject);
-      child.on('close', (status) => resolve({ status, stdout, stderr }));
-      child.stdin.end(prefix + JSON.stringify(payload));
+    return makeTmpHome('aan-cursor-', {
+      config: {
+        toast: { enabled: false },
+        ntfy: { enabled: false },
+        webhook: { enabled: true, url: `${base}/hook`, format: 'generic' },
+        terminalBell: { enabled: false },
+        updateCheck: { enabled: false },
+      },
     });
   }
+
+  // Async spawn: the server lives on this process's event loop. `prefix` goes in
+  // front of the JSON on stdin (Cursor on Windows can send a byte-order mark).
+  const runHook = (home, payload, prefix = '') => spawnHook({
+    source: 'cursor', args: ['--event', 'stop'], payload: prefix + JSON.stringify(payload), home,
+  });
 
   const stop = (conversationId, extra = {}) => ({
     conversation_id: conversationId,

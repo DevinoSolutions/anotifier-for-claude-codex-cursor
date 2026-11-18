@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { useFakeHome } from './fake-home.mjs';
+import { useFakeHome, makeTmpHome, seedFreshUpdateCache } from './fake-home.mjs';
 import { startFocusProbe, loadEffectiveConfig } from '../src/notify.mjs';
 import { focusValue } from '../cli/status.mjs';
 import { configFocus } from '../cli/config.mjs';
@@ -382,10 +382,9 @@ describe('CLI surface', () => {
   });
 
   it('the real CLI routes `config focus` to the config command (non-TTY: it says it is interactive)', () => {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-focus-cli-'));
+    const home = makeTmpHome('aan-focus-cli-');
     try {
-      fs.mkdirSync(path.join(home, '.anotifier'), { recursive: true });
-      fs.writeFileSync(path.join(home, '.anotifier', '.update-check.json'), JSON.stringify({ checkedAt: Date.now(), latest: null }));
+      seedFreshUpdateCache(home);
       const res = spawnSync(process.execPath, ['cli/index.mjs', 'config', 'focus'], {
         cwd: repoRoot, env: { ...process.env, HOME: home, USERPROFILE: home }, encoding: 'utf8', timeout: 30000, input: '',
       });

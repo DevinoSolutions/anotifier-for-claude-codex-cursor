@@ -2,13 +2,12 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { parseInput, hasTurnStart, TURN_START_EVENT_NAMES } from '../src/parse-input.mjs';
 import { TURN_START_EVENTS } from '../setup/patch-config.mjs';
 import { dedupKey } from '../src/notify.mjs';
+import { makeTmpHome } from './fake-home.mjs';
+import { runHookSync } from './hook-runner.mjs';
 
 describe('parseInput', () => {
   it('normalizes Claude Code Stop event', () => {
@@ -308,20 +307,14 @@ describe('parseInput session id', () => {
 
 describe('numeric session_id through the real hook', () => {
   it('runs clean: exit 0, {} out, nothing in errors.log', () => {
-    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-numeric-sid-'));
-    try {
-      fs.mkdirSync(path.join(home, '.anotifier'), { recursive: true });
-      fs.writeFileSync(path.join(home, '.anotifier', 'config.json'), JSON.stringify({
+    const home = makeTmpHome('aan-numeric-sid-', {
+      config: {
         toast: { enabled: false }, ntfy: { enabled: false }, terminalBell: { enabled: false },
         updateCheck: { enabled: false },
-      }));
-      const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {
-        cwd: repoRoot,
-        input: JSON.stringify({ hook_event_name: 'Stop', cwd: '/work/app', session_id: 12345678 }),
-        env: { ...process.env, HOME: home, USERPROFILE: home },
-        encoding: 'utf8', timeout: 30000,
-      });
+      },
+    });
+    try {
+      const res = runHookSync({ payload: { hook_event_name: 'Stop', cwd: '/work/app', session_id: 12345678 }, home });
       assert.equal(res.status, 0, res.stderr);
       assert.deepEqual(JSON.parse(res.stdout), {});
       const logPath = path.join(home, '.anotifier', 'errors.log');

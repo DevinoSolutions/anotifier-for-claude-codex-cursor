@@ -2,15 +2,15 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { claudeStatuslineWired, usageAlertsValue, contextAlertsValue } from '../cli/status.mjs';
+import { makeTmpHome } from './fake-home.mjs';
 
 const strip = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
 
 describe('status usage alerts line', () => {
   let home;
-  beforeEach(() => { home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-status-ua-')); });
+  beforeEach(() => { home = makeTmpHome('aan-status-ua-'); });
   afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
   const write = (obj) => {
     fs.mkdirSync(path.join(home, '.claude'), { recursive: true });

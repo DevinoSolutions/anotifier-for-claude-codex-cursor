@@ -9,6 +9,10 @@ import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
 import { maybeNotifyUpdate, sendUpdateNotification, RELEASES_URL, UPGRADE_COMMAND, UPDATE_TTL_MS } from '../src/update-check.mjs';
+import { useFakeHome } from './fake-home.mjs';
+
+// An unreadable cache is logged to errors.log under the home directory.
+useFakeHome();
 
 const NOW = 1_700_000_000_000;
 // Every maybeNotifyUpdate case injects this recorder as `notify`, so no test can

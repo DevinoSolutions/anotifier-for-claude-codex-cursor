@@ -13,6 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { makeTmpHome, seedFreshUpdateCache } from './fake-home.mjs';
 import { COMMUNITY_URL } from '../src/support.mjs';
 
 const CANONICAL = 'https://discord.gg/CWDxfEJGcS';
@@ -22,10 +23,8 @@ const invitesIn = (text) => [...text.matchAll(INVITE)].map((m) => m[0]);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function runCli(args) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-community-'));
-  const cfgDir = path.join(home, '.anotifier');
-  fs.mkdirSync(cfgDir, { recursive: true });
-  fs.writeFileSync(path.join(cfgDir, '.update-check.json'), JSON.stringify({ checkedAt: Date.now(), latest: null }));
+  const home = makeTmpHome('aan-community-');
+  seedFreshUpdateCache(home);
   const res = spawnSync(process.execPath, ['cli/index.mjs', ...args], {
     cwd: repoRoot,
     env: { ...process.env, HOME: home, USERPROFILE: home, NO_COLOR: '1' },

@@ -2,12 +2,11 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { encodeWrapped, decodeWrapped, defaultLine, tapUsage, wrapShell, WRAP_FLAG } from '../src/statusline.mjs';
-import { useFakeHome } from './fake-home.mjs';
+import { useFakeHome, makeTmpHome } from './fake-home.mjs';
 useFakeHome();
 
 const SCRIPT = fileURLToPath(new URL('../src/statusline.mjs', import.meta.url));
@@ -194,7 +193,7 @@ describe('wrapShell', () => {
 
 describe('statusline.mjs as a subprocess', () => {
   let home;
-  beforeEach(() => { home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-statusline-')); });
+  beforeEach(() => { home = makeTmpHome('aan-statusline-'); });
   afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
 
   const run = (args, input) => spawnSync(process.execPath, [SCRIPT, ...args], {

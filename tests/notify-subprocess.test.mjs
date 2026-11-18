@@ -4,14 +4,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { seedFreshUpdateCache } from './fake-home.mjs';
-
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SCRUB = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'CURSOR_API_KEY', 'NTFY_TOKEN'];
+import { makeTmpHome } from './fake-home.mjs';
+import { runHook, runHookSync } from './hook-runner.mjs';
 
 // Default seed disables EVERY channel — toast, ntfy, AND terminalBell — so the
 // crash-safety cases below keep asserting a plain '{}' hook response. Since F1 a
@@ -21,18 +16,10 @@ const SCRUB = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'CURSOR_
 const ALL_DISABLED = { toast: { enabled: false }, ntfy: { enabled: false }, terminalBell: { enabled: false } };
 
 function runNotify(input, source = 'claude', extraArgs = [], config = ALL_DISABLED) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-sub-'));
-  const cfgDir = path.join(home, '.anotifier');
-  fs.mkdirSync(cfgDir, { recursive: true });
-  fs.writeFileSync(path.join(cfgDir, 'config.json'), JSON.stringify(config));
-  seedFreshUpdateCache(home);
-  const env = { ...process.env, HOME: home, USERPROFILE: home };
-  for (const k of SCRUB) delete env[k];
-  const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', source, ...extraArgs], {
-    cwd: repoRoot, input, env, encoding: 'utf8', timeout: 30000,
-  });
+  const home = makeTmpHome('aan-notify-sub-', { config });
+  const res = runHookSync({ source, args: extraArgs, payload: input, home });
   fs.rmSync(home, { recursive: true, force: true });
-  return { status: res.status, stdout: res.stdout || '', stderr: res.stderr || '' };
+  return { status: res.status, stdout: res.stdout, stderr: res.stderr };
 }
 
 describe('notify.mjs subprocess robustness (a hook must never crash)', () => {
@@ -55,15 +42,8 @@ describe('notify.mjs subprocess robustness (a hook must never crash)', () => {
   });
 
   it('logs the unmapped event name to errors.log so misconfigured wiring is visible', () => {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-unmapped-'));
-    seedFreshUpdateCache(home);
-    const env = { ...process.env, HOME: home, USERPROFILE: home };
-    for (const k of SCRUB) delete env[k];
-    const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {
-      cwd: repoRoot,
-      input: JSON.stringify({ hook_event_name: 'PreToolUse', cwd: '/x', session_id: 's' }),
-      env, encoding: 'utf8', timeout: 30000,
-    });
+    const home = makeTmpHome('aan-notify-unmapped-');
+    const res = runHookSync({ payload: { hook_event_name: 'PreToolUse', cwd: '/x', session_id: 's' }, home });
     assert.equal(res.status, 0, res.stderr);
     const log = fs.readFileSync(path.join(home, '.anotifier', 'errors.log'), 'utf8');
     assert.match(log, /"context":"router"/);
@@ -86,20 +66,11 @@ describe('notify.mjs subprocess robustness (a hook must never crash)', () => {
   it('exits 0, emits a valid hook response, and logs a config:parse entry on a corrupt config.json', () => {
     // Unlike runNotify (which seeds a valid config and deletes the home), this test
     // keeps its own home so it can read back the JSONL error log afterward.
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-badcfg-'));
-    const cfgDir = path.join(home, '.anotifier');
-    fs.mkdirSync(cfgDir, { recursive: true });
     // Deliberately invalid JSON: the loader must fall back to defaults, keep the
     // hook alive (exit 0 + valid JSON), and record the parse failure to errors.log.
-    fs.writeFileSync(path.join(cfgDir, 'config.json'), '{ not: valid json ,,, ');
-    seedFreshUpdateCache(home);
-    const env = { ...process.env, HOME: home, USERPROFILE: home };
-    for (const k of SCRUB) delete env[k];
-    const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {
-      cwd: repoRoot,
-      input: JSON.stringify({ hook_event_name: 'Stop', cwd: '/work/app', session_id: 's' }),
-      env, encoding: 'utf8', timeout: 30000,
-    });
+    const home = makeTmpHome('aan-notify-badcfg-', { config: '{ not: valid json ,,, ' });
+    const cfgDir = path.join(home, '.anotifier');
+    const res = runHookSync({ payload: { hook_event_name: 'Stop', cwd: '/work/app', session_id: 's' }, home });
     assert.equal(res.status, 0, res.stderr);
     // Corrupt config falls back to defaults, where terminalBell is enabled — so
     // this claude Stop legitimately rings via terminalSequence. The point of the
@@ -143,27 +114,11 @@ describe('notify.mjs claude terminalSequence bell (F1)', () => {
     // start together, like a tool's real double-fire: run back to back, the
     // first one's exit plus the second one's node startup can outlast the
     // 1.5 s dedup window on a busy machine, and then both rightly ring.
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-dedup-'));
-    const cfgDir = path.join(home, '.anotifier');
-    fs.mkdirSync(cfgDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(cfgDir, 'config.json'),
-      JSON.stringify({ toast: { enabled: false }, ntfy: { enabled: false }, terminalBell: { enabled: true } }),
-    );
-    seedFreshUpdateCache(home);
-    const env = { ...process.env, HOME: home, USERPROFILE: home };
-    for (const k of SCRUB) delete env[k];
-    const input = JSON.stringify({ hook_event_name: 'Stop', cwd: '/work/app', session_id: 'dup' });
-    const run = () => new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, ['src/notify.mjs', '--source', 'claude'], { cwd: repoRoot, env, timeout: 30000 });
-      let stdout = '';
-      let stderr = '';
-      child.stdout.setEncoding('utf8').on('data', (d) => { stdout += d; });
-      child.stderr.setEncoding('utf8').on('data', (d) => { stderr += d; });
-      child.on('error', reject);
-      child.on('close', (status) => resolve({ status, stdout, stderr }));
-      child.stdin.end(input);
+    const home = makeTmpHome('aan-notify-dedup-', {
+      config: { toast: { enabled: false }, ntfy: { enabled: false }, terminalBell: { enabled: true } },
     });
+    const payload = { hook_event_name: 'Stop', cwd: '/work/app', session_id: 'dup' };
+    const run = () => runHook({ payload, home });
     const runs = await Promise.all([run(), run()]);
     fs.rmSync(home, { recursive: true, force: true });
     // One run wins the lock and rings; the suppressed duplicate stays silent.
@@ -184,16 +139,9 @@ describe('notify.mjs claude notification_type', () => {
 
   for (const type of ['auth_success', 'elicitation_response', 'elicitation_complete']) {
     it(`${type} sends nothing, rings nothing and logs no error`, () => {
-      const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-skip-'));
+      const home = makeTmpHome('aan-notify-skip-', { config: BELL_ONLY });
       const cfgDir = path.join(home, '.anotifier');
-      fs.mkdirSync(cfgDir, { recursive: true });
-      fs.writeFileSync(path.join(cfgDir, 'config.json'), JSON.stringify(BELL_ONLY));
-      seedFreshUpdateCache(home);
-      const env = { ...process.env, HOME: home, USERPROFILE: home };
-      for (const k of SCRUB) delete env[k];
-      const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {
-        cwd: repoRoot, input: notification({ notification_type: type }), env, encoding: 'utf8', timeout: 30000,
-      });
+      const res = runHookSync({ payload: notification({ notification_type: type }), home });
       const logged = fs.existsSync(path.join(cfgDir, 'errors.log'));
       fs.rmSync(home, { recursive: true, force: true });
       assert.equal(res.status, 0, res.stderr);

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { makeTmpHome } from './fake-home.mjs';
 import {
   isOurStatusline, wrappedStatusline, statuslineCommand,
   wireClaudeStatusline, unwireClaudeStatusline, patchClaude, unpatchAll,
@@ -114,7 +115,7 @@ describe('patchClaude / unpatchAll end to end', () => {
   let home, claudeDir, settingsPath;
   const notify = path.join(os.tmpdir(), 'anotifier', 'src', 'notify.mjs');
   beforeEach(() => {
-    home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-statusline-patch-'));
+    home = makeTmpHome('aan-statusline-patch-');
     claudeDir = path.join(home, '.claude');
     settingsPath = path.join(claudeDir, 'settings.json');
     fs.mkdirSync(claudeDir, { recursive: true });

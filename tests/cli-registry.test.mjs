@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { makeTmpHome, seedFreshUpdateCache } from './fake-home.mjs';
 import {
   TOOL_EVENTS, patchClaude, patchCodex, patchCursor, patchGemini, patchAntigravity,
 } from '../setup/patch-config.mjs';
@@ -17,7 +18,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const NOTIFY = '/home/user/.npm/anotifier/src/notify.mjs';
 
 let home;
-beforeEach(() => { home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-registry-')); });
+beforeEach(() => { home = makeTmpHome('aan-registry-'); });
 afterEach(() => { fs.rmSync(home, { recursive: true, force: true }); });
 
 // Lay down every tool the way a real install does.
@@ -33,11 +34,7 @@ function seedAllTools() {
 
 function runStatus() {
   // A fresh cache, so status never asks the npm registry about updates.
-  fs.mkdirSync(path.join(home, '.anotifier'), { recursive: true });
-  fs.writeFileSync(
-    path.join(home, '.anotifier', '.update-check.json'),
-    JSON.stringify({ checkedAt: Date.now(), latest: null }),
-  );
+  seedFreshUpdateCache(home);
   const res = spawnSync(process.execPath, ['cli/index.mjs', 'status'], {
     cwd: repoRoot,
     env: { ...process.env, HOME: home, USERPROFILE: home, ANOTIFIER_TELEMETRY: '0' },

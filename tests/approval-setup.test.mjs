@@ -5,13 +5,12 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import {
   startFakeNtfy, actionByLabel, tap, selfSignedPems, repoRoot,
 } from './approval-helpers.mjs';
-import { seedFreshUpdateCache } from './fake-home.mjs';
+import { seedFreshUpdateCache, makeTmpHome } from './fake-home.mjs';
 
 const TOKEN = 'tk_setuptestabcdefghijklmnopqrs';
 let fake;
@@ -24,7 +23,7 @@ after(async () => {
 beforeEach(() => fake.reset());
 
 function freshHome() {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-appr-setup-'));
+  const home = makeTmpHome('aan-appr-setup-');
   fs.mkdirSync(path.join(home, '.claude'));
   seedFreshUpdateCache(home);
   homes.push(home);
