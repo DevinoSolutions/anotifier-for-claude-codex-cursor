@@ -38,6 +38,69 @@ export function dedupKey(event) {
   return `${event.source}-${event.event}${typeSuffix}${sessionSuffix}`.replace(/[^A-Za-z0-9_.-]/g, '_');
 }
 
+// Locks are never released (the short window makes that harmless), but a lock
+// is only ever looked at again when the SAME key comes back, and every new
+// session is a new key. So each run that wins a lock also sweeps the old ones.
+//
+// A lock matters for DEDUP_WINDOW_MS after it is created: a duplicate looks at
+// its age, and acquireNotifyLock above already deletes any lock older than the
+// window on sight. Nothing reads a lock after that, so anything past the window
+// is garbage. The prune age is far past it (400x) only so that a clock step or
+// a stalled, slow-starting duplicate can never see its lock vanish: it removes
+// no lock that could still be doing a job.
+export const LOCK_PRUNE_AGE_MS = 10 * 60 * 1000;
+// Bounded work, because the sweep sits on the hook path: look at no more than
+// this many directory entries (of any name) and remove no more than this many
+// files per run. A backlog from before this existed is therefore cleared over
+// a few dozen runs instead of in one slow one.
+export const LOCK_PRUNE_MAX_ENTRIES = 100;
+export const LOCK_PRUNE_MAX_REMOVALS = 20;
+// Exactly the names acquireNotifyLock writes: '.lock-' + dedupKey() output
+// (which is limited to these characters). No other file in ~/.anotifier can
+// match: the usage, context, turn and telemetry state locks are named
+// '<state file>.lock' (.usage-alerts.json.lock, .context-alerts.json.lock,
+// turns.json.lock, .telemetry.json.lock) and the approval slots live in
+// approvals/, so none of them starts with '.lock-'.
+const DEDUP_LOCK_NAME = /^\.lock-[A-Za-z0-9_.-]+$/;
+
+// Remove stale dedup locks from `dir`. Never throws and never reports: any
+// failure (missing dir, a file another hook removed first, EPERM/EBUSY on
+// Windows while someone has it open) just means that file stays for a later
+// run. Safe to run concurrently from several hooks. `keep` is the lock this
+// run just created; `fsApi` is only for tests.
+export function pruneStaleLocks(dir, {
+  now = Date.now(),
+  maxAgeMs = LOCK_PRUNE_AGE_MS,
+  maxEntries = LOCK_PRUNE_MAX_ENTRIES,
+  maxRemovals = LOCK_PRUNE_MAX_REMOVALS,
+  keep = '',
+  fsApi = fs,
+} = {}) {
+  let handle;
+  try {
+    handle = fsApi.opendirSync(dir);
+    let removed = 0;
+    for (let seen = 0; seen < maxEntries && removed < maxRemovals; seen++) {
+      const entry = handle.readSync();
+      if (!entry) break;
+      const name = entry.name;
+      if (name === keep || !DEDUP_LOCK_NAME.test(name)) continue;
+      try {
+        const file = path.join(dir, name);
+        const stat = fsApi.lstatSync(file);
+        if (!stat.isFile() || now - stat.mtimeMs <= maxAgeMs) continue;
+        // Re-check right before the unlink: a hook reusing this key replaces the
+        // file in between, and a fresh lock must not be deleted.
+        if (fsApi.lstatSync(file).mtimeMs !== stat.mtimeMs) continue;
+        fsApi.unlinkSync(file);
+        removed++;
+      } catch {}
+    }
+  } catch {} finally {
+    try { handle?.closeSync(); } catch {}
+  }
+}
+
 export function acquireNotifyLock(key, baseDir = os.homedir()) {
   const dir = path.join(baseDir, '.anotifier');
   const lockFile = path.join(dir, `.lock-${key}`);
@@ -53,13 +116,20 @@ export function acquireNotifyLock(key, baseDir = os.homedir()) {
     const fd = fs.openSync(lockFile, 'wx');
     fs.writeSync(fd, String(process.pid));
     fs.closeSync(fd);
-    return true;
   } catch (err) {
     // EEXIST is the one true duplicate signal (a concurrent invocation won the
     // exclusive create). Any other failure — read-only HOME, ENOTDIR, quota —
     // fails OPEN: a rare double notification beats never notifying again.
     return err?.code !== 'EEXIST';
   }
+  return true;
+}
+
+// The sweep for a run that won the lock for `key`, called by main() only after the
+// alert has been dispatched, so it can never delay or change one. Skips the
+// run's own lock. Best-effort like pruneStaleLocks itself.
+export function pruneDedupLocks(key, baseDir = os.homedir()) {
+  pruneStaleLocks(path.join(baseDir, '.anotifier'), { keep: `.lock-${key}` });
 }
 
 export function parseArgs(argv) {
@@ -112,6 +182,19 @@ export function trackChannel(channel, work) {
 async function countRun(config, run) {
   recordHookRun(config, run);
   await maybeSendHookSummary(config);
+}
+
+// The one way a run leaves WITHOUT dispatching: count it, flush error
+// reporting, answer the agent with the plain default response and exit 0. The
+// exit happens in the write callback, so a back-pressured stdout can never lose
+// the response; the returned promise never settles (the callback ends the
+// process), so nothing after the call site can run. Callers `return await` it.
+async function quietExit(config, run, event) {
+  await countRun(config, run);
+  await flushErrorReporting();
+  await new Promise(() => {
+    process.stdout.write(defaultResponseBody(event?.source), () => process.exit(0));
+  });
 }
 
 // Antigravity CLI's Stop hook must answer with a decision: "continue" re-enters
@@ -221,14 +304,11 @@ export async function main({ focus } = {}) {
     // check simply runs on a later un-suppressed run.
     const suppressed = isSuppressed(config);
     if (suppressed) {
-      await countRun(config, {
+      return await quietExit(config, {
         outcome: suppressed.reason === 'snooze' ? 'suppressed_snooze' : 'suppressed_quiet',
         source: event.source,
         event: event.event,
-      });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      }, event);
     }
 
     // A claude Stop can fire while the turn's background subagents and shells are
@@ -244,10 +324,7 @@ export async function main({ focus } = {}) {
     // codex/gemini send no such field, and cursor's subagentStop -> task_complete
     // is per-subagent by design, so neither may be gated on it.
     if (event.source === 'claude' && event.event === 'task_complete' && event.hasLiveBackgroundWork) {
-      await countRun(config, { outcome: 'held_back', source: event.source, event: event.event });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      return await quietExit(config, { outcome: 'held_back', source: event.source, event: event.event }, event);
     }
 
     // A Cursor run the user stopped themselves (status 'aborted'): they are at
@@ -256,10 +333,7 @@ export async function main({ focus } = {}) {
     // expected outcome so nothing in errors.log). An errored run is NOT skipped:
     // it goes out as "Task failed" (router.mjs).
     if (event.event === 'task_complete' && event.runStatus === 'aborted') {
-      await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      return await quietExit(config, { outcome: 'skipped', source: event.source, event: event.event }, event);
     }
 
     // How long the turn took, for the agents that give us both ends of it. Read
@@ -274,10 +348,7 @@ export async function main({ focus } = {}) {
       if (isBelowMinDuration(event.durationMs, config)) {
         // Counted as 'skipped' (an expected no-alert exit): a new outcome name
         // would widen the opt-in telemetry payload the README itemizes.
-        await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
-        await flushErrorReporting();
-        process.stdout.write(defaultResponseBody(event?.source));
-        process.exit(0);
+        return await quietExit(config, { outcome: 'skipped', source: event.source, event: event.event }, event);
       }
     }
 
@@ -286,18 +357,13 @@ export async function main({ focus } = {}) {
     // exit as the held-back Stop above: plain '{}\n', no channel, no bell, no
     // lock, and nothing in errors.log, because this is expected, not a fault.
     if (isSilentNotification(event)) {
-      await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      return await quietExit(config, { outcome: 'skipped', source: event.source, event: event.event }, event);
     }
 
     // Deduplicate AFTER parsing so the lock can key on source+event+session
-    if (!acquireNotifyLock(dedupKey(event))) {
-      await countRun(config, { outcome: 'duplicate', source: event.source, event: event.event });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+    const lockKey = dedupKey(event);
+    if (!acquireNotifyLock(lockKey)) {
+      return await quietExit(config, { outcome: 'duplicate', source: event.source, event: event.event }, event);
     }
 
     const notification = route(event, config);
@@ -309,10 +375,7 @@ export async function main({ focus } = {}) {
         rawEvent: event.rawEvent,
         source: event.source,
       });
-      await countRun(config, { outcome: 'unmapped', source: event.source, rawEvent: event.rawEvent });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      return await quietExit(config, { outcome: 'unmapped', source: event.source, rawEvent: event.rawEvent }, event);
     }
 
     // Start the focus probe now (a no-op unless suppressWhenFocused is on and
@@ -340,10 +403,7 @@ export async function main({ focus } = {}) {
     // quiet exit as the gates above (plain '{}\n', no bell, no update notice) and
     // counted as 'skipped' so the telemetry outcome names stay as they were.
     if (focusProbe && (await focusProbe) === true) {
-      await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      return await quietExit(config, { outcome: 'skipped', source: event.source, event: event.event }, event);
     }
 
     const tasks = [];
@@ -399,6 +459,11 @@ export async function main({ focus } = {}) {
     await maybeNotifyUpdate(config);
 
     await countRun(config, { outcome: 'dispatched', source: event.source, event: event.event, channels: results, latencyMs });
+
+    // Housekeeping, last: the alert is out and counted. Old dedup locks are only
+    // ever removed here, by a run that won its own lock and dispatched. Best
+    // effort and never throws, so it cannot fail a successful run.
+    pruneDedupLocks(lockKey);
   } catch (err) {
     // Never crash — hooks must not block the AI tool. But never hide it
     // either: errors.log + `status` (+ Sentry when enabled) make it visible.
