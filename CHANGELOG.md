@@ -17,6 +17,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 - **A webhook or Sentry endpoint that answers one byte at a time can no longer hold the hook past its time budget.** Both now stop at an overall deadline, as ntfy already did. The webhook's 5-second limit now covers the whole request up to the response headers instead of only idle time, so a webhook that takes longer than 5 seconds in total to answer is reported as a timeout.
 - **Cleaner `errors.log` for webhooks.** A webhook timeout no longer logs a second, spurious `socket hang up` line or re-notes the failure reason as `network`, and a webhook that answered 2xx and then stalled or reset the connection no longer writes a spurious `webhook request timed out` or `read ECONNRESET` line (to `errors.log`, and to Sentry when opted in) after a successful send.
 - **Sentry error reporting no longer throws for a non-http(s) DSN and no longer waits forever when the connection is reset mid-response.**
+- **The "update available" notice is not repeated after a brief read failure of its state file.** If an antivirus scan on Windows holds `.update-check.json` for a moment, that hook run skips the update check instead of treating the file as empty, so a version you were already told about is not announced again.
+- **A slow npm registry can no longer hold the update check past its time limit.** The 3-second (CLI commands) and 2-second (hooks) limits now cover the whole request instead of only idle time.
+- **`anotifier snooze` writes its state file atomically**, so an alert being decided at that moment can never read a half-written snooze as corrupt and drop it.
 
 ### Changed
 
