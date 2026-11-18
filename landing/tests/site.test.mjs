@@ -491,6 +491,20 @@ test("the removed wsl-notify-send guide 301s to its section in one hop", async (
       `${from} -> ${res.headers.get("location")}`,
     );
   }
+  // The query string survives, ahead of the fragment.
+  for (const from of ["/guides/wsl-notify-send/", "/guides/wsl-notify-send"]) {
+    const res = await get(`${from}?utm_source=x`);
+    assert.equal(
+      res.status,
+      301,
+      `${from}?utm_source=x returned ${res.status}`,
+    );
+    assert.equal(
+      res.headers.get("location"),
+      `${target}?utm_source=x#wsl-notify-send`,
+      `${from}?utm_source=x -> ${res.headers.get("location")}`,
+    );
+  }
   // The destination answers 200 itself (no second hop) and has the anchor.
   const dest = await get(target);
   assert.equal(dest.status, 200, `${target} returned ${dest.status}`);

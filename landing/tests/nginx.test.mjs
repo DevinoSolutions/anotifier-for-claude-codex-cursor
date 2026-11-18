@@ -130,7 +130,8 @@ test("nginx: pages are sent no-transform on every status", () => {
 });
 
 test("nginx: the removed wsl-notify-send guide 301s to its section in one hop", () => {
-  const target = "/guides/windows-wsl-notifications/#wsl-notify-send";
+  const target =
+    "/guides/windows-wsl-notifications/$is_args$args#wsl-notify-send";
   for (const path of ["/guides/wsl-notify-send/", "/guides/wsl-notify-send"]) {
     const body = locationBody(`= ${path}`);
     const lines = body

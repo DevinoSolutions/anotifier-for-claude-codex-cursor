@@ -204,15 +204,16 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         id: "wsl-notify-send",
-        title: "Do you need wsl-notify-send?",
+        title:
+          "wsl-notify-send and the other ways to get a Windows toast from WSL",
         blocks: [
           {
             kind: "p",
-            text: "No. anotifier never calls `wsl-notify-send`. It runs PowerShell directly, so there is nothing to download and nothing to put on your PATH. [wsl-notify-send](https://github.com/stuartleeks/wsl-notify-send) is a separate prebuilt Windows executable that accepts a few `notify-send` options. It is useful when you write your own hook and want a drop-in `notify-send` inside WSL. The rest of this section is for that case: what it is, how its options behave, and how it compares with the other do-it-yourself roads. To skip the wiring, run `npx anotifier@latest setup` inside WSL.",
+            text: "You do not need it for anotifier, which never calls `wsl-notify-send`. It runs PowerShell directly, so there is nothing to download and nothing to put on your PATH. [wsl-notify-send](https://github.com/stuartleeks/wsl-notify-send) is a separate prebuilt Windows executable that accepts a few `notify-send` options. It is useful when you write your own hook and want a drop-in `notify-send` inside WSL. The rest of this section is for that case: what it is, how its options behave, and how it compares with the other do-it-yourself roads. To skip the wiring, run `npx anotifier@latest setup` inside WSL.",
           },
           {
             kind: "p",
-            text: "All the roads below rely on WSL interop, which lets a Linux shell run Windows `.exe` files. It is on by default. The toast is raised by the Windows side, so no notification daemon or D-Bus is needed in the distribution. All of them give the same kind of toast: a title and a message under a generic app name. The native Windows road is the one with the icon, sound and click-to-focus.",
+            text: "All the roads below rely on WSL interop, which lets a Linux shell run Windows `.exe` files. It is on by default. The toast is raised by the Windows side, so no notification daemon or D-Bus is needed in the distribution. `wsl-notify-send`, the `powershell.exe` script and anotifier's WSL toast all give the same kind of toast: a title and a message under a generic app name. BurntToast can add buttons and headers. The native Windows road is the one with the agent icon, a choice of Windows sounds and click-to-focus.",
           },
           {
             kind: "table",

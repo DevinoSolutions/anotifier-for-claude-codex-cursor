@@ -105,9 +105,9 @@ const FAQ: { q: string; a: Part[] }[] = [
       ", including its ",
       {
         href: "/guides/windows-wsl-notifications/#wsl-notify-send",
-        text: "wsl-notify-send and powershell.exe options",
+        text: "do-it-yourself WSL options",
       },
-      " for WSL. One of them calls powershell.exe with nothing extra to install.",
+      ": wsl-notify-send, or a powershell.exe script with nothing extra to install.",
     ],
   },
   {
