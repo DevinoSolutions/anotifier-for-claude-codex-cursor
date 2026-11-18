@@ -6,6 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 
 ## [Unreleased]
 
+### Fixed
+
+- **`anotifier setup` no longer hangs on a stalled icon download, or keeps a bad icon.** The notification icon download now stops at one overall 10-second deadline, and a failed or non-image answer (for example a captive-portal page) no longer leaves a broken `icon.png` behind. Setup still succeeds without an icon, with the same message as before.
+- **A briefly locked state file is no longer treated as empty.** If an antivirus scan on Windows holds the usage-limit, snooze or turn-timer state file for a moment, usage warnings are not re-sent, other sessions' turn durations are not lost, and a snooze is not cancelled.
+- **A hook payload with a numeric `session_id` no longer makes the hook fail.**
+- **`anotifier uninstall` no longer rewrites (or backs up) an agent's settings file that has nothing of ours in it.**
+- **Stale dedup lock files no longer pile up in `~/.anotifier`.** Lock files older than 10 minutes are cleaned up as new alerts arrive.
+- **On WSL distros without a `which` binary, `anotifier setup` and `anotifier doctor` can now find Windows PowerShell on PATH.**
+- **A webhook or Sentry endpoint that answers one byte at a time can no longer hold the hook past its time budget.** Both now stop at an overall deadline, as ntfy already did. The webhook's 5-second limit now covers the whole request up to the response headers instead of only idle time, so a webhook that takes longer than 5 seconds in total to answer is reported as a timeout.
+- **Cleaner `errors.log` for webhooks.** A webhook timeout no longer logs a second, spurious `socket hang up` line or re-notes the failure reason as `network`, and a webhook that answered 2xx and then stalled or reset the connection no longer writes a spurious `webhook request timed out` or `read ECONNRESET` line (to `errors.log`, and to Sentry when opted in) after a successful send.
+- **Sentry error reporting no longer throws for a non-http(s) DSN and no longer waits forever when the connection is reset mid-response.**
+
+### Changed
+
+- An empty or invalid `icon.png` left by an older install is replaced on the next `anotifier setup`, which then prints the "Notification icon downloaded" line.
+
 ## [1.8.0] — 2026-11-18
 
 ### Added
