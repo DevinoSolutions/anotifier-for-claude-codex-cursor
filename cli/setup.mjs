@@ -3,6 +3,7 @@ import readline from 'node:readline';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
+import http from 'node:http';
 import https from 'node:https';
 import { randomInt } from 'node:crypto';
 import { execSync } from 'node:child_process';
@@ -77,15 +78,85 @@ function resolveNotifyPath() {
   return path.join(getConfigDir(), 'src', 'notify.mjs');
 }
 
-function downloadIcon(destPath) {
+const ICON_URL = 'https://claude.ai/images/claude_app_icon.png';
+const ICON_DEADLINE_MS = 10000;
+
+// An icon file counts only when it has bytes: an empty one (left by an older
+// failed download) is not an icon, and Linux toasts would pass it as --icon.
+// A 0-byte leftover is removed so a failed retry leaves no icon at all.
+export function hasUsableIcon(iconPath) {
+  let size;
+  try { size = fs.statSync(iconPath).size; } catch { return false; }
+  if (size > 0) return true;
+  try { fs.rmSync(iconPath, { force: true }); } catch { /* best effort */ }
+  return false;
+}
+
+// Downloads to a temp file beside the target and renames it into place only
+// after a complete 200 response, so a failure never leaves a partial or empty
+// icon. One overall deadline covers connecting, waiting and the body, so a
+// server that goes silent (or drips bytes) cannot hang setup. Resolves true or
+// false; never rejects. `url` and `timeoutMs` are injectable for tests.
+export function downloadIcon(destPath, { url = ICON_URL, timeoutMs = ICON_DEADLINE_MS } = {}) {
   return new Promise((resolve) => {
-    const url = 'https://claude.ai/images/claude_app_icon.png';
-    const file = fs.createWriteStream(destPath);
-    https.get(url, { timeout: 10000 }, (res) => {
-      if (res.statusCode !== 200) { file.close(); resolve(false); return; }
-      res.pipe(file);
-      file.on('finish', () => { file.close(); resolve(true); });
-    }).on('error', () => { file.close(); resolve(false); });
+    const tmpPath = `${destPath}.${process.pid}.tmp`;
+    let settled = false;
+    let failing = false;
+    let req = null;
+    let res = null;
+    let file = null;
+    let timer = null;
+
+    const settle = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const removeTmp = () => { try { fs.rmSync(tmpPath, { force: true }); } catch { /* best effort */ } };
+    // Stop everything and drop the temp file. The file is removed only once its
+    // handle is closed, which Windows requires.
+    const fail = () => {
+      if (settled || failing) return;
+      failing = true;
+      clearTimeout(timer);
+      try { req?.destroy(); } catch { /* already gone */ }
+      try { res?.destroy(); } catch { /* already gone */ }
+      if (file && !file.closed) {
+        file.once('close', () => { removeTmp(); settle(false); });
+        file.destroy();
+      } else {
+        removeTmp();
+        settle(false);
+      }
+    };
+    // The file is closed and flushed: accept it only if the whole body arrived
+    // and it is not empty, then move it into place.
+    const commit = () => {
+      if (settled || failing) return;
+      try {
+        if (!res?.complete || fs.statSync(tmpPath).size === 0) throw new Error('incomplete icon');
+        fs.renameSync(tmpPath, destPath);
+      } catch { fail(); return; }
+      settle(true);
+    };
+
+    timer = setTimeout(fail, timeoutMs);
+    try {
+      const client = new URL(url).protocol === 'http:' ? http : https;
+      req = client.get(url, (response) => {
+        res = response;
+        if (response.statusCode !== 200) { response.resume(); fail(); return; }
+        file = fs.createWriteStream(tmpPath);
+        file.on('error', fail);
+        file.on('close', commit);
+        response.on('error', fail);
+        // A dropped connection closes the response without completing it.
+        response.on('close', () => { if (!response.complete) fail(); });
+        response.pipe(file);
+      });
+      req.on('error', fail);
+    } catch { fail(); }
   });
 }
 
@@ -232,7 +303,7 @@ export async function run() {
   fs.mkdirSync(configDir, { recursive: true });
   const iconPath = path.join(configDir, 'icon.png');
   let iconReady = true;
-  if (!fs.existsSync(iconPath)) {
+  if (!hasUsableIcon(iconPath)) {
     const ok = await downloadIcon(iconPath);
     iconReady = ok;
     if (ok) log('    ✓ Notification icon downloaded', 'green');
