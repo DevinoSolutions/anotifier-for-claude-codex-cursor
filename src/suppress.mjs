@@ -14,7 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getConfigDir, parseHHMM } from './config-loader.mjs';
-import { readJsonFile } from './state-file.mjs';
+import { readJsonFile, writeFileAtomic } from './state-file.mjs';
 
 // Same directory and dotfile convention as .update-check.json. A separate file
 // rather than a key in that one: this is user intent with its own lifecycle
@@ -61,9 +61,11 @@ export function readSnoozeUntil(statePath = SNOOZE_PATH, now = Date.now()) {
 // Writes the deadline and returns it. Unlike the read path this does NOT
 // swallow failures: it is only ever called from the CLI, where a state file
 // that could not be written must be reported rather than silently ignored.
+// Written atomically (temp file + rename): the hook reads this file on every
+// alert, possibly in the instant the CLI rewrites it, and a half-written file
+// would read as corrupt and drop the snooze.
 export function writeSnoozeUntil(until, statePath = SNOOZE_PATH) {
-  fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  fs.writeFileSync(statePath, JSON.stringify({ until }) + '\n', 'utf8');
+  writeFileAtomic(statePath, JSON.stringify({ until }) + '\n');
   return until;
 }
 

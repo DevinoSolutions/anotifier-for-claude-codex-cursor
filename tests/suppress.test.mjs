@@ -113,6 +113,38 @@ describe('snooze state file', () => {
     assert.equal(readSnoozeUntil(nested, NOW), NOW + 1000);
   });
 
+  it('writeSnoozeUntil keeps the file format: one JSON object and a newline', () => {
+    writeSnoozeUntil(NOW + 1234, statePath);
+    assert.equal(fs.readFileSync(statePath, 'utf8'), `{"until":${NOW + 1234}}\n`);
+  });
+
+  it('writeSnoozeUntil leaves no temp file behind, and replaces an earlier snooze', () => {
+    writeSnoozeUntil(NOW + 60_000, statePath);
+    writeSnoozeUntil(NOW + 120_000, statePath);
+    assert.deepEqual(fs.readdirSync(dir), ['.snooze.json']);
+    assert.equal(readSnoozeUntil(statePath, NOW), NOW + 120_000);
+  });
+
+  it('writeSnoozeUntil gives the file the mode a plain write would (no new restriction)', () => {
+    const plain = path.join(dir, 'plain');
+    fs.writeFileSync(plain, 'x');
+    writeSnoozeUntil(NOW + 1000, statePath);
+    assert.equal(fs.statSync(statePath).mode & 0o777, fs.statSync(plain).mode & 0o777);
+  });
+
+  it('writeSnoozeUntil is atomic: a failed write throws and leaves the earlier snooze intact', () => {
+    writeSnoozeUntil(NOW + 60_000, statePath);
+    const before = fs.readFileSync(statePath, 'utf8');
+    mock.method(fs, 'renameSync', () => { throw Object.assign(new Error('EPERM'), { code: 'EPERM' }); });
+    try {
+      assert.throws(() => writeSnoozeUntil(NOW + 120_000, statePath), { code: 'EPERM' });
+    } finally {
+      mock.restoreAll();
+    }
+    assert.equal(fs.readFileSync(statePath, 'utf8'), before, 'never a truncated or half-written file');
+    assert.equal(readSnoozeUntil(statePath, NOW), NOW + 60_000);
+  });
+
   it('clearSnooze removes an active snooze and reports that it did', () => {
     writeSnoozeUntil(NOW + 60_000, statePath);
     assert.equal(clearSnooze(statePath), true);
