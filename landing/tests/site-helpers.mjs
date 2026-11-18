@@ -19,13 +19,55 @@ const ENTITIES = {
 const decode = (s) =>
   s.replace(/&(amp|lt|gt|quot|#x27|#39);/g, (_, e) => ENTITIES[e]);
 
-export async function get(path, init = {}) {
-  const res = await fetch(BASE_URL + path, {
-    redirect: "manual",
-    headers: { "user-agent": "anotifier-site-tests" },
-    ...init,
-  });
-  return { status: res.status, headers: res.headers, body: await res.text() };
+// A request that dies at the network level (a reset or terminated TLS socket:
+// undici's "fetch failed" / "terminated") never got an answer, so it says
+// nothing about the page. The live suite makes hundreds of them from a hosted
+// runner through Cloudflare, and a single dropped connection used to fail a
+// whole test. Only that case is retried, and only for requests that are safe to
+// repeat; any HTTP answer, whatever its status, is returned as received so the
+// assertions on it are unchanged. A request that keeps failing still throws,
+// now naming the URL.
+const ATTEMPTS = 4;
+const RETRY_DELAY_MS = 400;
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Runs `attempt` (a fetch plus the read of its body), repeating it when it
+// throws. `attempt` must be safe to repeat.
+export async function retried(url, attempt, method = "GET") {
+  for (let n = 1; ; n++) {
+    try {
+      return await attempt();
+    } catch (err) {
+      const safe = ["GET", "HEAD"].includes(method.toUpperCase());
+      if (!safe || n === ATTEMPTS) {
+        throw new Error(
+          `${method} ${url} failed after ${n} attempt(s): ${err.message}${err.cause?.code ? ` (${err.cause.code})` : ""}`,
+          { cause: err },
+        );
+      }
+      await wait(RETRY_DELAY_MS * n);
+    }
+  }
+}
+
+export function get(path, init = {}) {
+  const url = BASE_URL + path;
+  return retried(
+    url,
+    async () => {
+      const res = await fetch(url, {
+        redirect: "manual",
+        headers: { "user-agent": "anotifier-site-tests" },
+        ...init,
+      });
+      return {
+        status: res.status,
+        headers: res.headers,
+        body: await res.text(),
+      };
+    },
+    init.method,
+  );
 }
 
 // Paths of every page in the live sitemap, so a new page is covered the moment

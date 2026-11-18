@@ -6,6 +6,7 @@ import {
   SITE_URL,
   get,
   meta,
+  retried,
   sitemapPaths,
 } from "./site-helpers.mjs";
 
@@ -545,10 +546,13 @@ test("every subpage has its own share image, served as a PNG", async () => {
     assert.equal(new URL(og).pathname, `${p}opengraph-image`, `${p} og:image`);
     assert.equal(new URL(tw).pathname, `${p}twitter-image`, `${p} twitter`);
 
-    const res = await fetch(BASE_URL + new URL(og).pathname, {
-      headers: { "user-agent": "anotifier-site-tests" },
+    const url = BASE_URL + new URL(og).pathname;
+    const { res, bytes } = await retried(url, async () => {
+      const r = await fetch(url, {
+        headers: { "user-agent": "anotifier-site-tests" },
+      });
+      return { res: r, bytes: new Uint8Array(await r.arrayBuffer()) };
     });
-    const bytes = new Uint8Array(await res.arrayBuffer());
     assert.equal(res.status, 200, `${og} returned ${res.status}`);
     assert.equal(res.headers.get("content-type"), "image/png", og);
     assert.deepEqual([...bytes.slice(0, 4)], [0x89, 0x50, 0x4e, 0x47], og);
