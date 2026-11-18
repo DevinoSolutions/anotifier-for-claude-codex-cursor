@@ -478,6 +478,49 @@ test("one URL per page: slashless and index.html paths 301 to the canonical", as
   }
 });
 
+// /guides/wsl-notify-send/ was folded into a section of the Windows and WSL
+// guide (T-6320). Both forms go there in one hop, and the old page is gone.
+test("the removed wsl-notify-send guide 301s to its section in one hop", async () => {
+  const target = "/guides/windows-wsl-notifications/";
+  for (const from of ["/guides/wsl-notify-send/", "/guides/wsl-notify-send"]) {
+    const res = await get(from);
+    assert.equal(res.status, 301, `${from} returned ${res.status}`);
+    assert.equal(
+      res.headers.get("location"),
+      `${target}#wsl-notify-send`,
+      `${from} -> ${res.headers.get("location")}`,
+    );
+  }
+  // The destination answers 200 itself (no second hop) and has the anchor.
+  const dest = await get(target);
+  assert.equal(dest.status, 200, `${target} returned ${dest.status}`);
+  assert.ok(
+    dest.body.includes('id="wsl-notify-send"'),
+    `${target} has no #wsl-notify-send section`,
+  );
+  assert.match(dest.body, /<h2[^>]*>[^<]*wsl-notify-send/, "heading lost");
+  // A path that merely starts with the old one is not caught by the rule.
+  const other = await get("/guides/wsl-notify-send/extra/");
+  assert.equal(
+    other.status,
+    404,
+    `/guides/wsl-notify-send/extra/ is ${other.status}`,
+  );
+});
+
+test("the removed wsl-notify-send guide is out of the sitemap and every page", () => {
+  assert.ok(
+    !paths.includes("/guides/wsl-notify-send/"),
+    "/guides/wsl-notify-send/ is still in the sitemap",
+  );
+  for (const [p, { body }] of pages) {
+    assert.ok(
+      !body.includes('href="/guides/wsl-notify-send'),
+      `${p} still links /guides/wsl-notify-send/`,
+    );
+  }
+});
+
 test("unknown paths are real 404s", async () => {
   for (const p of ["/definitely-not-a-page/", "/definitely-not-a-page"]) {
     const res = await get(p);

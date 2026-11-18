@@ -1,4 +1,5 @@
 import type { Guide } from "./guides";
+import { json } from "./claude-guides";
 import { COMMUNITY_URL } from "./site";
 
 /**
@@ -6,7 +7,45 @@ import { COMMUNITY_URL } from "./site";
  * checked against the package source (cli/, src/, setup/, assets/) for the
  * version in lib/site.ts; where the product has a known gap, the guide says so
  * instead of papering over it.
+ *
+ * The WSL do-it-yourself sections (wsl-notify-send, the no-install script, hooks
+ * pointed at it) came from the standalone /guides/wsl-notify-send/ page, which
+ * nginx.conf now 301s to #wsl-notify-send. wsl-notify-send facts were read from
+ * github.com/stuartleeks/wsl-notify-send (README, main.go, releases, issues) on
+ * 2026-10-09; BurntToast facts from github.com/Windos/BurntToast.
  */
+
+// The same WinRT call anotifier's own WSL toast makes (assets/windows/toast-wsl.ps1),
+// minus the comments and the -Silent switch: no module, runs on Windows PowerShell 5.1.
+const WSL_TOAST_PS1 = `param(
+  [string]$Title = 'WSL',
+  [string]$Message = 'Done'
+)
+$ErrorActionPreference = 'Stop'
+$null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
+$null = [Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime]
+$AppId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe'
+$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+$texts = $xml.GetElementsByTagName('text')
+$null = $texts.Item(0).AppendChild($xml.CreateTextNode($Title))
+$null = $texts.Item(1).AppendChild($xml.CreateTextNode($Message))
+$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($AppId).Show($toast)`;
+
+const WSL_SETUP_SCRIPTS = `mkdir -p ~/bin
+cat > ~/bin/win-toast.ps1 <<'EOF'
+${WSL_TOAST_PS1}
+EOF
+cat > ~/bin/win-toast <<'EOF'
+#!/usr/bin/env bash
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w ~/bin/win-toast.ps1)" -Title "\${1:-WSL}" -Message "\${2:-Done}"
+EOF
+chmod +x ~/bin/win-toast`;
+
+const wslHook = (command: string, extra: Record<string, unknown> = {}) => ({
+  hooks: [{ type: "command", command, ...extra }],
+});
+
 export const TOPIC_GUIDES: Guide[] = [
   {
     slug: "windows-wsl-notifications",
@@ -149,6 +188,15 @@ export const TOPIC_GUIDES: Guide[] = [
             ],
           },
           {
+            kind: "p",
+            text: "What each command prints inside WSL once the road works. `doctor` does not fire a toast, so `test toast` is the real delivery check:",
+          },
+          {
+            kind: "code",
+            lang: "bash",
+            code: "anotifier setup        # prints: Windows toast via <powershell path> (WSL interop)\nanotifier status       # Platform WSL, toast Windows toast (WSL interop)\nanotifier doctor       # toast: WSL: Windows toast via <powershell path>\nanotifier test toast   # sends a real toast",
+          },
+          {
             kind: "note",
             text: "In 1.2.6 and earlier, `setup`, `status`, and `doctor` describe WSL as plain Linux, so they may warn that `notify-send` is missing, and a failed WSL toast is not written to `errors.log`. 1.3.0 fixes both: all three commands name the Windows-interop toast path, `doctor` checks for `wslpath` and a reachable Windows PowerShell instead of `notify-send`, and a failed WSL toast is logged as `toast:wsl`.",
           },
@@ -160,11 +208,177 @@ export const TOPIC_GUIDES: Guide[] = [
         blocks: [
           {
             kind: "p",
-            text: "No. anotifier never calls `wsl-notify-send`. It runs PowerShell directly, so there is nothing to download and nothing to put on your PATH. [wsl-notify-send](https://github.com/stuartleeks/wsl-notify-send) is a separate prebuilt Windows executable that accepts a few `notify-send` options. It is useful when you write your own hook and want a drop-in `notify-send` inside WSL. The [wsl-notify-send guide](/guides/wsl-notify-send/) compares it with calling `powershell.exe` yourself, shows the toast script, and wires either one to Claude Code and Codex.",
+            text: "No. anotifier never calls `wsl-notify-send`. It runs PowerShell directly, so there is nothing to download and nothing to put on your PATH. [wsl-notify-send](https://github.com/stuartleeks/wsl-notify-send) is a separate prebuilt Windows executable that accepts a few `notify-send` options. It is useful when you write your own hook and want a drop-in `notify-send` inside WSL. The rest of this section is for that case: what it is, how its options behave, and how it compares with the other do-it-yourself roads. To skip the wiring, run `npx anotifier@latest setup` inside WSL.",
           },
           {
             kind: "p",
-            text: "Both give the same kind of toast: a title and a message under a generic app name. The native Windows road is the one with the icon, sound and click-to-focus.",
+            text: "All the roads below rely on WSL interop, which lets a Linux shell run Windows `.exe` files. It is on by default. The toast is raised by the Windows side, so no notification daemon or D-Bus is needed in the distribution. All of them give the same kind of toast: a title and a message under a generic app name. The native Windows road is the one with the icon, sound and click-to-focus.",
+          },
+          {
+            kind: "table",
+            head: ["Option", "Install", "Best for"],
+            rows: [
+              [
+                "`wsl-notify-send.exe`",
+                "Download one `.exe` from GitHub Releases, put it on your PATH",
+                "A drop-in `notify-send` for scripts that already call it",
+              ],
+              [
+                "`powershell.exe` and a small script",
+                "Nothing: Windows PowerShell 5.1 ships with Windows",
+                "No downloads, and you control the title and message",
+              ],
+              [
+                "BurntToast",
+                "`Install-Module BurntToast` on the Windows side",
+                "Buttons, headers, and other rich toast options. The repository is archived and unmaintained",
+              ],
+              [
+                "`npx anotifier@latest setup`",
+                "One command inside WSL",
+                "Agents: it wires the hooks and sends the toast for you",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: "[wsl-notify-send](https://github.com/stuartleeks/wsl-notify-send) is written in Go on top of go-toast and is MIT licensed. Its README installs it in three steps: download the latest release, create the `notify-send` helper function, and test it. The release has `windows_amd64` and `windows_386` zips. Because the helper is a `notify-send` function, scripts that call `notify-send` keep working. This is that function with the variable quoted, for `~/.bashrc`:",
+          },
+          {
+            kind: "code",
+            lang: "bash",
+            code: 'notify-send() { wsl-notify-send.exe --category "$WSL_DISTRO_NAME" "${@}"; }\n\nnotify-send "Hello from WSL"',
+          },
+          {
+            kind: "p",
+            text: "The options, from its source:",
+          },
+          {
+            kind: "table",
+            head: ["Option", "What it does"],
+            rows: [
+              [
+                "`-c`, `--category`",
+                "Sets the toast **title**. Defaults to `wsl-notify-send`",
+              ],
+              [
+                "`-i`, `--icon`",
+                "An icon file to show. Stock icon names are not supported",
+              ],
+              [
+                "`--appId`",
+                "The app ID. Non-standard. Defaults to `wsl-notify-send`",
+              ],
+              ["`--version`", "Prints version and build info"],
+              [
+                "`-t`, `-h`, `-u`",
+                "Accepted for `notify-send` compatibility, then ignored. `-u critical` does not make a toast stay on screen",
+              ],
+            ],
+          },
+          {
+            kind: "p",
+            text: 'It takes exactly one message argument. With none, or with two, it prints its usage instead of a toast. So `notify-send "Build" "finished"` shows the usage text, not a toast: put it all in one quoted string.',
+          },
+          {
+            kind: "note",
+            text: "Check its state before you depend on it. As of 2026-10-09 the latest release is `v0.1.871612270`, published on 2021-05-24, and the last commit on `main` is from 2021-05-26. The repository is not archived. It has 6 open issues and 2 open pull requests (the newer from July 2026), including a request for notifications that persist (#8) and a report that it is missing from Windows notification settings (#7). The tool is small, so it may still work for you; run the `Hello from WSL` line above to find out.",
+          },
+        ],
+      },
+      {
+        id: "wsl-powershell-script",
+        title: "No install: a toast script with powershell.exe",
+        blocks: [
+          {
+            kind: "p",
+            text: "Windows PowerShell can raise a toast through the Windows toast API without any module. Save the script below on the Linux side, then run it through `powershell.exe`. `wslpath -w` turns the Linux path into the Windows path of the same file, so Windows can read it straight from your distribution. This is the same call anotifier uses for its own WSL toast, without its `-Silent` switch:",
+          },
+          {
+            kind: "code",
+            lang: "bash",
+            code: WSL_SETUP_SCRIPTS,
+          },
+          {
+            kind: "p",
+            text: 'Now `~/bin/win-toast "Build" "finished"` shows a toast with that title and message. It is a script rather than a shell function on purpose: agent hooks and `cron` run in their own shell, where a function from your `.bashrc` does not exist.',
+          },
+          {
+            kind: "ul",
+            items: [
+              "The toast appears under **Windows PowerShell's name and icon**. A plain script has no app identity of its own, so it borrows PowerShell's. Windows notification settings for that app apply to it, and Do not disturb (Focus Assist) can hide it.",
+              "The first call after a while can take a second or two, because Windows has to start PowerShell.",
+              "`-File` with a typed `param()` block is used on purpose. anotifier avoids `-Command` and `-EncodedCommand` for its WSL toast because they tripped an EDR false positive when spawned from WSL.",
+              "If `powershell.exe` is not found, interop is off or the Windows `PATH` is not appended. Check `[interop]` in `/etc/wsl.conf` (`enabled = true`), or call `/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe` by its full path.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "If you would rather have a module do it, [BurntToast](https://github.com/Windos/BurntToast) is a PowerShell module for toasts on Windows 10 and newer, installed with `Install-Module -Name BurntToast`. The Windos/BurntToast repository is archived and no longer maintained, though its last release still works. anotifier's native Windows toasts run it from PowerShell 7, so this sample does too. Install PowerShell 7 and the module once on the Windows side, then call them from WSL:",
+          },
+          {
+            kind: "code",
+            lang: "bash",
+            code: 'powershell.exe -NoProfile -Command "winget install --id Microsoft.PowerShell --source winget"\npwsh.exe -NoProfile -Command "Install-Module -Name BurntToast -Scope CurrentUser"\npwsh.exe -NoProfile -Command "New-BurntToastNotification -Text \'Build\', \'finished\'"',
+          },
+          {
+            kind: "p",
+            text: "BurntToast also has buttons, headers and an `-Urgent` switch, which is why you would pick it over the plain script. `pwsh.exe` must be on the PATH that WSL passes through; otherwise call it by its full path, usually `/mnt/c/Program Files/PowerShell/7/pwsh.exe`.",
+          },
+        ],
+      },
+      {
+        id: "wsl-agent-hooks",
+        title: "Point your own Claude Code or Codex hooks at it",
+        blocks: [
+          {
+            kind: "p",
+            text: "If you wire the hooks yourself instead of running `setup`, remember that agents in WSL read their settings from the Linux home directory: `~/.claude/settings.json` and `~/.codex/`, not the Windows ones. Point their hooks at `win-toast`. For Claude Code, `Stop` fires when it finishes a turn and `Notification` fires for several notification types, so the matcher limits it to permission and idle prompts:",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              hooks: {
+                Stop: [
+                  wslHook('"$HOME/bin/win-toast" "Claude Code" "Finished"'),
+                ],
+                Notification: [
+                  {
+                    matcher: "permission_prompt|idle_prompt",
+                    ...wslHook(
+                      '"$HOME/bin/win-toast" "Claude Code" "Needs you"',
+                    ),
+                  },
+                ],
+              },
+            }),
+          },
+          {
+            kind: "p",
+            text: "For Codex CLI, `Stop` runs when a turn ends and `PermissionRequest` runs when it is about to ask for approval. Put this in `~/.codex/hooks.json`. `async: true` stops Codex waiting for the toast, and Codex asks you to trust new hooks the first time: open `/hooks` and review them.",
+          },
+          {
+            kind: "code",
+            lang: "json",
+            code: json({
+              hooks: {
+                Stop: [
+                  wslHook('"$HOME/bin/win-toast" "Codex" "Turn complete"', {
+                    async: true,
+                  }),
+                ],
+                PermissionRequest: [
+                  wslHook('"$HOME/bin/win-toast" "Codex" "Needs approval"', {
+                    async: true,
+                  }),
+                ],
+              },
+            }),
+          },
+          {
+            kind: "note",
+            text: 'Codex\'s older `notify` setting in `config.toml` also works for finished turns, but it fires only for `agent-turn-complete`, never for approvals. Use the hooks above if you want approval toasts. The same hook commands work with `wsl-notify-send.exe`: replace the command with `wsl-notify-send.exe --category Claude "Finished"`.',
           },
         ],
       },
@@ -329,7 +543,7 @@ export const TOPIC_GUIDES: Guide[] = [
             items: [
               "`test toast` uses the same backend as the hooks and exits with code 1 when it fails. It skips the agent's hook, snooze and quiet hours, and it ignores `toast.enabled`, so it can pass while real alerts are off. `status` shows whether the toast channel is on.",
               "On Windows, `doctor` fails when PowerShell 7 is missing, warns when BurntToast is not installed, and fails on a blocking Group Policy execution policy. In WSL it checks for `wslpath` and a reachable Windows PowerShell. `doctor --deep` has no read-back on Windows or WSL, so `test toast` is the real delivery check.",
-              "To test BurntToast without anotifier, run `pwsh -NoProfile -Command \"New-BurntToastNotification -Text 'Test','Hello'\"`. To test the WSL road by hand, use the script in the [wsl-notify-send guide](/guides/wsl-notify-send/).",
+              "To test BurntToast without anotifier, run `pwsh -NoProfile -Command \"New-BurntToastNotification -Text 'Test','Hello'\"`. To test the WSL road by hand, use [the no-install toast script](#wsl-powershell-script) above.",
               "If the test works and real alerts do not, the problem is between the agent and anotifier. Restart the agent so it reloads its hooks, and see the [troubleshooting guide](/guides/notifications-not-working/).",
             ],
           },
@@ -351,7 +565,31 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "Do I need wsl-notify-send or BurntToast inside WSL?",
-        a: "No. anotifier does not use wsl-notify-send, and the WSL toast calls the Windows toast API directly through Windows PowerShell, so it needs no BurntToast either. BurntToast is only used for native Windows toasts, and setup installs it there. wsl-notify-send is an option if you write your own hooks.",
+        a: "No. anotifier does not use wsl-notify-send, and the WSL toast calls the Windows toast API directly through Windows PowerShell, so it needs no BurntToast either. BurntToast is only used for native Windows toasts, and setup installs it there. wsl-notify-send is an option if you write your own hooks. For a toast script of your own, the Windows toast API is available to Windows PowerShell 5.1 directly, as the script in this guide shows; BurntToast only adds buttons, headers and other rich options, and its repository is archived and no longer maintained, though the last release still works.",
+      },
+      {
+        q: "How do I show a Windows toast notification from WSL?",
+        a: 'Run a Windows program from your WSL shell. Either download wsl-notify-send.exe and run wsl-notify-send.exe --category WSL "Done", or call powershell.exe -File with a script that uses the Windows toast API. Both rely on WSL interop, which is on by default. For Claude Code or Codex, npx anotifier@latest setup run inside WSL does the wiring for you.',
+      },
+      {
+        q: "Is wsl-notify-send still maintained?",
+        a: "As of 2026-10-09, its latest release is v0.1.871612270 from 2021-05-24 and the last commit on main is from 2021-05-26. The repository is not archived and has 6 open issues and 2 open pull requests, the newer from July 2026. It is small and may still work, but it is not actively developed.",
+      },
+      {
+        q: "What does wsl-notify-send --category do?",
+        a: "It sets the toast title. It defaults to wsl-notify-send, and the README's notify-send function passes the WSL distribution name. The message is the single argument that follows.",
+      },
+      {
+        q: "Does notify-send work in WSL?",
+        a: "The Linux notify-send needs a notification daemon and D-Bus, which a plain WSL distribution usually lacks, so it fails or shows nothing on the Windows desktop. Define a notify-send function that calls wsl-notify-send.exe instead, or use the powershell.exe script in this guide.",
+      },
+      {
+        q: "Why does my WSL toast say Windows PowerShell?",
+        a: "A script has no app identity of its own, so it uses PowerShell's. The toast shows under that name and icon, and Windows notification settings for Windows PowerShell control it. anotifier's WSL toast does the same.",
+      },
+      {
+        q: "Why do I get no toast when Claude Code or Codex runs in WSL?",
+        a: "Check that the hook is in the Linux home directory (~/.claude/settings.json or ~/.codex/hooks.json), that a hook you wrote calls a script rather than a shell function, that powershell.exe runs from WSL, and that Do not disturb is off. anotifier doctor checks the interop part, and anotifier test toast sends a real toast.",
       },
       {
         q: "Why is a Windows toast silent or missing even though the test says Toast sent?",
