@@ -1,6 +1,9 @@
 // tests/offline-preload.cjs — run the suite as if the network were unplugged.
 //
-//   NODE_OPTIONS="--require ./tests/offline-preload.cjs" node scripts/run-tests.mjs tests
+//   NODE_OPTIONS="--require <abs path>/tests/offline-preload.cjs" node scripts/run-tests.mjs tests
+//
+// Use an absolute path: a relative one is resolved against each child's own cwd,
+// so it breaks every child a test spawns with another working directory.
 //
 // NODE_OPTIONS is inherited by every child process a test spawns (notify.mjs, the
 // CLI, statusline.mjs), so a spawned hook that reaches for npm, claude.ai or any
