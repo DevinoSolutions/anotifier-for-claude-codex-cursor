@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getConfigDir, parseHHMM } from './config-loader.mjs';
+import { readJsonFile } from './state-file.mjs';
 
 // Same directory and dotfile convention as .update-check.json. A separate file
 // rather than a key in that one: this is user intent with its own lifecycle
@@ -41,25 +42,17 @@ export function formatClock(ms) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-// null = there is no state file at all; {} = there is one but nothing usable
-// came out of it. The caller needs to tell those apart only to decide whether
-// there is anything worth unlinking.
-function readState(statePath) {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch (err) {
-    return err?.code === 'ENOENT' ? null : {};
-  }
-}
-
 // The active snooze deadline (epoch ms), or null. Opportunistically deletes a
 // state file that is expired or unusable — dead state should not linger in the
 // config dir or show up in `status`. A failed unlink changes nothing: the
 // timestamp check above has already decided the answer.
+//
+// A file that cannot be READ (EBUSY, EACCES, ...: an antivirus scan, say) reads
+// as not snoozed like any other broken state, but is left alone: it may hold a
+// perfectly good deadline, and deleting it would cancel the user's snooze.
 export function readSnoozeUntil(statePath = SNOOZE_PATH, now = Date.now()) {
-  const state = readState(statePath);
-  if (state === null) return null;
+  const { status, data: state } = readJsonFile(statePath);
+  if (status === 'missing' || status === 'unreadable') return null;
   const until = typeof state.until === 'number' && state.until > now ? state.until : null;
   if (until === null) { try { fs.unlinkSync(statePath); } catch {} }
   return until;

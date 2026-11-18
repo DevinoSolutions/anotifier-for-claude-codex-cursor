@@ -20,7 +20,8 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadConfigResult } from './config-loader.mjs';
 import { isSuppressed } from './suppress.mjs';
-import { checkUsage, spawnDelivery, projectConfigFor, hasChannel, isEntry, WINDOWS } from './usage-alert.mjs';
+import { checkUsage, spawnDelivery, projectConfigFor, isEntry, WINDOWS } from './usage-alert.mjs';
+import { hasChannel } from './channels.mjs';
 import { checkContext as checkContextUsage } from './context-alert.mjs';
 import { logHookError } from './error-log.mjs';
 

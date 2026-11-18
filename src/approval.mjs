@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { getConfigDir } from './config-loader.mjs';
+import { readJsonFile, writeFileAtomic } from './state-file.mjs';
 
 export const APPROVAL_VERSION = 1;
 export const DEFAULT_WAIT_SECONDS = 300; // D9
@@ -212,20 +213,14 @@ export function validateApproval(data, now = Date.now()) {
 // The raw file for the CLI (status, setup re-runs, off). null when absent or
 // unparseable; the CLI reports those itself.
 export function readApprovalRaw(file = approvalPath()) {
-  try {
-    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return data && typeof data === 'object' && !Array.isArray(data) ? data : null;
-  } catch { return null; }
+  const { status, data } = readJsonFile(file);
+  return status === 'ok' ? data : null;
 }
 
 // Owner-only, atomically (temp file + rename), like saveConfig. CLI only, so
 // failures throw.
 export function writeApproval(data, file = approvalPath()) {
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch { /* Windows: no POSIX modes */ }
-  fs.renameSync(tmp, file);
+  writeFileAtomic(file, JSON.stringify(data, null, 2) + '\n', { mode: 0o600, dirMode: 0o700 });
 }
 
 // ── approvals/ directory ────────────────────────────────────────────
@@ -243,11 +238,9 @@ export function ensureApprovalsDir(dir = approvalsDir()) {
   return dir;
 }
 
+// No mkdir here: the directory was made (and vetted) by ensureApprovalsDir.
 function writeOwnerOnly(file, content) {
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, content, { encoding: 'utf8', mode: 0o600 });
-  try { fs.chmodSync(tmp, 0o600); } catch {}
-  fs.renameSync(tmp, file);
+  writeFileAtomic(file, content, { mode: 0o600, mkdir: false });
 }
 
 // ── Away mode (design 4.1, D5) ──────────────────────────────────────

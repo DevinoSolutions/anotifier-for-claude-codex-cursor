@@ -19,10 +19,9 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getConfigDir, loadConfigResult, resolveProjectConfig } from './config-loader.mjs';
-import { sendNtfy } from './ntfy.mjs';
-import { sendWebhook } from './webhook.mjs';
-import { resolveToastBackend } from './platforms/index.mjs';
+import { sendToChannels } from './channels.mjs';
 import { logHookError, flushErrorReporting } from './error-log.mjs';
+import { readJsonObject, writeJsonAtomic, withLock } from './state-file.mjs';
 
 export const DEFAULT_THRESHOLDS = [70, 85, 95];
 
@@ -33,7 +32,6 @@ export const WINDOWS = {
 };
 
 export const STATE_PATH = path.join(getConfigDir(), '.usage-alerts.json');
-const LOCK_STALE_MS = 5000;
 
 // A resets_at that moves later by more than this is a new window even if the
 // old one's reset time has not been reached on our clock (clock skew, or a
@@ -162,76 +160,6 @@ export function buildUsageNotification(alert, payload, now = Date.now()) {
   };
 }
 
-export function readState(statePath) {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch { return {}; }
-}
-
-export function writeState(statePath, state) {
-  fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  const tmp = `${statePath}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(state), 'utf8');
-  fs.renameSync(tmp, statePath);
-}
-
-// Several chats refresh their statuslines at once, so the read-decide-write
-// runs under an exclusive lock file. A run that cannot get the lock simply
-// skips: the holder is evaluating the same account-wide numbers.
-// On Windows, creating a file that another process has just unlinked, while a
-// handle to it is still open, fails with EPERM (or EACCES/EBUSY) rather than
-// EEXIST. That is the lock being released, not a permissions problem. A real
-// permissions problem leaves no lock file behind, so stat tells them apart. A
-// lock older than LOCK_STALE_MS should have been cleared above; one that is
-// still there could not be deleted, which would silence every warning, so it
-// is reported too. Stat can lose the race: the other chat may finish unlinking
-// between our failed create and our stat, leaving nothing to see. So a release
-// code with no lock file is retried once after a short wait; only a failure
-// that still looks like a real problem is reported.
-const RELEASE_CODES = ['EPERM', 'EACCES', 'EBUSY'];
-const RETRY_WAIT_MS = 25;
-const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-
-function lockBeingReleased(lockPath, err) {
-  if (!RELEASE_CODES.includes(err?.code)) return false;
-  try {
-    return Date.now() - fs.statSync(lockPath).mtimeMs <= LOCK_STALE_MS;
-  } catch {
-    return false;
-  }
-}
-
-export function withLock(lockPath, fn, label = 'usage-alert:lock') {
-  try {
-    const st = fs.statSync(lockPath);
-    if (Date.now() - st.mtimeMs > LOCK_STALE_MS) fs.unlinkSync(lockPath);
-  } catch {}
-  let fd;
-  try {
-    fs.mkdirSync(path.dirname(lockPath), { recursive: true });
-    try {
-      fd = fs.openSync(lockPath, 'wx');
-    } catch (err) {
-      if (!RELEASE_CODES.includes(err?.code)) throw err;
-      if (lockBeingReleased(lockPath, err)) return null;
-      sleepSync(RETRY_WAIT_MS);
-      fd = fs.openSync(lockPath, 'wx');
-    }
-  } catch (err) {
-    // EEXIST: another chat holds it. Anything else (permissions, a file where
-    // the directory should be) would silence every warning, so say so.
-    if (err?.code !== 'EEXIST' && !lockBeingReleased(lockPath, err)) logHookError(label, err);
-    return null;
-  }
-  try {
-    return fn();
-  } finally {
-    try { fs.closeSync(fd); } catch {}
-    try { fs.unlinkSync(lockPath); } catch {}
-  }
-}
-
 // Decide and record in one locked step. The state is written BEFORE anything
 // is sent, like the update notice: at most one attempt per threshold per
 // window, so a slow or broken channel can never turn into repeated alerts.
@@ -241,10 +169,15 @@ export function checkUsage(payload, config, { statePath = STATE_PATH, now = Date
   if (!payload?.rate_limits) return [];
   try {
     const result = withLock(`${statePath}.lock`, () => {
-      const { alerts, state } = evaluateUsage(payload, readState(statePath), { thresholds: effectiveThresholds(config), now });
-      if (alerts.length || JSON.stringify(state) !== JSON.stringify(readState(statePath))) writeState(statePath, state);
+      // A state file that exists but cannot be read (EBUSY, EACCES: an antivirus
+      // scan) is NOT an empty one: evaluating against {} would re-send a warning
+      // that was already sent. Skip; the next refresh tries again.
+      const stored = readJsonObject(statePath, 'usage-alert:state');
+      if (stored === null) return [];
+      const { alerts, state } = evaluateUsage(payload, stored, { thresholds: effectiveThresholds(config), now });
+      if (alerts.length || JSON.stringify(state) !== JSON.stringify(stored)) writeJsonAtomic(statePath, state);
       return alerts;
-    });
+    }, 'usage-alert:lock');
     return (result || []).map((a) => buildUsageNotification(a, payload, now));
   } catch (err) {
     logHookError('usage-alert', err);
@@ -278,28 +211,11 @@ export function projectConfigFor(config, workspace, { resolve = resolveProjectCo
   }
 }
 
-// Is any channel on? The one definition of "a channel" for the usage warning:
-// sendUsageNotifications sends through exactly these, and the statusline tap
-// skips (and so does not record) a usage warning that nothing could deliver.
-const toastOn = (config) => config?.toast?.enabled !== false;
-const ntfyOn = (config) => Boolean(config?.ntfy?.enabled && config?.ntfy?.topic);
-const webhookOn = (config) => Boolean(config?.webhook?.enabled && config?.webhook?.url);
-export const hasChannel = (config) => toastOn(config) || ntfyOn(config) || webhookOn(config);
-
-// Fan the warnings out over the channels the user has on. No terminal bell: a
-// statusline has no terminal of its own to ring.
-export async function sendUsageNotifications(config, notifications, {
-  resolveBackend = resolveToastBackend,
-  ntfy = sendNtfy,
-  webhook = sendWebhook,
-} = {}) {
-  const tasks = [];
-  for (const n of notifications) {
-    if (toastOn(config)) tasks.push(resolveBackend().then((send) => send(n)));
-    if (ntfyOn(config)) tasks.push(ntfy(config.ntfy, n));
-    if (webhookOn(config)) tasks.push(webhook(config.webhook, n));
-  }
-  const results = await Promise.allSettled(tasks);
+// Fan the warnings out over the channels the user has on (see channels.mjs; no
+// terminal bell: a statusline has no terminal of its own to ring). Also used for
+// the context warnings. The senders are injectable for tests.
+export async function sendUsageNotifications(config, notifications, deps = {}) {
+  const results = await sendToChannels(config, notifications, deps);
   for (const r of results) if (r.status === 'rejected') logHookError('usage-alert:send', r.reason);
   return results;
 }

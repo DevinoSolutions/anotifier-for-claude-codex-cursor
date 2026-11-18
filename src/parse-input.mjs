@@ -39,6 +39,25 @@ const EVENT_MAP = {
   },
 };
 
+// The raw hook event names that mean "a turn started", across every agent
+// (UserPromptSubmit for claude and codex, BeforeAgent for gemini). setup/
+// patch-config.mjs uses it to give those hooks a short timeout and to tell them
+// apart from alert events in `status`.
+export const TURN_START_EVENT_NAMES = new Set(
+  Object.values(EVENT_MAP).flatMap((events) => Object.entries(events).filter(([, e]) => e === 'turn_start').map(([name]) => name)),
+);
+
+// True when this agent has a hook that marks the START of a turn, i.e. some raw
+// event maps to `turn_start` above. The turn timer (src/turn-timer.mjs) only
+// pairs a start with a finish for these agents. Both this and
+// TURN_START_EVENT_NAMES are derived from EVENT_MAP, the one table that decides
+// what each hook event means; the lists of which events each tool WIRES
+// (TOOL_EVENTS in setup/patch-config.mjs, hooks/hooks.json) are separate, since
+// they say what gets installed, not what an event means.
+export function hasTurnStart(source) {
+  return Object.hasOwn(EVENT_MAP, source) && Object.values(EVENT_MAP[source]).includes('turn_start');
+}
+
 // Claude Code's Stop payload carries `background_tasks`: the ledger of subagents
 // and background shells still running past the main agent's turn ([] when the
 // turn really is done, ABSENT on older Claude Code). An entry counts as LIVE
@@ -83,6 +102,22 @@ function readRunStatus(raw, source, hookEvent) {
   return value === 'aborted' || value === 'error' ? value : '';
 }
 
+// The session id as a string, or ''. Downstream it keys the dedup lock
+// (notify.mjs slices it) and the turn timer, so it must be a string: a payload
+// that sends a non-string id must not make the hook throw. A finite number is
+// kept as its decimal string, because it still names ONE session: dropping it
+// would put every session into one dedup bucket (two chats finishing together
+// would swallow each other's alert) and lose the turn duration. Anything else
+// (object, array, boolean, NaN) has no usable id and is skipped, so the next
+// candidate field gets its turn, as an empty or missing one always did.
+function readSessionId(candidates) {
+  for (const value of candidates) {
+    if (typeof value === 'string' && value) return value;
+    if (typeof value === 'number' && Number.isFinite(value) && value !== 0) return String(value);
+  }
+  return '';
+}
+
 export function parseInput(raw, source, eventOverride) {
   // --event CLI arg takes priority (used by Codex/Cursor which don't send hook_event_name on stdin).
   // Claude and Gemini include hook_event_name in stdin JSON.
@@ -103,8 +138,11 @@ export function parseInput(raw, source, eventOverride) {
     projectName: cwd ? (cwd.split(/[\\/]/).filter(Boolean).pop() || '') : '',
     // Cursor names it conversation_id (stable across a chat's turns), which makes
     // the dedup lock per conversation instead of global.
-    sessionId: raw.session_id || raw.sessionId || raw.conversationId
-      || (source === 'cursor' && typeof raw.conversation_id === 'string' ? raw.conversation_id : ''),
+    sessionId: readSessionId([
+      raw.session_id, raw.sessionId, raw.conversationId,
+      // Cursor's own field stays string-only (see tests/cursor-hook-input.test.mjs).
+      source === 'cursor' && typeof raw.conversation_id === 'string' ? raw.conversation_id : undefined,
+    ]),
     // Codex names the turn on both its prompt and its Stop hook; the turn timer
     // refuses to pair a start and a finish that disagree.
     turnId: typeof raw.turn_id === 'string' ? raw.turn_id : '',

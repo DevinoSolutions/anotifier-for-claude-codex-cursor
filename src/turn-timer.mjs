@@ -25,18 +25,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getConfigDir } from './config-loader.mjs';
-import { readState, writeState, withLock } from './usage-alert.mjs';
+import { readJsonObject, writeJsonAtomic, withLock, sleepSync } from './state-file.mjs';
 import { logHookError } from './error-log.mjs';
+import { hasTurnStart } from './parse-input.mjs';
 
-// Sources whose hooks give a start signal, and the raw hook event that carries it.
-export const TURN_START_HOOKS = {
-  claude: 'UserPromptSubmit',
-  codex: 'UserPromptSubmit',
-  gemini: 'BeforeAgent',
-};
-
+// Does this agent's hook give a start signal? Today: claude, codex and gemini.
+// Derived from parse-input's event table (the `turn_start` mapping), so the two
+// can never disagree about which agents have one.
 export function supportsTurnTiming(source) {
-  return Object.hasOwn(TURN_START_HOOKS, source);
+  return hasTurnStart(source);
 }
 
 // An entry older than this is dropped on the next write, and a turn longer than
@@ -48,8 +45,6 @@ const REPEAT_WINDOW_MS = 5000;
 const MAX_ENTRIES = 200;
 const LOCK_TRIES = 5;
 const LOCK_WAIT_MS = 20;
-
-const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 export function turnStatePath() {
   return path.join(getConfigDir(), 'turns.json');
@@ -68,10 +63,16 @@ function usableTurnId(turnId) {
 // Locked read-modify-write. Returns whatever `fn` returned, or undefined when
 // the lock could not be had after a few short tries. That is logged (errors.log,
 // shown by `anotifier status`) and otherwise changes nothing: the caller treats
-// it as "no duration", so the alert is still sent.
+// it as "no duration", so the alert is still sent. A state file that exists but
+// cannot be read (EBUSY, EACCES: an antivirus scan) is skipped the same way and
+// not retried: `fn` is never given an empty stand-in, which it would write back
+// over every other session's start time.
 function withTurnState(statePath, fn) {
   for (let i = 0; i < LOCK_TRIES; i++) {
-    const out = withLock(`${statePath}.lock`, () => ({ value: fn(readState(statePath)) }), 'turn-timer:lock');
+    const out = withLock(`${statePath}.lock`, () => {
+      const state = readJsonObject(statePath, 'turn-timer:state');
+      return { value: state === null ? undefined : fn(state) };
+    }, 'turn-timer:lock');
     if (out) return out.value;
     if (i < LOCK_TRIES - 1) sleepSync(LOCK_WAIT_MS);
   }
@@ -103,7 +104,7 @@ export function recordTurnStart({ source, sessionId, turnId } = {}, { statePath 
       next[key] = open && !Number.isFinite(open.endedAt)
         ? { ...open, turnId: usableTurnId(turnId), lastPromptAt: now }
         : { startedAt: now, turnId: usableTurnId(turnId) };
-      writeState(statePath, next);
+      writeJsonAtomic(statePath, next);
       return true;
     });
     return ok === true;
@@ -137,7 +138,7 @@ export function finishTurn({ source, sessionId, turnId } = {}, { statePath = tur
         if ((entry.endedTurnId || '') !== wanted) return null;
         endedAt = entry.endedAt;
       } else {
-        writeState(statePath, { ...state, [key]: { ...entry, endedAt, endedTurnId: wanted } });
+        writeJsonAtomic(statePath, { ...state, [key]: { ...entry, endedAt, endedTurnId: wanted } });
       }
       const elapsed = endedAt - entry.startedAt;
       return elapsed >= 0 && elapsed <= MAX_TURN_MS ? elapsed : null;
@@ -158,7 +159,7 @@ export function removeTurnState(dir = getConfigDir()) {
   let names = [];
   try { names = fs.readdirSync(dir); } catch { return { removed, failed }; }
   const base = path.basename(turnStatePath());
-  const ours = (n) => n === base || n === `${base}.lock` || (n.startsWith(`${base}.`) && n.endsWith('.tmp'));
+  const ours = (n) => n === base || n === `${base}.lock` || n === `${base}.logged` || (n.startsWith(`${base}.`) && n.endsWith('.tmp'));
   for (const name of names.filter(ours)) {
     try { fs.unlinkSync(path.join(dir, name)); removed.push(name); }
     catch (err) { if (err?.code !== 'ENOENT') failed.push({ name, message: err.message }); }

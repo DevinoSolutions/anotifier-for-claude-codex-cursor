@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   evaluateUsage, effectiveThresholds, formatReset, chatLabel,
-  buildUsageNotification, checkUsage, sendUsageNotifications, DEFAULT_THRESHOLDS, withLock,
+  buildUsageNotification, checkUsage, sendUsageNotifications, DEFAULT_THRESHOLDS,
 } from '../src/usage-alert.mjs';
 import { useFakeHome } from './fake-home.mjs';
 import { readRecentHookErrors } from '../src/error-log.mjs';
@@ -374,106 +374,54 @@ describe('sendUsageNotifications', () => {
   });
 });
 
-describe('withLock on a lock being released (Windows EPERM)', () => {
-  let dir;
-  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'an-lock-')); });
+describe('checkUsage with a state file that cannot be read (EBUSY / EACCES / EPERM)', () => {
+  let dir, statePath;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-usage-b3-'));
+    statePath = path.join(dir, '.usage-alerts.json');
+  });
   afterEach(() => { mock.restoreAll(); fs.rmSync(dir, { recursive: true, force: true }); });
-
-  const eperm = () => Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' });
-  const lockErrors = (label) => readRecentHookErrors(200).filter((e) => e.context === label).length;
-  // Fail only for the lock path: on Node 18, appendFileSync (the error log)
-  // goes through fs.openSync too, and must keep working.
-  const failFor = (method, target) => {
-    const real = fs[method];
-    mock.method(fs, method, function (p, ...rest) {
-      if (p === target) throw eperm();
+  const cfg = { usageAlerts: { enabled: true, thresholds: [70, 85, 95] } };
+  const errorsFor = (label) => readRecentHookErrors(200).filter((e) => e.context === label).length;
+  const failRead = (code) => {
+    const real = fs.readFileSync;
+    mock.method(fs, 'readFileSync', function (p, ...rest) {
+      if (p === statePath) throw Object.assign(new Error(code), { code });
       return real.call(fs, p, ...rest);
     });
   };
 
-  it('EPERM while a fresh lock file exists is contention: skip quietly', () => {
-    const lock = path.join(dir, 's.json.lock');
-    fs.writeFileSync(lock, '');
-    const before = lockErrors('test:lock-busy');
-    failFor('openSync', lock);
-    let ran = false;
-    assert.equal(withLock(lock, () => { ran = true; return 1; }, 'test:lock-busy'), null);
-    assert.equal(ran, false);
-    assert.equal(lockErrors('test:lock-busy'), before, 'not logged');
-  });
+  for (const code of ['EBUSY', 'EACCES', 'EPERM']) {
+    it(`${code}: skips, does not re-send a warning already sent, and leaves the file alone`, () => {
+      // 70% was already announced for this window.
+      assert.equal(checkUsage(payload(win(75)), cfg, { statePath, now: NOW }).length, 1);
+      const before = fs.readFileSync(statePath, 'utf8');
+      const logged = errorsFor('usage-alert:state');
 
-  it('EPERM with no lock file, still failing on the retry, is a real problem: logged once', () => {
-    const lock = path.join(dir, 'missing.json.lock');
-    const before = lockErrors('test:lock-perm');
-    failFor('openSync', lock);
-    let ran = false;
-    assert.equal(withLock(lock, () => { ran = true; return 1; }, 'test:lock-perm'), null);
-    assert.equal(ran, false);
-    assert.equal(lockErrors('test:lock-perm'), before + 1);
-  });
+      failRead(code);
+      // Read as {} this would announce 70% again.
+      assert.deepEqual(checkUsage(payload(win(75)), cfg, { statePath, now: NOW }), []);
+      // ...and a genuinely new level is also held back until the file is readable.
+      assert.deepEqual(checkUsage(payload(win(99)), cfg, { statePath, now: NOW }), []);
+      assert.equal(errorsFor('usage-alert:state'), logged + 1, 'logged once for the path, not once per skipped round');
+      mock.restoreAll();
 
-  it('EPERM whose lock vanished before the stat is retried once and then runs', () => {
-    const lock = path.join(dir, 'raced.json.lock');
-    const before = lockErrors('test:lock-raced');
-    const real = fs.openSync;
-    let lockOpens = 0;
-    mock.method(fs, 'openSync', function (p, ...rest) {
-      if (p === lock && ++lockOpens === 1) throw eperm();
-      return real.call(fs, p, ...rest);
+      assert.equal(fs.readFileSync(statePath, 'utf8'), before, 'state was not overwritten');
+      assert.ok(!fs.existsSync(`${statePath}.lock`), 'lock released');
+      // Once readable again, the next refresh carries on from the stored level.
+      assert.equal(checkUsage(payload(win(99)), cfg, { statePath, now: NOW }).length, 1);
     });
-    assert.equal(withLock(lock, () => 'ran', 'test:lock-raced'), 'ran');
-    assert.equal(lockOpens, 2, 'retried exactly once');
-    assert.equal(lockErrors('test:lock-raced'), before, 'not logged');
-    assert.equal(fs.existsSync(lock), false, 'lock released');
+  }
+
+  it('a directory where the state file belongs (EISDIR) skips and writes nothing over it', () => {
+    fs.mkdirSync(statePath);
+    assert.deepEqual(checkUsage(payload(win(99)), cfg, { statePath, now: NOW }), []);
+    assert.ok(fs.statSync(statePath).isDirectory());
   });
 
-  it('EPERM then EEXIST on the retry is contention: skip quietly', () => {
-    const lock = path.join(dir, 'taken.json.lock');
-    const before = lockErrors('test:lock-taken');
-    const real = fs.openSync;
-    let lockOpens = 0;
-    mock.method(fs, 'openSync', function (p, ...rest) {
-      if (p === lock) {
-        lockOpens++;
-        throw lockOpens === 1 ? eperm() : Object.assign(new Error('EEXIST: file already exists'), { code: 'EEXIST' });
-      }
-      return real.call(fs, p, ...rest);
-    });
-    let ran = false;
-    assert.equal(withLock(lock, () => { ran = true; return 1; }, 'test:lock-taken'), null);
-    assert.equal(ran, false);
-    assert.equal(lockOpens, 2);
-    assert.equal(lockErrors('test:lock-taken'), before, 'not logged');
-  });
-
-  it('a non-release error code is logged at once, with no retry', () => {
-    const lock = path.join(dir, 'notdir.json.lock');
-    const before = lockErrors('test:lock-notdir');
-    const real = fs.openSync;
-    let lockOpens = 0;
-    mock.method(fs, 'openSync', function (p, ...rest) {
-      if (p === lock) {
-        lockOpens++;
-        throw Object.assign(new Error('ENOTDIR: not a directory'), { code: 'ENOTDIR' });
-      }
-      return real.call(fs, p, ...rest);
-    });
-    let ran = false;
-    assert.equal(withLock(lock, () => { ran = true; return 1; }, 'test:lock-notdir'), null);
-    assert.equal(ran, false);
-    assert.equal(lockOpens, 1, 'no retry');
-    assert.equal(lockErrors('test:lock-notdir'), before + 1);
-  });
-
-  it('a stale lock that cannot be deleted is logged, not skipped forever', () => {
-    const lock = path.join(dir, 'stuck.json.lock');
-    fs.writeFileSync(lock, '');
-    const old = new Date(Date.now() - 60000);
-    fs.utimesSync(lock, old, old);
-    const before = lockErrors('test:lock-stuck');
-    failFor('unlinkSync', lock);
-    failFor('openSync', lock);
-    assert.equal(withLock(lock, () => 1, 'test:lock-stuck'), null);
-    assert.equal(lockErrors('test:lock-stuck'), before + 1);
+  it('a missing or corrupt file still counts as empty (unchanged)', () => {
+    assert.equal(checkUsage(payload(win(75)), cfg, { statePath, now: NOW }).length, 1);
+    fs.writeFileSync(statePath, '[1,');
+    assert.equal(checkUsage(payload(win(75)), cfg, { statePath, now: NOW }).length, 1);
   });
 });

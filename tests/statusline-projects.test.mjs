@@ -12,7 +12,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { tapUsage, statuslineWorkspace } from '../src/statusline.mjs';
-import { projectConfigFor, spawnDelivery, hasChannel } from '../src/usage-alert.mjs';
+import { projectConfigFor, spawnDelivery } from '../src/usage-alert.mjs';
+import { hasChannel } from '../src/channels.mjs';
 import { useFakeHome } from './fake-home.mjs';
 useFakeHome();
 

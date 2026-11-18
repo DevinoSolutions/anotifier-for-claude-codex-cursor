@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createRequire } from 'node:module';
 import { logHookError } from './error-log.mjs';
+import { writeFileAtomic } from './state-file.mjs';
 
 const require = createRequire(import.meta.url);
 const defaults = require('../config/default-config.json');
@@ -528,10 +529,5 @@ export function loadConfig(configPath = getConfigPath()) {
 // and the Sentry DSN, so it is written owner-only (0600) and a newly created
 // directory is 0700. The rename replaces any older 0644 file.
 export function saveConfig(config, configPath = getConfigPath()) {
-  const dir = path.dirname(configPath);
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const tmpPath = `${configPath}.${process.pid}.tmp`;
-  fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
-  try { fs.chmodSync(tmpPath, 0o600); } catch { /* Windows: no POSIX modes */ }
-  fs.renameSync(tmpPath, configPath);
+  writeFileAtomic(configPath, JSON.stringify(config, null, 2) + '\n', { mode: 0o600, dirMode: 0o700 });
 }

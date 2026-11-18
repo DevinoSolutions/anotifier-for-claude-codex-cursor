@@ -20,7 +20,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { getConfigDir } from './config-loader.mjs';
-import { chatLabel, writeState, withLock } from './usage-alert.mjs';
+import { chatLabel } from './usage-alert.mjs';
+import { readJsonObject, writeJsonAtomic, withLock } from './state-file.mjs';
 import { logHookError } from './error-log.mjs';
 
 export const DEFAULT_CONTEXT_THRESHOLD = 85;
@@ -102,6 +103,15 @@ function compactDisabled(env, settings) {
   return defining ? defining.autoCompactEnabled === false : false;
 }
 
+// The auto-compact window, in tokens, or null when nothing is known. Order:
+//   1. payload.auto_compact_window (undocumented, speculative)
+//   2. env CLAUDE_CODE_AUTO_COMPACT_WINDOW, clamped to [100000, 1000000]; the
+//      docs say it overrides the setting and /autocompact
+//   3. the autoCompactWindow setting, clamped the same way (see loadSettings
+//      for the files, settingsWindow for the per-model key)
+//   4. the model's own window, context_window.context_window_size
+// The result never exceeds the model window when that is known. A chat that is
+// already past the resolved window keeps it: its percentage just caps at 100.
 function windowFrom(payload, env, settings) {
   const ctx = payload?.context_window;
   const model = positive(ctx?.context_window_size) ? ctx.context_window_size : null;
@@ -125,26 +135,6 @@ function windowFrom(payload, env, settings) {
 }
 
 const defaultDeps = (deps = {}) => ({ env: process.env, home: os.homedir(), fsImpl: fs, ...deps });
-
-// The auto-compact window, in tokens, or null when nothing is known. Order:
-//   1. payload.auto_compact_window (undocumented, speculative)
-//   2. env CLAUDE_CODE_AUTO_COMPACT_WINDOW, clamped to [100000, 1000000]; the
-//      docs say it overrides the setting and /autocompact
-//   3. the autoCompactWindow setting, clamped the same way (see loadSettings
-//      for the files, settingsWindow for the per-model key)
-//   4. the model's own window, context_window.context_window_size
-// The result never exceeds the model window when that is known. A chat that is
-// already past the resolved window keeps it: its percentage just caps at 100.
-export function resolveAutoCompactWindow(payload, deps) {
-  const d = defaultDeps(deps);
-  return windowFrom(payload, d.env, loadSettings(payload, d));
-}
-
-// True when auto-compact is switched off, so no warning makes sense.
-export function autoCompactDisabled(payload, deps) {
-  const d = defaultDeps(deps);
-  return compactDisabled(d.env, loadSettings(payload, d));
-}
 
 // What a payload says about its chat's context: { sessionId, tokens, window,
 // percent } or null when it cannot be judged (no session id to dedupe on, no
@@ -203,22 +193,10 @@ export function buildContextNotification(alert, payload) {
 // file and unparseable content both mean "nobody warned yet" ({}); any other
 // read error (EBUSY, EACCES, ...) is null so the caller skips the run: writing
 // back from an empty read would wipe every other session's entry.
+// Logged (only reached above the threshold, once per refresh) so a state path
+// that stays unreadable shows up in `anotifier status`.
 function readWarned(statePath) {
-  let raw;
-  try {
-    raw = fs.readFileSync(statePath, 'utf8');
-  } catch (err) {
-    if (err?.code === 'ENOENT') return {};
-    // Logged (only reached above the threshold, once per refresh) so a state
-    // path that stays unreadable shows up in `anotifier status` instead of
-    // silently ending every context warning.
-    logHookError('context-alert:state', err);
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch { return {}; }
+  return readJsonObject(statePath, 'context-alert:state');
 }
 
 // Decide and record in one locked step; returns the notifications to send
@@ -239,7 +217,7 @@ export function checkContext(payload, config, { statePath = contextStatePath(), 
       const state = readWarned(statePath);
       if (!state) return null;
       const result = evaluateContext(payload, state, { threshold, now, ...deps });
-      if (result.alert) writeState(statePath, result.state);
+      if (result.alert) writeJsonAtomic(statePath, result.state);
       return result.alert;
     }, 'context-alert:lock');
     return alert ? [buildContextNotification(alert, payload)] : [];

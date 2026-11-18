@@ -2,6 +2,8 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
+import { writeFileAtomic } from '../src/state-file.mjs';
+import { TURN_START_EVENT_NAMES } from '../src/parse-input.mjs';
 
 const MANAGED_TAG = 'anotifier';
 
@@ -22,7 +24,8 @@ export const TOOL_EVENTS = {
 // The events that only record when a turn started (src/turn-timer.mjs); they
 // never notify. They run on every prompt the user sends, so they get a short
 // timeout: a stuck one must cost the agent seconds, not the usual ten.
-export const TURN_START_EVENTS = new Set(['UserPromptSubmit', 'BeforeAgent']);
+// Derived from parse-input's event table, which decides what each event means.
+export const TURN_START_EVENTS = TURN_START_EVENT_NAMES;
 const TURN_START_TIMEOUT_S = 5;
 
 // Hook timeout for an event, in seconds (Gemini takes milliseconds: its
@@ -55,15 +58,9 @@ function readJSONOrNull(filePath) {
   }
 }
 
-// Atomic write: temp file + rename, so a crash mid-write can never leave the
-// user's real tool config truncated. Mirrors src/config-loader.mjs saveConfig.
-function writeFileAtomic(filePath, content) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const tmpPath = `${filePath}.${process.pid}.tmp`;
-  fs.writeFileSync(tmpPath, content, 'utf8');
-  fs.renameSync(tmpPath, filePath);
-}
-
+// Atomic write (temp file + rename), so a crash mid-write can never leave the
+// user's real tool config truncated. No restrictive mode here on purpose: these
+// are the tool's own files, not ours.
 function writeJSON(filePath, data) {
   writeFileAtomic(filePath, JSON.stringify(data, null, 2) + '\n');
 }
@@ -674,7 +671,6 @@ export function unpatchAll(homeDir, backupDir) {
         results.push({ tool: tool.label, ok: true, reason: 'nothing to remove' });
         continue;
       }
-      backup(filePath, backupDir);
 
       // Capture our codex trust-state keys BEFORE removal — they encode each hook's
       // array index, which changes once the hook is gone.
@@ -697,6 +693,15 @@ export function unpatchAll(homeDir, backupDir) {
         }
       }
       if (tool.dir === '.claude' && unwireClaudeStatusline(data)) removedAny = true;
+
+      // Nothing of ours in this file: leave it exactly as the user has it. No
+      // backup, and no rewrite (which would reformat it as 2-space JSON).
+      if (!removedAny) {
+        results.push({ tool: tool.label, ok: true, reason: 'nothing to remove' });
+        continue;
+      }
+
+      backup(filePath, backupDir);
       writeJSON(filePath, data);
 
       // Codex keeps hook trust hashes in config.toml [hooks.state]. Remove ours so
@@ -712,7 +717,7 @@ export function unpatchAll(homeDir, backupDir) {
         }
       }
 
-      results.push({ tool: tool.label, ok: true, reason: removedAny ? 'hooks removed' : 'nothing to remove' });
+      results.push({ tool: tool.label, ok: true, reason: 'hooks removed' });
     } catch (err) {
       results.push({ tool: tool.label, ok: false, reason: err.message });
     }

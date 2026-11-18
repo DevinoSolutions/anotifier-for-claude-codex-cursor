@@ -12,9 +12,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { getConfigDir } from './config-loader.mjs';
-import { sendNtfy } from './ntfy.mjs';
-import { sendWebhook } from './webhook.mjs';
-import { resolveToastBackend } from './platforms/index.mjs';
+import { readJsonFile } from './state-file.mjs';
+import { sendToChannels } from './channels.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -59,13 +58,11 @@ export async function resolveUpdate(cachePath, fetchImpl, now) {
   return latest || null;
 }
 
+// null for anything but a usable object: a JSON scalar (`null`, `7`, `"x"`)
+// parses fine but would throw on property access, so only an object is state.
 function readCache(cachePath) {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-    // A JSON scalar (`null`, `7`, `"x"`) parses fine but would throw on property
-    // access — only an object is usable state.
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
-  } catch { return null; }
+  const { status, data } = readJsonFile(cachePath);
+  return status === 'ok' ? data : null;
 }
 
 // MERGES rather than overwrites: `lastNotifiedVersion` shares this file and is
@@ -166,17 +163,13 @@ async function runUpdateCheck({ config, cachePath, fetchImpl, now, notify, curre
   return latest;
 }
 
-// Fan one update notice out across the channels the user already has on, reusing
-// the event path's senders and enable gates. Per-event overrides are deliberately
+// Fan one update notice out across the channels the user already has on (the
+// shared senders and enable gates in channels.mjs). Per-event overrides are deliberately
 // not consulted — this is not a routed agent event, so there is no event whose
 // settings would apply. The terminal bell is deliberately NOT rung either: the
 // run that triggered this already rang for the real event, and a second ring for
 // a version nag would just be noise.
-export function sendUpdateNotification(config, { latest, currentVersion }, {
-  resolveBackend = resolveToastBackend,
-  ntfy = sendNtfy,
-  webhook = sendWebhook,
-} = {}) {
+export function sendUpdateNotification(config, { latest, currentVersion }, deps = {}) {
   const notification = {
     title: `anotifier v${latest} available`,
     message: `You have v${currentVersion} — update with: ${UPGRADE_COMMAND}`,
@@ -194,25 +187,12 @@ export function sendUpdateNotification(config, { latest, currentVersion }, {
   // readable. Same for webhooks, whose payload shapes have no link field.
   const withLink = { ...notification, message: `${notification.message} — ${RELEASES_URL}` };
 
-  const tasks = [];
-
-  if (config?.toast?.enabled !== false) {
-    tasks.push(resolveBackend().then((sendToast) => sendToast(withLink)));
-  }
-
-  if (config?.ntfy?.enabled && config?.ntfy?.topic) {
+  return sendToChannels(config, [notification], {
+    ...deps,
     // ntfy DOES support a tap target, so the release page rides in the Click
     // header instead of cluttering the body. Overridden per-send rather than read
     // from config.ntfy.click so the user's own click URL still owns real events.
-    tasks.push(ntfy({ ...config.ntfy, click: RELEASES_URL }, notification));
-  }
-
-  if (config?.webhook?.enabled && config?.webhook?.url) {
-    tasks.push(webhook(config.webhook, withLink));
-  }
-
-  // allSettled, not all: the senders resolve false rather than reject, but the
-  // dynamic toast-backend import can reject on a broken install and must not
-  // propagate out of a best-effort path.
-  return Promise.allSettled(tasks);
+    ntfyConfig: { ...config?.ntfy, click: RELEASES_URL },
+    notificationFor: (channel, n) => (channel === 'ntfy' ? n : withLink),
+  });
 }
