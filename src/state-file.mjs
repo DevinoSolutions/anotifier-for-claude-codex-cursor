@@ -96,16 +96,43 @@ export function readJsonObject(file, label, { now = Date.now(), logIntervalMs = 
 // file. `dirMode` is the mode for a directory created on the way. Pass
 // `mkdir: false` when the caller has already made (and vetted) the directory.
 // Throws on failure; callers decide whether that is fatal.
-export function writeFileAtomic(file, content, { mode, dirMode, mkdir = true } = {}) {
+//
+// The rename is retried (RENAME_RETRIES times, retryDelayMs apart: at most about
+// 225 ms) on EPERM, EBUSY and EACCES only. On Windows an antivirus scan of the
+// fresh temp file, or a reader holding the target, can make it fail for a moment
+// (the same policy setup uses for the icon). Any other error, and the last
+// retryable one, is thrown as it was. Whenever the write fails the temp file is
+// removed (best effort), so nothing is left behind. `rename` and `sleep` are
+// injectable for tests.
+export const RENAME_RETRIES = 3;
+export const RENAME_RETRY_MS = 75;
+const RENAME_RETRYABLE = new Set(['EPERM', 'EBUSY', 'EACCES']);
+
+export function writeFileAtomic(file, content, {
+  mode, dirMode, mkdir = true, rename = fs.renameSync, retryDelayMs = RENAME_RETRY_MS, sleep = sleepSync,
+} = {}) {
   if (mkdir) {
     fs.mkdirSync(path.dirname(file), dirMode === undefined ? { recursive: true } : { recursive: true, mode: dirMode });
   }
   const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, content, mode === undefined ? 'utf8' : { encoding: 'utf8', mode });
-  if (mode !== undefined) {
-    try { fs.chmodSync(tmp, mode); } catch { /* Windows: no POSIX modes */ }
+  try {
+    fs.writeFileSync(tmp, content, mode === undefined ? 'utf8' : { encoding: 'utf8', mode });
+    if (mode !== undefined) {
+      try { fs.chmodSync(tmp, mode); } catch { /* Windows: no POSIX modes */ }
+    }
+    for (let attempt = 0; ; attempt++) {
+      try {
+        rename(tmp, file);
+        return;
+      } catch (err) {
+        if (attempt >= RENAME_RETRIES || !RENAME_RETRYABLE.has(err?.code)) throw err;
+        sleep(retryDelayMs);
+      }
+    }
+  } catch (err) {
+    try { fs.unlinkSync(tmp); } catch { /* nothing to remove, or it cannot be */ }
+    throw err;
   }
-  fs.renameSync(tmp, file);
 }
 
 // writeFileAtomic for a value, as compact JSON (what the hook-path state files use).
