@@ -61,7 +61,7 @@ export const LOCK_PRUNE_MAX_REMOVALS = 20;
 // '<state file>.lock' (.usage-alerts.json.lock, .context-alerts.json.lock,
 // turns.json.lock, .telemetry.json.lock) and the approval slots live in
 // approvals/, so none of them starts with '.lock-'.
-const DEDUP_LOCK_NAME = /^.lock-[A-Za-z0-9_.-]+$/;
+const DEDUP_LOCK_NAME = /^\.lock-[A-Za-z0-9_.-]+$/;
 
 // Remove stale dedup locks from `dir`. Never throws and never reports: any
 // failure (missing dir, a file another hook removed first, EPERM/EBUSY on

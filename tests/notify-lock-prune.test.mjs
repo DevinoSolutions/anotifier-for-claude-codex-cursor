@@ -102,6 +102,8 @@ describe('pruneStaleLocks', () => {
       'config.json', 'approval.json', 'errors.log', '.snooze.json', '.update-check.json', 'icon.png',
       'slot-1', 'slot-2',
       // lookalikes that are not this mechanism's names
+      // exactly one character in front of "lock-": the dot in the pattern must be literal
+      'clock-skew.json', '_lock-claude', 'block-list', 'xlock-a', 'Xlock-claude-task_complete-aaaaaaaa',
       '.lock', 'lock-claude', '.lockfile', 'x.lock-claude', '.lock-', '.lock-has space', '.lock-ünï', '.LOCK-claude',
     ];
     for (const n of theirs) put(n, ancient);
