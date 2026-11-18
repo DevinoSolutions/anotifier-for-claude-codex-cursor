@@ -6,6 +6,7 @@ import { GUIDES } from "@/lib/guides";
 import Blocks from "@/components/docs/Blocks";
 import CodeBlock from "@/components/docs/CodeBlock";
 import Inline from "@/components/docs/Inline";
+import FaqSection from "@/components/FaqSection";
 import JsonLd from "@/components/JsonLd";
 import PageNav from "@/components/PageNav";
 import SiteFooter from "@/components/SiteFooter";
@@ -238,19 +239,7 @@ export default async function AgentPage({
           </div>
         </section>
 
-        <section>
-          <div className="kicker">[ FAQ ]</div>
-          <h2>{agent.name} questions, answered.</h2>
-          {agent.faqs.map((faq, i) => (
-            <details key={i}>
-              <summary>{faq.q}</summary>
-              <div
-                className="a"
-                dangerouslySetInnerHTML={{ __html: faq.aHtml }}
-              />
-            </details>
-          ))}
-        </section>
+        <FaqSection name={agent.name} faqs={agent.faqs} />
 
         {readMore.length > 0 && (
           <section id="guides">

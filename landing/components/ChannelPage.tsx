@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AGENTS } from "@/lib/agents";
 import { CHANNELS, getChannel } from "@/lib/channels";
 import Blocks from "@/components/docs/Blocks";
+import FaqSection from "@/components/FaqSection";
 import JsonLd from "@/components/JsonLd";
 import PageNav from "@/components/PageNav";
 import SiteFooter from "@/components/SiteFooter";
@@ -209,19 +210,7 @@ export default function ChannelPage({ slug }: { slug: string }) {
           </section>
         )}
 
-        <section>
-          <div className="kicker">[ FAQ ]</div>
-          <h2>{channel.name} questions, answered.</h2>
-          {channel.faqs.map((faq, i) => (
-            <details key={i}>
-              <summary>{faq.q}</summary>
-              <div
-                className="a"
-                dangerouslySetInnerHTML={{ __html: faq.aHtml }}
-              />
-            </details>
-          ))}
-        </section>
+        <FaqSection name={channel.name} faqs={channel.faqs} />
 
         <section>
           <div className="kicker">[ WORKS WITH EVERY AGENT ]</div>
