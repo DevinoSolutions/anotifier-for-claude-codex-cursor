@@ -49,26 +49,51 @@ jobs:
       # The tests use only node built-ins, fetch and Chrome: no npm install.
       # This is `npm run test:site` (node --test tests/*.test.mjs) plus a TAP
       # report on the side, which the next step reads for the failing names.
+      #
+      # The step has its own, shorter timeout than the job (15 minutes): a hang
+      # then FAILS the step and the job ends as `failure`, which the report job
+      # acts on. A job-level timeout ends as `cancelled`, which it ignores.
+      # `timeout 11m` fires first and leaves the exit status (124) for the next
+      # step; the step-level 12 minutes is the backstop if even that fails.
       - name: Site tests against https://anotifier.io
+        id: tests
+        timeout-minutes: 12
         run: |
-          node --test \
+          set +e
+          timeout 11m node --test \
             --test-reporter=spec --test-reporter-destination=stdout \
             --test-reporter=tap --test-reporter-destination="${RUNNER_TEMP}/live.tap" \
             tests/*.test.mjs
+          status=$?
+          echo "status=${status}" >> "${GITHUB_OUTPUT}"
+          exit "${status}"
 
-      # Names of the failing tests, for the issue. `# TODO` and `# SKIP` lines
-      # are not failures. An empty list means the run died outside the tests.
+      # Names of the failing tests, for the issue. A `# TODO` or `# SKIP`
+      # directive (a space before the `#`) is not a failure; a test whose NAME
+      # contains "# TODO" is written `\# TODO` by node's TAP reporter and still
+      # counts. A step that did not pass and has no ordinary exit status (the
+      # 11 minute `timeout` gives 124, the step-level timeout leaves none) was
+      # killed or crashed: say so, since a test that hangs is never written to
+      # the report. An empty list means the run died outside the tests.
       - name: Collect the failing test names
         id: failed
         if: ${{ always() }}
+        env:
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+          TESTS_STATUS: ${{ steps.tests.outputs.status }}
         run: |
           set -euo pipefail
+          tap="${RUNNER_TEMP}/live.tap"
           failed=''
-          if [ -f "${RUNNER_TEMP}/live.tap" ]; then
-            failed="$(grep -E '^[[:space:]]*not ok [0-9]+ - ' "${RUNNER_TEMP}/live.tap" \
-              | grep -vE '# (TODO|SKIP)' \
+          if [ -f "${tap}" ]; then
+            failed="$(grep -E '^[[:space:]]*not ok [0-9]+ - ' "${tap}" \
+              | grep -vE '[^\\]# (TODO|SKIP)( |$)' \
               | sed -E 's/^[[:space:]]*not ok [0-9]+ - //' \
               | sort -u | head -n 40 || true)"
+          fi
+          if [ "${TESTS_OUTCOME}" != success ] && { [ -z "${TESTS_STATUS}" ] || [ "${TESTS_STATUS}" = 124 ] || [ "${TESTS_STATUS}" = 137 ]; }; then
+            note='(the test step timed out after 11-12 minutes or crashed before reporting; see the log, the test that hung is not listed here)'
+            failed="${failed:+${failed}$'\n'}${note}"
           fi
           {
             echo 'failed<<EOF_FAILED_TESTS'
@@ -79,8 +104,11 @@ jobs:
   report:
     name: Open or close the failing-run issue
     needs: live
-    # A cancelled run (a newer one superseded it) says nothing either way.
-    if: ${{ always() && needs.live.result != 'cancelled' && needs.live.result != 'skipped' }}
+    # A cancelled run (a newer one superseded it) says nothing either way. Only
+    # runs of main may touch the shared issue: a manual dispatch from another
+    # branch tests that branch's tests against production, and its result is
+    # not the site's state.
+    if: ${{ always() && github.ref == 'refs/heads/main' && needs.live.result != 'cancelled' && needs.live.result != 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

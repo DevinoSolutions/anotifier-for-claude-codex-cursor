@@ -173,6 +173,26 @@ test("the production build refuses a GA id, Sentry DSN or PostHog key nginx woul
   );
   assert.match(guard, /NEXT_PUBLIC_GOOGLE_ANALYTICS_ID/);
   assert.match(guard, /phc_/, "PostHog key shape is not checked");
+  // Run the guard's own two grep patterns (read out of dokploy.yml, not copied
+  // here) over nginx.conf: they must find exactly the one GA id, in both relay
+  // filters. If nginx.conf is restructured so the guard would find nothing, PR
+  // CI fails here instead of the deploy.
+  const [, filterPattern, idPattern] =
+    guard.match(
+      /grep -oE '([^']+)' landing\/nginx\.conf \| grep -oE '([^']+)'/,
+    ) ?? [];
+  assert.ok(filterPattern && idPattern, "the guard's GA id extraction changed");
+  const filters = nginx.match(new RegExp(filterPattern, "g")) ?? [];
+  assert.equal(
+    filters.length,
+    2,
+    `the guard finds ${filters.length} GA filters`,
+  );
+  assert.deepEqual(
+    unique(filters.flatMap((f) => f.match(new RegExp(idPattern, "g")) ?? [])),
+    realGaIds(nginx),
+    "the guard would not extract the one GA id nginx.conf accepts",
+  );
   // The DSN guard names the same Sentry project as the nginx tunnel.
   const tunnelProject = nginx.match(
     /proxy_pass https:\/\/\$sentry\/api\/(\d+)\/envelope\//,
