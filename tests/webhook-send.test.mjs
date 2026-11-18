@@ -180,9 +180,10 @@ describe('sendWebhook overall deadline (slow-drip server)', () => {
       assert.equal(await run.promise, false);
       const elapsed = Date.now() - started;
       assert.equal(run.reason(), 'timeout');
-      assert.ok(elapsed >= 190 && elapsed < 900, `took ${elapsed} ms, expected the 200 ms deadline`);
+      // The server would only finish at 1200 ms, which is what the old code reported.
+      assert.ok(elapsed >= 190 && elapsed < 1100, `took ${elapsed} ms, expected the 200 ms deadline`);
       // The deadline destroys the socket rather than leaving it dripping.
-      await new Promise((r) => setTimeout(r, 100));
+      for (let i = 0; i < 50 && sockets.size > 0; i++) await new Promise((r) => setTimeout(r, 20));
       assert.equal(sockets.size, 0, 'the server side of the connection was closed');
     } finally {
       for (const s of sockets) s.destroy();

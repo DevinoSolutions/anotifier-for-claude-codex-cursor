@@ -39,9 +39,10 @@ const DEFAULT_TIMEOUT_MS = 5000;
 // a body that ends early (connection reset mid-body) resolves status 0.
 //
 // On the deadline the request and the response are both destroyed, so no
-// socket lingers. The timer is deliberately ref'd: it is cleared the moment
-// the request is finished, and node <= 22 drains the event loop if only
-// unref'd timers remain.
+// socket lingers. The timer is deliberately ref'd, and is cleared when the
+// request ends (when the response closes in the default mode, even though the
+// promise has already resolved at the headers); node <= 22 drains the event
+// loop if only unref'd timers remain.
 export function httpRequest(target, { method = 'GET', headers, body, timeoutMs = DEFAULT_TIMEOUT_MS, waitForBody = false } = {}) {
   return new Promise((resolve) => {
     let settled = false;

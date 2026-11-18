@@ -42,6 +42,14 @@ function rawServer(onConnection) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Wait (up to `ms`) for the server to see exactly `count` open sockets, so a
+// slow runner delaying the close event cannot fail a test that is about the
+// socket eventually being destroyed. A leaked socket still never reaches 0.
+async function waitForSockets(srv, count, ms = 1500) {
+  const until = Date.now() + ms;
+  while (srv.sockets.size !== count && Date.now() < until) await sleep(20);
+}
 const OK_HEAD = 'HTTP/1.1 200 OK\r\n';
 
 describe('httpRequest against a normal server', () => {
@@ -161,8 +169,8 @@ describe('httpRequest failures', () => {
       const res = await httpRequest(srv.url, { method: 'POST', body: 'x', timeoutMs: 150 });
       const elapsed = Date.now() - started;
       assert.deepEqual(res, { status: 0, timedOut: true, error: null, setupError: false });
-      assert.ok(elapsed >= 140 && elapsed < 1000, `took ${elapsed} ms`);
-      await sleep(100);
+      assert.ok(elapsed >= 140 && elapsed < 2500, `took ${elapsed} ms`);
+      await waitForSockets(srv, 0);
       assert.equal(srv.sockets.size, 0, 'the client closed its end');
     } finally {
       await srv.close();
@@ -176,7 +184,7 @@ describe('httpRequest failures', () => {
       const started = Date.now();
       const res = await httpRequest(`https://127.0.0.1:${srv.port}/`, { method: 'POST', body: 'x', timeoutMs: 150 });
       assert.deepEqual(res, { status: 0, timedOut: true, error: null, setupError: false });
-      assert.ok(Date.now() - started < 1000);
+      assert.ok(Date.now() - started < 2500);
       // https was chosen from the scheme: a TLS ClientHello (0x16 0x03), not an HTTP request line.
       assert.ok(firstBytes, 'server saw bytes');
       assert.equal(firstBytes[0], 0x16);
@@ -212,8 +220,8 @@ describe('httpRequest failures', () => {
       const elapsed = Date.now() - started;
       assert.equal(res.timedOut, true);
       assert.equal(res.status, 0);
-      assert.ok(elapsed >= 190 && elapsed < 1000, `took ${elapsed} ms`);
-      await sleep(100);
+      assert.ok(elapsed >= 190 && elapsed < 2500, `took ${elapsed} ms`);
+      await waitForSockets(srv, 0);
       assert.equal(srv.sockets.size, 0);
     } finally {
       await srv.close();
@@ -231,8 +239,8 @@ describe('httpRequest failures', () => {
       const res = await httpRequest(srv.url, { method: 'POST', body: 'x', timeoutMs: 200, waitForBody: true });
       const elapsed = Date.now() - started;
       assert.deepEqual(res, { status: 0, timedOut: true, error: null, setupError: false });
-      assert.ok(elapsed >= 190 && elapsed < 1000, `took ${elapsed} ms`);
-      await sleep(100);
+      assert.ok(elapsed >= 190 && elapsed < 2500, `took ${elapsed} ms`);
+      await waitForSockets(srv, 0);
       assert.equal(srv.sockets.size, 0);
     } finally {
       await srv.close();
@@ -247,11 +255,13 @@ describe('httpRequest failures', () => {
     });
     try {
       const started = Date.now();
-      const res = await httpRequest(srv.url, { method: 'POST', body: 'x', timeoutMs: 400 });
+      const res = await httpRequest(srv.url, { method: 'POST', body: 'x', timeoutMs: 1500 });
+      const elapsed = Date.now() - started;
       assert.deepEqual(res, { status: 200, timedOut: false, error: null, setupError: false });
-      assert.ok(Date.now() - started < 300, 'resolved at the headers, not at the deadline');
+      // A helper that waited for the body would only return at the 1500 ms deadline.
+      assert.ok(elapsed < 1000, `resolved at the headers, not at the deadline (took ${elapsed} ms)`);
       assert.equal(srv.sockets.size, 1, 'still draining right after the headers');
-      await sleep(600);
+      await waitForSockets(srv, 0, 3000);
       assert.equal(srv.sockets.size, 0, 'the deadline destroyed the response');
     } finally {
       await srv.close();

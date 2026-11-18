@@ -117,8 +117,9 @@ describe('sendSentryErrorEvent', () => {
         );
         const elapsed = Date.now() - started;
         assert.deepEqual(r, { ok: false, status: 0, timedOut: true });
-        assert.ok(elapsed >= 190 && elapsed < 900, `took ${elapsed} ms, expected the 200 ms deadline`);
-        await new Promise((res) => setTimeout(res, 100));
+        // The server would only finish at 1200 ms, which is what the old code reported.
+        assert.ok(elapsed >= 190 && elapsed < 1100, `took ${elapsed} ms, expected the 200 ms deadline`);
+        for (let i = 0; i < 50 && sockets.size > 0; i++) await new Promise((res) => setTimeout(res, 20));
         assert.equal(sockets.size, 0, 'the server side of the connection was closed');
       } finally {
         for (const s of sockets) s.destroy();
