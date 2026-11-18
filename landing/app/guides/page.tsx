@@ -136,10 +136,26 @@ const FAQ: { q: string; a: Part[] }[] = [
   },
 ];
 
+// The FAQ links are hand-written paths: a guide link to a slug that does not
+// exist must fail the build too.
+for (const part of FAQ.flatMap((f) => f.a)) {
+  const slug =
+    typeof part === "string"
+      ? undefined
+      : part.href.match(/^\/guides\/([^/#]+)\//)?.[1];
+  if (slug && !GUIDES.some((g) => g.slug === slug))
+    throw new Error(`Guides FAQ links to "${slug}" but no guide has that slug`);
+}
+
 function GuideList({ slugs }: { slugs: string[] }) {
-  const guides = slugs
-    .map((s) => GUIDES.find((g) => g.slug === s))
-    .filter((g): g is (typeof GUIDES)[number] => Boolean(g));
+  // A slug with no guide must fail the build: dropping it silently would
+  // hide a renamed or removed guide from the index.
+  const guides = slugs.map((s) => {
+    const guide = GUIDES.find((g) => g.slug === s);
+    if (!guide)
+      throw new Error(`Guides index lists "${s}" but no guide has that slug`);
+    return guide;
+  });
   return (
     <ul>
       {guides.map((g) => (

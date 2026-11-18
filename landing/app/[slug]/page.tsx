@@ -92,9 +92,15 @@ export default async function AgentPage({
   const guide = agentGuides[0];
   const readMore = [
     ...agentGuides,
-    ...SHARED_GUIDES.map((s) => GUIDES.find((g) => g.slug === s)).filter(
-      (g) => g !== undefined,
-    ),
+    // A listed slug with no guide must fail the build, not vanish from the page.
+    ...SHARED_GUIDES.map((s) => {
+      const shared = GUIDES.find((g) => g.slug === s);
+      if (!shared)
+        throw new Error(
+          `SHARED_GUIDES lists "${s}" but no guide has that slug`,
+        );
+      return shared;
+    }),
   ];
 
   const jsonLd = [
