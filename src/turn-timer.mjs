@@ -27,16 +27,13 @@ import path from 'node:path';
 import { getConfigDir } from './config-loader.mjs';
 import { readJsonObject, writeJsonAtomic, withLock, sleepSync } from './state-file.mjs';
 import { logHookError } from './error-log.mjs';
+import { hasTurnStart } from './parse-input.mjs';
 
-// Sources whose hooks give a start signal, and the raw hook event that carries it.
-export const TURN_START_HOOKS = {
-  claude: 'UserPromptSubmit',
-  codex: 'UserPromptSubmit',
-  gemini: 'BeforeAgent',
-};
-
+// Does this agent's hook give a start signal? Today: claude, codex and gemini.
+// Derived from parse-input's event table (the `turn_start` mapping), so the two
+// can never disagree about which agents have one.
 export function supportsTurnTiming(source) {
-  return Object.hasOwn(TURN_START_HOOKS, source);
+  return hasTurnStart(source);
 }
 
 // An entry older than this is dropped on the next write, and a turn longer than

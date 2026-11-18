@@ -39,6 +39,14 @@ const EVENT_MAP = {
   },
 };
 
+// True when this agent has a hook that marks the START of a turn, i.e. some raw
+// event maps to `turn_start` above. The turn timer (src/turn-timer.mjs) only
+// pairs a start with a finish for these agents, so the answer is derived from the
+// one table that decides what each hook event means, never kept in a second copy.
+export function hasTurnStart(source) {
+  return Object.hasOwn(EVENT_MAP, source) && Object.values(EVENT_MAP[source]).includes('turn_start');
+}
+
 // Claude Code's Stop payload carries `background_tasks`: the ledger of subagents
 // and background shells still running past the main agent's turn ([] when the
 // turn really is done, ABSENT on older Claude Code). An entry counts as LIVE

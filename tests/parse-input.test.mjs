@@ -1,7 +1,7 @@
 // tests/parse-input.test.mjs
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseInput } from '../src/parse-input.mjs';
+import { parseInput, hasTurnStart } from '../src/parse-input.mjs';
 
 describe('parseInput', () => {
   it('normalizes Claude Code Stop event', () => {
@@ -226,5 +226,31 @@ describe('parseInput claude notification_type', () => {
   it('ignores the field for other sources (Gemini has its own vocabulary)', () => {
     assert.equal(notif({ notification_type: 'ToolPermission' }, 'gemini').notificationType, '');
     assert.equal(notif({ notification_type: 'auth_success' }, 'gemini').notificationType, '');
+  });
+});
+
+describe('hasTurnStart', () => {
+  const SOURCES = ['claude', 'codex', 'gemini', 'antigravity', 'cursor'];
+
+  it('pins which agents have a hook that marks the start of a turn', () => {
+    assert.deepEqual(SOURCES.filter(hasTurnStart), ['claude', 'codex', 'gemini']);
+  });
+
+  it('is false for anything that is not a known agent, including prototype keys', () => {
+    for (const source of ['', 'nobody', 'constructor', '__proto__', 'toString', undefined, null]) {
+      assert.equal(hasTurnStart(source), false, String(source));
+    }
+  });
+
+  it('agrees with what parseInput actually maps to turn_start', () => {
+    // Every raw event name any supported agent is known to send.
+    const raw = [
+      'UserPromptSubmit', 'BeforeAgent', 'Stop', 'AfterAgent', 'Notification', 'PermissionRequest', 'SessionStart',
+      'beforeSubmitPrompt', 'PreInvocation', 'PostInvocation', 'PreToolUse', 'PostToolUse', 'stop', 'sessionEnd', 'subagentStop',
+    ];
+    for (const source of SOURCES) {
+      const maps = raw.some((hook_event_name) => parseInput({ hook_event_name }, source).event === 'turn_start');
+      assert.equal(hasTurnStart(source), maps, source);
+    }
   });
 });

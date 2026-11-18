@@ -103,6 +103,15 @@ function compactDisabled(env, settings) {
   return defining ? defining.autoCompactEnabled === false : false;
 }
 
+// The auto-compact window, in tokens, or null when nothing is known. Order:
+//   1. payload.auto_compact_window (undocumented, speculative)
+//   2. env CLAUDE_CODE_AUTO_COMPACT_WINDOW, clamped to [100000, 1000000]; the
+//      docs say it overrides the setting and /autocompact
+//   3. the autoCompactWindow setting, clamped the same way (see loadSettings
+//      for the files, settingsWindow for the per-model key)
+//   4. the model's own window, context_window.context_window_size
+// The result never exceeds the model window when that is known. A chat that is
+// already past the resolved window keeps it: its percentage just caps at 100.
 function windowFrom(payload, env, settings) {
   const ctx = payload?.context_window;
   const model = positive(ctx?.context_window_size) ? ctx.context_window_size : null;
@@ -126,26 +135,6 @@ function windowFrom(payload, env, settings) {
 }
 
 const defaultDeps = (deps = {}) => ({ env: process.env, home: os.homedir(), fsImpl: fs, ...deps });
-
-// The auto-compact window, in tokens, or null when nothing is known. Order:
-//   1. payload.auto_compact_window (undocumented, speculative)
-//   2. env CLAUDE_CODE_AUTO_COMPACT_WINDOW, clamped to [100000, 1000000]; the
-//      docs say it overrides the setting and /autocompact
-//   3. the autoCompactWindow setting, clamped the same way (see loadSettings
-//      for the files, settingsWindow for the per-model key)
-//   4. the model's own window, context_window.context_window_size
-// The result never exceeds the model window when that is known. A chat that is
-// already past the resolved window keeps it: its percentage just caps at 100.
-export function resolveAutoCompactWindow(payload, deps) {
-  const d = defaultDeps(deps);
-  return windowFrom(payload, d.env, loadSettings(payload, d));
-}
-
-// True when auto-compact is switched off, so no warning makes sense.
-export function autoCompactDisabled(payload, deps) {
-  const d = defaultDeps(deps);
-  return compactDisabled(d.env, loadSettings(payload, d));
-}
 
 // What a payload says about its chat's context: { sessionId, tokens, window,
 // percent } or null when it cannot be judged (no session id to dedupe on, no

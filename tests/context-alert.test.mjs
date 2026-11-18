@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  resolveAutoCompactWindow, autoCompactDisabled, contextUsage, evaluateContext, buildContextNotification,
+  contextUsage, evaluateContext, buildContextNotification,
   checkContext, effectiveContextThreshold, STATE_TTL_MS, DEFAULT_CONTEXT_THRESHOLD,
 } from '../src/context-alert.mjs';
 import { useFakeHome } from './fake-home.mjs';
@@ -19,7 +19,10 @@ const payload = (tokens, { size = 1000000, id = 'sess-1', ...rest } = {}) => ({
   ...rest,
 });
 
-describe('resolveAutoCompactWindow', () => {
+// The auto-compact window and the "auto-compact is off" switch are only ever
+// consumed through contextUsage (window = null/absent when nothing is known,
+// whole result null when compaction is disabled), so they are tested there.
+describe('auto-compact window resolution (via contextUsage)', () => {
   let home, proj;
   beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-ctx-home-'));
@@ -34,7 +37,7 @@ describe('resolveAutoCompactWindow', () => {
   const projShared = (obj) => put(path.join(proj, '.claude', 'settings.json'), obj);
   const projLocal = (obj) => put(path.join(proj, '.claude', 'settings.local.json'), obj);
   const withProj = (p) => ({ ...p, workspace: { project_dir: proj } });
-  const resolve = (p, env = {}) => resolveAutoCompactWindow(p, { env, home });
+  const resolve = (p, env = {}) => contextUsage(p, { env, home })?.window ?? null;
 
   it('prefers the (undocumented) payload.auto_compact_window over everything', () => {
     user({ autoCompactWindow: 300000 });
@@ -99,7 +102,7 @@ describe('resolveAutoCompactWindow', () => {
 
   it('a per-model "auto" with no known model window resolves to null, and the env var still wins', () => {
     user({ modelSettings: { mine: { autoCompactWindow: 'auto' } } });
-    assert.equal(resolve({ model: { id: 'mine' }, context_window: { total_input_tokens: 1 } }), null);
+    assert.equal(resolve({ session_id: 's', model: { id: 'mine' }, context_window: { total_input_tokens: 1 } }), null);
     assert.equal(resolve(payload(1, { model: { id: 'mine' } }), { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '300000' }), 300000);
   });
 
@@ -188,15 +191,14 @@ describe('resolveAutoCompactWindow', () => {
     assert.equal(resolve(noModel), null);
     user({ autoCompactWindow: 300000 });
     assert.equal(resolve(noModel), 300000);
-    assert.equal(resolve({ session_id: 's' }), 300000);
   });
 
   it('uses the real filesystem and home by default without throwing', () => {
-    assert.doesNotThrow(() => resolveAutoCompactWindow(payload(1), { env: {} }));
+    assert.doesNotThrow(() => contextUsage(payload(1), { env: {} }));
   });
 });
 
-describe('autoCompactDisabled', () => {
+describe('auto-compact disabled (via contextUsage)', () => {
   let home, proj;
   beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-ctx-home-'));
@@ -208,7 +210,7 @@ describe('autoCompactDisabled', () => {
     fs.writeFileSync(file, JSON.stringify(obj));
   };
   const p = () => payload(1, { workspace: { project_dir: proj } });
-  const off = (env = {}) => autoCompactDisabled(p(), { env, home });
+  const off = (env = {}) => contextUsage(p(), { env, home }) === null;
 
   it('is false by default', () => {
     assert.equal(off(), false);
