@@ -1,19 +1,40 @@
-import { execFileSync } from 'node:child_process';
-
 // What to do when a machine has no toast backend. Setup turns the toast channel
 // off (and remembers it did, via toast.disabledBySetup) so a channel that can
 // only fail is not left on; re-running setup turns it back on once the backend
 // exists. status and doctor read the same flag so they can say why toasts are off.
 
-// Per-platform "what to install" line. Keyed by toastPlatform().
-export const TOAST_INSTALL_HINT = {
-  win32: 'install PowerShell 7: winget install --id Microsoft.PowerShell --source winget',
-  wsl: 'enable Windows interop ([interop] enabled=true in /etc/wsl.conf) so powershell.exe is reachable',
-  linux: 'install libnotify (notify-send), e.g. sudo apt install libnotify-bin',
-  darwin: 'osascript ships with macOS',
+// The "is this command on PATH?" probe lives in src/ so the WSL backend can use
+// it too; setup and doctor import it from here.
+export { probeBinary, isProbeTimeout } from '../src/probe-binary.mjs';
+
+// Everything the CLI says about a platform, keyed by toastPlatform(): setup and
+// status name it (label), status names its toast backend (toast), and setup and
+// status/doctor say what to install when toasts are off (installHint). WSL sends
+// a Windows toast through interop, so it must not be reported as notify-send.
+export const PLATFORM_INFO = {
+  win32: {
+    label: 'Windows',
+    toast: 'BurntToast',
+    installHint: 'install PowerShell 7: winget install --id Microsoft.PowerShell --source winget',
+  },
+  darwin: {
+    label: 'macOS',
+    toast: 'osascript',
+    installHint: 'osascript ships with macOS',
+  },
+  wsl: {
+    label: 'WSL',
+    toast: 'Windows toast (WSL interop)',
+    installHint: 'enable Windows interop ([interop] enabled=true in /etc/wsl.conf) so powershell.exe is reachable',
+  },
+  linux: {
+    label: 'Linux',
+    toast: 'notify-send',
+    installHint: 'install libnotify (notify-send), e.g. sudo apt install libnotify-bin',
+  },
 };
 
-const hintFor = (platform) => TOAST_INSTALL_HINT[platform] || TOAST_INSTALL_HINT.linux;
+const hintFor = (platform) => (PLATFORM_INFO[platform] || PLATFORM_INFO.linux).installHint;
 
 // True when the toast channel was switched off by setup, not by the user.
 export function toastOffBySetup(config) {
@@ -52,24 +73,4 @@ export function applyToastBackendResult(config, toastReady) {
     if (toast.enabled === false) { toast.enabled = true; return 'enabled'; }
   }
   return null;
-}
-
-// A probe that timed out (or was killed) says nothing about whether the backend
-// exists, so it must never be read as "missing".
-export function isProbeTimeout(err) {
-  return Boolean(err && (err.killed || err.code === 'ETIMEDOUT' || err.signal));
-}
-
-// Is `bin` on PATH? 'found' | 'missing' | 'unknown'. Goes through `command -v`
-// in /bin/sh because the `which` binary is absent on some distros even when the
-// tool itself is installed. Only a clean "not found" exit is 'missing'; a
-// timeout or a shell that cannot start is 'unknown'.
-export function probeCommand(bin, run = execFileSync) {
-  try {
-    run('/bin/sh', ['-c', 'command -v "$1"', 'sh', bin], { stdio: 'ignore', timeout: 10000 });
-    return 'found';
-  } catch (err) {
-    if (isProbeTimeout(err) || typeof err?.status !== 'number') return 'unknown';
-    return 'missing';
-  }
 }

@@ -10,19 +10,18 @@ import { execSync } from 'node:child_process';
 import { getConfigDir, getConfigPath, loadConfigResult, saveConfig } from '../src/config-loader.mjs';
 import { toastPlatform } from '../src/platforms/index.mjs';
 import { findWslPowerShell } from '../src/platforms/wsl.mjs';
-import { patchClaude, patchCodex, patchCursor, patchGemini, patchAntigravity } from '../setup/patch-config.mjs';
+import { TOOL_EVENTS, patchClaude, patchCodex, patchCursor, patchGemini, patchAntigravity } from '../setup/patch-config.mjs';
 import { ask, askYN, log } from './ui.mjs';
 import { DOCS_URL, STAR_LINE, SUPPORT_LINE } from '../src/support.mjs';
 import { track } from '../src/telemetry.mjs';
 import { resolveSetupConsent } from './telemetry.mjs';
-import { TOAST_INSTALL_HINT, applyToastBackendResult, isProbeTimeout, probeCommand } from './toast-backend.mjs';
+import { PLATFORM_INFO, applyToastBackendResult, isProbeTimeout, probeBinary } from './toast-backend.mjs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = os.homedir();
 // win32 | darwin | wsl | linux: WSL toasts go through Windows, not notify-send.
 const PLATFORM = toastPlatform();
-const PLATFORM_LABELS = { win32: 'Windows', darwin: 'macOS', wsl: 'WSL', linux: 'Linux' };
 
 // What Antigravity CLI / IDE put in ~/.gemini. A ~/.gemini holding only these
 // belongs to an Antigravity-only user and is not a Gemini CLI install.
@@ -37,28 +36,25 @@ export function hasGeminiCli(geminiDir) {
   return entries.some((name) => name === 'settings.json' || !ANTIGRAVITY_ONLY_ENTRIES.has(name));
 }
 
-export function detectTools(home = HOME) {
-  const tools = [];
-  const claudeDir = path.join(home, '.claude');
-  if (fs.existsSync(path.join(claudeDir, 'settings.json'))) {
-    tools.push({ name: 'claude', label: 'Claude Code', dir: claudeDir });
-  }
-  const codexDir = path.join(home, '.codex');
-  if (fs.existsSync(codexDir)) {
-    tools.push({ name: 'codex', label: 'Codex CLI', dir: codexDir });
-  }
-  const cursorDir = path.join(home, '.cursor');
-  if (fs.existsSync(cursorDir)) {
-    tools.push({ name: 'cursor', label: 'Cursor IDE', dir: cursorDir });
-  }
-  const geminiDir = path.join(home, '.gemini');
-  if (hasGeminiCli(geminiDir)) {
-    tools.push({ name: 'gemini', label: 'Gemini CLI', dir: geminiDir });
-  }
+// Where each tool's dir, config file and label come from is TOOL_EVENTS (the
+// same registry the patchers and `status` use); only HOW a tool is recognised
+// is local, because it differs per tool.
+const DETECTORS = {
+  // Claude Code is detected by its settings file, not just the directory.
+  claude: (dir) => fs.existsSync(path.join(dir, TOOL_EVENTS.claude.file)),
+  codex: (dir) => fs.existsSync(dir),
+  cursor: (dir) => fs.existsSync(dir),
+  gemini: (dir) => hasGeminiCli(dir),
   // Antigravity CLI keeps its app data in ~/.gemini/antigravity-cli; its hooks
   // file sits beside Gemini CLI's, under ~/.gemini/config (see patchAntigravity).
-  if (fs.existsSync(path.join(geminiDir, 'antigravity-cli'))) {
-    tools.push({ name: 'antigravity', label: 'Antigravity CLI', dir: geminiDir });
+  antigravity: (dir) => fs.existsSync(path.join(dir, 'antigravity-cli')),
+};
+
+export function detectTools(home = HOME) {
+  const tools = [];
+  for (const [name, tool] of Object.entries(TOOL_EVENTS)) {
+    const dir = path.join(home, tool.dir);
+    if (DETECTORS[name](dir)) tools.push({ name, label: tool.label, dir });
   }
   return tools;
 }
@@ -241,13 +237,13 @@ export async function run() {
   log('\n  anotifier — cross-platform AI agent notifications\n', 'bold');
 
   // 1. Platform
-  const platLabel = PLATFORM_LABELS[PLATFORM];
+  const platLabel = PLATFORM_INFO[PLATFORM].label;
   log(`  Detecting platform... ${platLabel}`, 'cyan');
 
   // 2. Detect tools
   log('  Detecting tools...', 'cyan');
   const tools = detectTools();
-  const allTools = ['Claude Code', 'Codex CLI', 'Cursor IDE', 'Gemini CLI', 'Antigravity CLI'];
+  const allTools = Object.values(TOOL_EVENTS).map((t) => t.label);
   const foundNames = tools.map(t => t.label);
   for (const t of allTools) {
     if (foundNames.includes(t)) log(`    ✓ ${t}`, 'green');
@@ -270,12 +266,11 @@ export async function run() {
   if (PLATFORM === 'win32') {
     // Toasts run only through PowerShell 7; without it the BurntToast install
     // below would fail with a message that hides the real cause.
-    let hasPwsh = true;
-    try { execSync('where pwsh', { stdio: 'pipe', timeout: 10000 }); } catch (err) { hasPwsh = isProbeTimeout(err) ? null : false; }
-    if (hasPwsh === null) {
+    const pwsh = probeBinary('pwsh');
+    if (pwsh === 'unknown') {
       toastReady = null;
       log('    ? PowerShell 7 check timed out — leaving toasts as they are; re-run setup to retry', 'yellow');
-    } else if (!hasPwsh) {
+    } else if (pwsh === 'missing') {
       toastReady = false;
       log('    ✗ PowerShell 7 (pwsh) not found — Windows toasts need it', 'yellow');
       log('      winget install --id Microsoft.PowerShell --source winget, then re-run: anotifier setup', 'dim');
@@ -292,7 +287,7 @@ export async function run() {
     if (exe) log(`    ✓ Windows toast via ${exe} (WSL interop)`, 'green');
     else { toastReady = false; log('    ✗ no Windows PowerShell reachable — check [interop] enabled=true in /etc/wsl.conf', 'yellow'); }
   } else {
-    const found = probeCommand('notify-send');
+    const found = probeBinary('notify-send');
     if (found === 'found') log('    ✓ notify-send available', 'green');
     else if (found === 'unknown') { toastReady = null; log('    ? notify-send check timed out — leaving toasts as they are; re-run setup to retry', 'yellow'); }
     else { toastReady = false; log('    ✗ notify-send not found — install libnotify for toasts', 'yellow'); }
@@ -328,7 +323,7 @@ export async function run() {
   // off (flagged, so a later setup that finds a backend turns it back on).
   const toastChange = applyToastBackendResult(config, toastReady);
   if (toastChange === 'disabled') {
-    log(`    ✗ Toasts turned off: no toast backend found. To enable them, ${TOAST_INSTALL_HINT[toastPlatform()]}, then re-run: anotifier setup`, 'yellow');
+    log(`    ✗ Toasts turned off: no toast backend found. To enable them, ${PLATFORM_INFO[toastPlatform()].installHint}, then re-run: anotifier setup`, 'yellow');
   } else if (toastChange === 'enabled') {
     log('    ✓ Toast backend found — toasts turned back on', 'green');
   }

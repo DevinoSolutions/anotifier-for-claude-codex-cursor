@@ -1,13 +1,12 @@
 // cli/doctor-checks.mjs — pure diagnostic logic for `anotifier doctor`. No console I/O;
 // returns an array of { id, channel, status, detail, hint }. Each check is
 // best-effort and never throws; runChecks aggregates them.
-import os from 'node:os';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { notificationAuthState, verifyDelivery, ncDbPath } from '../src/platforms/macos-delivery.mjs';
 import { toastPlatform } from '../src/platforms/index.mjs';
 import { findWslPowerShell } from '../src/platforms/wsl.mjs';
 import { checkSoundFile, isSoundFilePath } from '../src/platforms/sound.mjs';
-import { toastOffBySetup, toastOffNoBackendLabel, probeCommand } from './toast-backend.mjs';
+import { toastOffBySetup, toastOffNoBackendLabel, probeBinary } from './toast-backend.mjs';
 import { readApprovalRaw } from '../src/approval.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -23,12 +22,9 @@ export const CHECK_IDS = {
   default: ['toast-backend', 'bell', 'ntfy-config', 'webhook-config', 'config'],
 };
 
-// `command -v` through /bin/sh: the `which` binary is missing on some distros.
-export function has(bin, { platform = os.platform(), run = execFileSync } = {}) {
-  if (platform === 'win32') {
-    try { run('where', [bin], { stdio: 'ignore' }); return true; } catch { return false; }
-  }
-  return probeCommand(bin, run) === 'found';
+// True only when the probe positively finds `bin` (a timeout counts as not found).
+export function has(bin, { platform, run } = {}) {
+  return probeBinary(bin, { platform, run }) === 'found';
 }
 
 // WSL toasts go through Windows interop (src/platforms/wsl.mjs), not notify-send:

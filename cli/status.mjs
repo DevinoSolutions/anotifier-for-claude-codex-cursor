@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { loadConfigResult } from '../src/config-loader.mjs';
 import { readRecentHookErrors, getErrorLogPath } from '../src/error-log.mjs';
-import { detectManagedEvents, detectAntigravityEvents, isOurStatusline, TURN_START_EVENTS } from '../setup/patch-config.mjs';
+import { TOOL_EVENTS, detectManagedEvents, detectAntigravityEvents, isOurStatusline, TURN_START_EVENTS } from '../setup/patch-config.mjs';
 import { checkForUpdate, isNewer } from '../src/update-check.mjs';
 import { readSnoozeUntil, quietHoursWindow, inQuietHours, formatClock } from '../src/suppress.mjs';
 import { effectiveThresholds } from '../src/usage-alert.mjs';
@@ -13,7 +13,7 @@ import { effectiveContextThreshold } from '../src/context-alert.mjs';
 import { minDurationSeconds } from '../src/turn-timer.mjs';
 import { SUPPORT_LINE } from '../src/support.mjs';
 import { toastPlatform } from '../src/platforms/index.mjs';
-import { toastOffNoBackendLabel } from './toast-backend.mjs';
+import { PLATFORM_INFO, toastOffNoBackendLabel } from './toast-backend.mjs';
 import { c, box, kv, sectionHeader } from './ui.mjs';
 
 const require = createRequire(import.meta.url);
@@ -21,15 +21,6 @@ const pkg = require('../package.json');
 
 // Webhook URLs are secrets (Slack/Discord tokens, Telegram bot token in the
 // path), so status shows the origin only — never the full URL.
-// Keyed by toastPlatform(): WSL sends a Windows toast through interop, so it
-// must not be reported as notify-send.
-export const PLATFORM_DISPLAY = {
-  win32: { platform: 'Windows', toast: 'BurntToast' },
-  darwin: { platform: 'macOS', toast: 'osascript' },
-  wsl: { platform: 'WSL', toast: 'Windows toast (WSL interop)' },
-  linux: { platform: 'Linux', toast: 'notify-send' },
-};
-
 function webhookOrigin(url) {
   try { return new URL(url).origin; } catch { return 'invalid URL'; }
 }
@@ -37,8 +28,11 @@ function webhookOrigin(url) {
 // Wired-state detection uses the SAME predicate as the patcher (detectManagedEvents),
 // so every shape we write — including Cursor's flat { command } entries — is
 // recognised here. Never throws: an unreadable/corrupt tool config reads as an error.
-function checkTool(dirName, label, configFile, detect = (data) => detectManagedEvents(data.hooks || {})) {
-  const filePath = path.join(os.homedir(), dirName, configFile);
+// The tool's dir, file and label come from TOOL_EVENTS; Antigravity's grouped
+// hooks file ('groups' layout) has its own detector.
+function checkTool({ dir, file, label, layout }) {
+  const detect = layout === 'groups' ? detectAntigravityEvents : (data) => detectManagedEvents(data.hooks || {});
+  const filePath = path.join(os.homedir(), dir, file);
   if (!fs.existsSync(filePath)) return { label, status: 'not installed', events: [] };
   let data;
   try {
@@ -96,7 +90,7 @@ export async function run() {
     return;
   }
 
-  const { platform: platLabel, toast: toastLabel } = PLATFORM_DISPLAY[toastPlatform()];
+  const { label: platLabel, toast: toastLabel } = PLATFORM_INFO[toastPlatform()];
   const toastExtra = config.toast?.clickToFocus ? c.muted(' (click-to-focus)') : '';
 
   const toastOff = toastOffNoBackendLabel(config, toastPlatform());
@@ -121,13 +115,7 @@ export async function run() {
       : c.white(`${quietWindow.from}-${quietWindow.to}`);
 
   // Tools
-  const tools = [
-    checkTool('.claude', 'Claude Code', 'settings.json'),
-    checkTool('.codex', 'Codex CLI', 'hooks.json'),
-    checkTool('.cursor', 'Cursor IDE', 'hooks.json'),
-    checkTool('.gemini', 'Gemini CLI', 'settings.json'),
-    checkTool('.gemini', 'Antigravity CLI', path.join('config', 'hooks.json'), detectAntigravityEvents),
-  ];
+  const tools = Object.values(TOOL_EVENTS).map(checkTool);
 
   const toolLines = tools.map(t => {
     const icon = t.status === 'wired' ? c.success('✓') : c.muted('✗');
