@@ -69,7 +69,6 @@ const seoLinks = [
     label: "Codex approval ding",
   },
   { href: "/guides/windows-wsl-notifications/", label: "Windows & WSL" },
-  { href: "/guides/wsl-notify-send/", label: "wsl-notify-send (WSL toast)" },
   { href: "/guides/macos-linux-notifications/", label: "macOS & Linux" },
   { href: "/guides/agent-hooks-explained/", label: "agent hooks explained" },
   {

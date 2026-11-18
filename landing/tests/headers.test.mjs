@@ -27,6 +27,7 @@ const CASES = [
   ["share image", "/docs/opengraph-image", 200],
   ["404 page", "/no-such-page/", 404],
   ["trailing-slash redirect", "/docs", 301],
+  ["removed-guide redirect", "/guides/wsl-notify-send/", 301],
 ];
 
 for (const [label, path, status] of CASES) {

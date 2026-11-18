@@ -232,7 +232,7 @@ export const ANTIGRAVITY_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "**Windows.** Save as `C:\\Users\\you\\.gemini\\hooks\\notify.ps1`. It needs no module, runs on Windows PowerShell 5.1, and is the same toast as in the [WSL toast guide](/guides/wsl-notify-send/). `PlaySync` waits for the chime to end so PowerShell doesn't exit first; any `.wav` in `C:\\Windows\\Media` works. In the JSON, write the path with forward slashes so it needs no backslash escapes:",
+            text: "**Windows.** Save as `C:\\Users\\you\\.gemini\\hooks\\notify.ps1`. It needs no module, runs on Windows PowerShell 5.1, and is the same toast as in the [WSL toast script](/guides/windows-wsl-notifications/#wsl-powershell-script). `PlaySync` waits for the chime to end so PowerShell doesn't exit first; any `.wav` in `C:\\Windows\\Media` works. In the JSON, write the path with forward slashes so it needs no backslash escapes:",
           },
           { kind: "code", lang: "powershell", code: WIN_SCRIPT },
           {

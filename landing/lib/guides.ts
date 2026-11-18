@@ -3,7 +3,6 @@ import { CLAUDE_GUIDES, json } from "./claude-guides";
 import { ANTIGRAVITY_GUIDES } from "./antigravity-guides";
 import { CODEX_GUIDES } from "./codex-guides";
 import { TOPIC_GUIDES } from "./topic-guides";
-import { WSL_GUIDES } from "./wsl-guides";
 
 /**
  * Long-form "how do I get notified when X finishes" guides: one per agent,
@@ -41,7 +40,7 @@ export interface Guide {
   faqs: DocFaq[];
 }
 
-// The WinRT toast call from lib/wsl-guides.ts (anotifier's own WSL toast,
+// The WinRT toast call from lib/topic-guides.ts (anotifier's own WSL toast,
 // assets/windows/toast-wsl.ps1): no module, runs on Windows PowerShell 5.1.
 const CODEX_WIN_TOAST_PS1 = `param(
   [string]$Title = 'Codex',
@@ -743,7 +742,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "For a real Windows notification, use a hook. Codex hooks accept `commandWindows`, an optional Windows-only replacement for `command`, and by default Codex starts a hook through `cmd.exe /C`. This version needs no module install. It reuses the Windows PowerShell 5.1 toast from the [WSL toast guide](/guides/wsl-notify-send/). Save it as `%USERPROFILE%\\.codex\\win-toast.ps1`:",
+            text: "For a real Windows notification, use a hook. Codex hooks accept `commandWindows`, an optional Windows-only replacement for `command`, and by default Codex starts a hook through `cmd.exe /C`. This version needs no module install. It reuses the Windows PowerShell 5.1 toast from the [WSL toast script](/guides/windows-wsl-notifications/#wsl-powershell-script). Save it as `%USERPROFILE%\\.codex\\win-toast.ps1`:",
           },
           { kind: "code", lang: "powershell", code: CODEX_WIN_TOAST_PS1 },
           {
@@ -769,7 +768,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "Codex running inside WSL is the Linux build: it reads `~/.codex` in the distribution, so run `npx anotifier@latest setup` inside WSL. The toast then goes through Windows interop. See [how the WSL toast reaches Windows](/guides/windows-wsl-notifications/#wsl) and [Windows toast from WSL](/guides/wsl-notify-send/). Codex also runs in VS Code's terminal; the [VS Code page](/vscode/) covers what changes over Remote-SSH and in dev containers.",
+            text: "Codex running inside WSL is the Linux build: it reads `~/.codex` in the distribution, so run `npx anotifier@latest setup` inside WSL. The toast then goes through Windows interop. See [how the WSL toast reaches Windows](/guides/windows-wsl-notifications/#wsl) and the [no-install toast script for WSL](/guides/windows-wsl-notifications/#wsl-powershell-script). Codex also runs in VS Code's terminal; the [VS Code page](/vscode/) covers what changes over Remote-SSH and in dev containers.",
           },
         ],
       },
@@ -1025,7 +1024,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "Details for both are in [Claude Code and Codex notifications on Windows and WSL](/guides/windows-wsl-notifications/) and [Windows toast from WSL](/guides/wsl-notify-send/). Cursor is a VS Code fork, and the [VS Code page](/vscode/) covers what changes when the agent runs inside the editor, including Remote-SSH and dev containers.",
+            text: "Details for both are in [Claude Code and Codex notifications on Windows and WSL](/guides/windows-wsl-notifications/), which includes a [toast script for WSL](/guides/windows-wsl-notifications/#wsl-powershell-script). Cursor is a VS Code fork, and the [VS Code page](/vscode/) covers what changes when the agent runs inside the editor, including Remote-SSH and dev containers.",
           },
         ],
       },
@@ -1316,7 +1315,7 @@ const AGENT_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "For a Windows toast, save this as `C:\\Users\\you\\.gemini\\win-toast.ps1`. It needs no module and runs on Windows PowerShell 5.1; it is the same toast as in the [WSL toast guide](/guides/wsl-notify-send/):",
+            text: "For a Windows toast, save this as `C:\\Users\\you\\.gemini\\win-toast.ps1`. It needs no module and runs on Windows PowerShell 5.1; it is the same toast as in the [WSL toast script](/guides/windows-wsl-notifications/#wsl-powershell-script):",
           },
           { kind: "code", lang: "powershell", code: CODEX_WIN_TOAST_PS1 },
           {
@@ -1491,7 +1490,6 @@ export const GUIDES: Guide[] = [
   ...CODEX_GUIDES,
   ...ANTIGRAVITY_GUIDES,
   ...TOPIC_GUIDES,
-  ...WSL_GUIDES,
 ];
 
 export function getGuide(slug: string): Guide | undefined {

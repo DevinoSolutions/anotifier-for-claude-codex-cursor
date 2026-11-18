@@ -54,7 +54,6 @@ const SOUND_SLUGS = [
 const PHONE_SLUGS = ["ntfy-phone-notifications"];
 const PLATFORM_SLUGS = [
   "windows-wsl-notifications",
-  "wsl-notify-send",
   "macos-linux-notifications",
 ];
 const HOOKS_SLUGS = ["agent-hooks-explained", "claude-code-hooks-security"];
@@ -103,9 +102,12 @@ const FAQ: { q: string; a: Part[] }[] = [
         href: "/guides/windows-wsl-notifications/",
         text: "Windows and WSL notifications",
       },
-      ", then ",
-      { href: "/guides/wsl-notify-send/", text: "the WSL toast guide" },
-      ", which covers several options, and one of them calls powershell.exe with nothing extra to install.",
+      ", including its ",
+      {
+        href: "/guides/windows-wsl-notifications/#wsl-notify-send",
+        text: "do-it-yourself WSL options",
+      },
+      ": wsl-notify-send, or a powershell.exe script with nothing extra to install.",
     ],
   },
   {
@@ -285,7 +287,7 @@ export default function GuidesIndex() {
           <p>
             Toasts depend on the operating system. On Windows and WSL the
             question is which PowerShell sends the toast; inside WSL,{" "}
-            <Link href="/guides/wsl-notify-send/">
+            <Link href="/guides/windows-wsl-notifications/#wsl-notify-send">
               showing a Windows toast from WSL with or without wsl-notify-send
             </Link>{" "}
             is the shortest path. On macOS and Linux it comes down to

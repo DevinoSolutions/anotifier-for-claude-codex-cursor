@@ -128,3 +128,29 @@ test("nginx: pages are sent no-transform on every status", () => {
     "location / sets add_header, so it must repeat the security headers",
   );
 });
+
+test("nginx: the removed wsl-notify-send guide 301s to its section in one hop", () => {
+  const target =
+    "/guides/windows-wsl-notifications/$is_args$args#wsl-notify-send";
+  for (const path of ["/guides/wsl-notify-send/", "/guides/wsl-notify-send"]) {
+    const body = locationBody(`= ${path}`);
+    const lines = body
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("#"));
+    assert.deepEqual(
+      lines,
+      [`location = ${path} {`, `return 301 "${target}";`],
+      `${path} must be one exact-match 301 straight to ${target}`,
+    );
+  }
+  // Nothing else may name the old path: no prefix or regex location that
+  // would catch other URLs, and no second hop.
+  const heads = [...conf.matchAll(/^\s*location\s+([^{]*)\{/gm)]
+    .map((m) => m[1].trim())
+    .filter((head) => head.includes("wsl-notify-send"));
+  assert.deepEqual(heads.sort(), [
+    "= /guides/wsl-notify-send",
+    "= /guides/wsl-notify-send/",
+  ]);
+});
