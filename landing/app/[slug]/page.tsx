@@ -6,18 +6,18 @@ import { GUIDES } from "@/lib/guides";
 import Blocks from "@/components/docs/Blocks";
 import CodeBlock from "@/components/docs/CodeBlock";
 import Inline from "@/components/docs/Inline";
+import JsonLd from "@/components/JsonLd";
 import LogoMark from "@/components/LogoMark";
 import SiteFooter from "@/components/SiteFooter";
 import StarButton from "@/components/StarButton";
 import DiscordIcon from "@/components/DiscordIcon";
 import CopyButton from "@/components/home/CopyButton";
+import { COMMUNITY_URL, INSTALL_CMD, NPM_URL, SITE_URL } from "@/lib/site";
 import {
-  COMMUNITY_URL,
-  GITHUB_URL,
-  INSTALL_CMD,
-  NPM_URL,
-  SITE_URL,
-} from "@/lib/site";
+  breadcrumbListLd,
+  faqPageLd,
+  softwareApplicationLd,
+} from "@/lib/jsonld";
 import { stripTags } from "@/lib/strip-tags";
 import "./agent-page.css";
 import "../docs/docs.css";
@@ -104,47 +104,17 @@ export default async function AgentPage({
   ];
 
   const jsonLd = [
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      name: "anotifier",
-      operatingSystem: "macOS, Windows, Linux",
-      applicationCategory: "DeveloperApplication",
-      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-      url: `${SITE_URL}/`,
-      sameAs: [GITHUB_URL, NPM_URL],
-      description: agent.description,
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: agent.faqs.map((f) => ({
-        "@type": "Question",
-        name: f.q,
-        acceptedAnswer: { "@type": "Answer", text: stripTags(f.aHtml) },
-      })),
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "anotifier",
-          item: `${SITE_URL}/`,
-        },
-        { "@type": "ListItem", position: 2, name: agent.name, item: url },
-      ],
-    },
+    softwareApplicationLd(agent.description),
+    faqPageLd(agent.faqs.map((f) => ({ q: f.q, a: stripTags(f.aHtml) }))),
+    breadcrumbListLd([
+      { name: "anotifier", url: `${SITE_URL}/` },
+      { name: agent.name, url },
+    ]),
   ];
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
 
       <nav aria-label="Primary">
         <div className="wrap">

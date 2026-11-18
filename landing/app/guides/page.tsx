@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import DocShell from "@/components/docs/DocShell";
+import JsonLd from "@/components/JsonLd";
+import { breadcrumbListLd, faqPageLd } from "@/lib/jsonld";
 import { GUIDES, GUIDES_DESCRIPTION, GUIDES_TITLE } from "@/lib/guides";
 import { CHANNELS } from "@/lib/channels";
 import { SITE_URL } from "@/lib/site";
@@ -193,39 +195,21 @@ export default function GuidesIndex() {
         url: `${SITE_URL}/guides/${g.slug}/`,
       })),
     },
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: FAQ.map((f) => ({
-        "@type": "Question",
-        name: f.q,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: f.a.map((x) => (typeof x === "string" ? x : x.text)).join(""),
-        },
+    faqPageLd(
+      FAQ.map((f) => ({
+        q: f.q,
+        a: f.a.map((x) => (typeof x === "string" ? x : x.text)).join(""),
       })),
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "anotifier",
-          item: `${SITE_URL}/`,
-        },
-        { "@type": "ListItem", position: 2, name: "Guides", item: URL },
-      ],
-    },
+    ),
+    breadcrumbListLd([
+      { name: "anotifier", url: `${SITE_URL}/` },
+      { name: "Guides", url: URL },
+    ]),
   ];
 
   return (
     <DocShell crumb="guides">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
       <header style={{ paddingTop: "28px" }}>
         <div className="kicker">[ GUIDES ]</div>
         <h1>

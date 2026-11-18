@@ -4,8 +4,10 @@ import DiscordIcon from "@/components/DiscordIcon";
 import Blocks from "@/components/docs/Blocks";
 import DocShell from "@/components/docs/DocShell";
 import Inline from "@/components/docs/Inline";
+import JsonLd from "@/components/JsonLd";
 import CopyButton from "@/components/home/CopyButton";
 import { DOCS, DOCS_DESCRIPTION, DOCS_FAQ, DOCS_TITLE } from "@/lib/docs";
+import { breadcrumbListLd, faqPageLd, techArticleLd } from "@/lib/jsonld";
 import {
   COMMUNITY_URL,
   GITHUB_URL,
@@ -41,21 +43,12 @@ export const metadata: Metadata = {
 
 export default function DocsPage() {
   const jsonLd = [
-    {
-      "@context": "https://schema.org",
-      "@type": "TechArticle",
+    techArticleLd({
       headline: DOCS_TITLE,
       description: DOCS_DESCRIPTION,
       url: URL,
       dateModified: PAGE_UPDATED.docs,
-      inLanguage: "en",
-      isAccessibleForFree: true,
-      author: {
-        "@type": "Organization",
-        name: "DevinoSolutions",
-        url: "https://github.com/DevinoSolutions",
-      },
-      publisher: { "@id": `${SITE_URL}/#org` },
+      free: true,
       about: {
         "@type": "SoftwareApplication",
         name: "anotifier",
@@ -66,37 +59,17 @@ export default function DocsPage() {
         downloadUrl: NPM_URL,
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       },
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: DOCS_FAQ.map((f) => ({
-        "@type": "Question",
-        name: f.q,
-        acceptedAnswer: { "@type": "Answer", text: f.a },
-      })),
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "anotifier",
-          item: `${SITE_URL}/`,
-        },
-        { "@type": "ListItem", position: 2, name: "Docs", item: URL },
-      ],
-    },
+    }),
+    faqPageLd(DOCS_FAQ),
+    breadcrumbListLd([
+      { name: "anotifier", url: `${SITE_URL}/` },
+      { name: "Docs", url: URL },
+    ]),
   ];
 
   return (
     <DocShell crumb="docs">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
       <header style={{ paddingTop: "28px" }}>
         <div className="kicker">[ REFERENCE · v{VERSION} ]</div>
         <h1>

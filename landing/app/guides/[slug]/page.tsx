@@ -6,9 +6,11 @@ import Blocks from "@/components/docs/Blocks";
 import CopyButton from "@/components/home/CopyButton";
 import CodeBlock from "@/components/docs/CodeBlock";
 import DocShell from "@/components/docs/DocShell";
+import JsonLd from "@/components/JsonLd";
 import Inline from "@/components/docs/Inline";
 import { getAgent } from "@/lib/agents";
 import { GUIDES, getGuide } from "@/lib/guides";
+import { breadcrumbListLd, faqPageLd, techArticleLd } from "@/lib/jsonld";
 import {
   COMMUNITY_URL,
   GITHUB_URL,
@@ -71,62 +73,28 @@ export default async function GuidePage({
     (guide.agentSlug && getAgent(guide.agentSlug)?.name) || guide.name;
 
   const jsonLd = [
-    {
-      "@context": "https://schema.org",
-      "@type": "TechArticle",
+    techArticleLd({
       headline: guide.h1,
       description: guide.description,
       url,
       dateModified: guide.updated,
-      inLanguage: "en",
-      isAccessibleForFree: true,
-      author: {
-        "@type": "Organization",
-        name: "DevinoSolutions",
-        url: "https://github.com/DevinoSolutions",
-      },
-      publisher: { "@id": `${SITE_URL}/#org` },
+      free: true,
       about: {
         "@type": "SoftwareApplication",
         name: isAgent ? guide.name : "anotifier",
       },
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: guide.faqs.map((f) => ({
-        "@type": "Question",
-        name: f.q,
-        acceptedAnswer: { "@type": "Answer", text: f.a },
-      })),
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "anotifier",
-          item: `${SITE_URL}/`,
-        },
-        {
-          "@type": "ListItem",
-          position: 2,
-          name: "Guides",
-          item: `${SITE_URL}/guides/`,
-        },
-        { "@type": "ListItem", position: 3, name: guide.name, item: url },
-      ],
-    },
+    }),
+    faqPageLd(guide.faqs),
+    breadcrumbListLd([
+      { name: "anotifier", url: `${SITE_URL}/` },
+      { name: "Guides", url: `${SITE_URL}/guides/` },
+      { name: guide.name, url },
+    ]),
   ];
 
   return (
     <DocShell crumb={`guides / ${guide.slug}`}>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
       <header style={{ paddingTop: "28px" }}>
         <div className="kicker">[ GUIDE · {guide.name.toUpperCase()} ]</div>
         <div className="hero-row">
