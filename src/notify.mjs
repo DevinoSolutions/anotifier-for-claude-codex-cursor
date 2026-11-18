@@ -122,10 +122,14 @@ export function acquireNotifyLock(key, baseDir = os.homedir()) {
     // fails OPEN: a rare double notification beats never notifying again.
     return err?.code !== 'EEXIST';
   }
-  // Only the run that won sweeps, and only after its own lock is in place, so
-  // the sweep can never change the answer above.
-  pruneStaleLocks(dir, { keep: path.basename(lockFile) });
   return true;
+}
+
+// The sweep for a run that won the lock for `key`, called by main() only after the
+// alert has been dispatched, so it can never delay or change one. Skips the
+// run's own lock. Best-effort like pruneStaleLocks itself.
+export function pruneDedupLocks(key, baseDir = os.homedir()) {
+  pruneStaleLocks(path.join(baseDir, '.anotifier'), { keep: `.lock-${key}` });
 }
 
 export function parseArgs(argv) {
@@ -357,7 +361,8 @@ export async function main({ focus } = {}) {
     }
 
     // Deduplicate AFTER parsing so the lock can key on source+event+session
-    if (!acquireNotifyLock(dedupKey(event))) {
+    const lockKey = dedupKey(event);
+    if (!acquireNotifyLock(lockKey)) {
       return await quietExit(config, { outcome: 'duplicate', source: event.source, event: event.event }, event);
     }
 
@@ -454,6 +459,11 @@ export async function main({ focus } = {}) {
     await maybeNotifyUpdate(config);
 
     await countRun(config, { outcome: 'dispatched', source: event.source, event: event.event, channels: results, latencyMs });
+
+    // Housekeeping, last: the alert is out and counted. Old dedup locks are only
+    // ever removed here, by a run that won its own lock and dispatched. Best
+    // effort and never throws, so it cannot fail a successful run.
+    pruneDedupLocks(lockKey);
   } catch (err) {
     // Never crash — hooks must not block the AI tool. But never hide it
     // either: errors.log + `status` (+ Sentry when enabled) make it visible.

@@ -18,7 +18,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
-  pruneStaleLocks, acquireNotifyLock, dedupKey,
+  pruneStaleLocks, pruneDedupLocks, acquireNotifyLock, dedupKey,
   LOCK_PRUNE_AGE_MS, LOCK_PRUNE_MAX_ENTRIES, LOCK_PRUNE_MAX_REMOVALS,
 } from '../src/notify.mjs';
 import { STATE_PATH as USAGE_STATE } from '../src/usage-alert.mjs';
@@ -240,7 +240,7 @@ describe('pruneStaleLocks', () => {
   });
 });
 
-describe('acquireNotifyLock sweeps on a won lock', () => {
+describe('dedup locks and the sweep after dispatch', () => {
   let base;
   let cfg;
   beforeEach(() => {
@@ -258,12 +258,21 @@ describe('acquireNotifyLock sweeps on a won lock', () => {
   };
   const names = () => fs.readdirSync(cfg).sort();
 
-  it('a won lock removes old locks of other sessions, keeps fresh ones and its own', () => {
+  it('acquiring a lock does no sweeping: it only decides, so it cannot be slowed by one', () => {
+    put('.lock-claude-task_complete-oldoldol', STALE);
+    assert.equal(acquireNotifyLock('claude-task_complete-newnewne', base), true);
+    assert.deepEqual(names(), ['.lock-claude-task_complete-newnewne', '.lock-claude-task_complete-oldoldol']);
+  });
+
+  it('pruneDedupLocks removes old locks of other sessions, keeps fresh ones and its own', () => {
     put('.lock-claude-task_complete-oldoldol', STALE);
     put('.lock-cursor-task_complete-recent01', FRESH);
     put('.usage-alerts.json.lock', STALE);
     put('config.json', STALE);
     assert.equal(acquireNotifyLock('claude-task_complete-newnewne', base), true);
+    // even if the run's own lock somehow looked ancient it would stay
+    fs.utimesSync(path.join(cfg, '.lock-claude-task_complete-newnewne'), STALE, STALE);
+    pruneDedupLocks('claude-task_complete-newnewne', base);
     assert.deepEqual(names(), [
       '.lock-claude-task_complete-newnewne',
       '.lock-cursor-task_complete-recent01',
@@ -273,13 +282,11 @@ describe('acquireNotifyLock sweeps on a won lock', () => {
   });
 
   it('dedup is unchanged: a second run of the same key inside the window loses, other keys win', () => {
-    put('.lock-old-key-aaaaaaaa', STALE);
     assert.equal(acquireNotifyLock('claude-task_complete-sess0001', base), true);
     assert.equal(acquireNotifyLock('claude-task_complete-sess0001', base), false);
     assert.equal(acquireNotifyLock('claude-task_complete-sess0002', base), true);
     assert.equal(acquireNotifyLock('claude-needs_input-sess0001', base), true);
     assert.equal(acquireNotifyLock('claude-task_complete-sess0001', base), false);
-    assert.ok(!names().includes('.lock-old-key-aaaaaaaa'));
   });
 
   it('a stale lock of the same key is still replaced by the old same-key rule', () => {
@@ -288,11 +295,8 @@ describe('acquireNotifyLock sweeps on a won lock', () => {
     assert.equal(acquireNotifyLock('claude-task_complete-again001', base), false);
   });
 
-  it('a lost lock does not sweep (the winner already did)', () => {
-    assert.equal(acquireNotifyLock('claude-task_complete-s1', base), true);
-    put('.lock-late-old-aaaaaaaa', STALE);
-    assert.equal(acquireNotifyLock('claude-task_complete-s1', base), false);
-    assert.ok(names().includes('.lock-late-old-aaaaaaaa'));
+  it('pruneDedupLocks never throws, even with no directory at all', () => {
+    assert.doesNotThrow(() => pruneDedupLocks('claude-task_complete', path.join(base, 'nowhere')));
   });
 
   it('an unusable directory still fails open and never throws from the sweep', () => {
@@ -301,21 +305,57 @@ describe('acquireNotifyLock sweeps on a won lock', () => {
     assert.equal(acquireNotifyLock('claude-task_complete', blocker), true);
   });
 
-  it('end to end: a real hook run clears a backlog of stale locks and leaves everything else', () => {
-    for (let i = 0; i < 5; i++) put(`.lock-claude-task_complete-old0000${i}`, STALE);
-    put('.usage-alerts.json.lock', STALE);
-    fs.writeFileSync(path.join(cfg, 'config.json'), JSON.stringify({ toast: { enabled: false }, updateCheck: { enabled: false }, terminalBell: { enabled: false } }));
+  // A real hook run against `base` as HOME.
+  const hook = (event, extraConfig = {}, { source = 'claude', args = [] } = {}) => {
+    fs.writeFileSync(path.join(cfg, 'config.json'), JSON.stringify({
+      toast: { enabled: false }, updateCheck: { enabled: false }, terminalBell: { enabled: false }, ...extraConfig,
+    }));
     const env = { ...process.env, HOME: base, USERPROFILE: base };
     for (const k of ['DO_NOT_TRACK', 'TMUX']) delete env[k];
-    const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {
-      cwd: repoRoot, env, encoding: 'utf8',
-      input: JSON.stringify({ hook_event_name: 'Stop', cwd: '/work/app', session_id: 'endtoend1' }),
+    const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', source, ...args], {
+      cwd: repoRoot, env, encoding: 'utf8', input: JSON.stringify(event),
     });
     assert.equal(res.status, 0, res.stderr);
     assert.equal(res.stdout, '{}\n');
+  };
+  const stop = (session, extra = {}) => ({ hook_event_name: 'Stop', cwd: '/work/app', session_id: session, ...extra });
+  const seedStale = () => {
+    for (let i = 0; i < 5; i++) put(`.lock-claude-task_complete-old0000${i}`, STALE);
+    put('.usage-alerts.json.lock', STALE);
+  };
+  const staleLeft = () => names().filter((n) => n.includes('old0000')).length;
+
+  it('end to end: a dispatched hook run clears the backlog and leaves everything else', () => {
+    seedStale();
+    hook(stop('endtoend1'));
     const left = names();
     assert.ok(left.includes('.lock-claude-task_complete-endtoend'), 'its own lock');
     assert.ok(left.includes('.usage-alerts.json.lock') && left.includes('config.json'), 'other modules\' files');
-    assert.equal(left.filter((n) => n.includes('old0000')).length, 0, 'the stale locks are gone');
+    assert.equal(staleLeft(), 0, 'the stale locks are gone');
+  });
+
+  it('runs that never win the lock do not sweep: duplicate, snooze, held back, silent notification', () => {
+    seedStale();
+    fs.writeFileSync(path.join(cfg, '.snooze.json'), JSON.stringify({ until: Date.now() + 3600_000 }));
+    hook(stop('snoozed1'));
+    assert.equal(staleLeft(), 5, 'snoozed: quiet exit before the lock');
+    fs.unlinkSync(path.join(cfg, '.snooze.json'));
+    hook(stop('held0001', { background_tasks: [{ id: 'b1', type: 'subagent', status: 'running' }] }));
+    assert.equal(staleLeft(), 5, 'held back: quiet exit before the lock');
+    hook({ hook_event_name: 'Notification', notification_type: 'auth_success', cwd: '/work/app', session_id: 'silent01' });
+    assert.equal(staleLeft(), 5, 'silent notification: quiet exit before the lock');
+    put('.lock-claude-task_complete-dupdupdu', new Date());
+    hook(stop('dupdupdu'));
+    assert.equal(staleLeft(), 5, 'duplicate: lost the lock');
+    assert.ok(!names().includes('.lock-claude-task_complete-snoozed1'), 'and none of them took a lock');
+  });
+
+  it('the sweep comes after the alert: a run that cannot be dispatched leaves the backlog alone', () => {
+    seedStale();
+    // unmapped event: wins the lock, then leaves through the quiet exit without dispatching
+    hook({ hook_event_name: 'PreToolUse', cwd: '/work/app', session_id: 'unmapped1' });
+    assert.equal(staleLeft(), 5);
+    hook(stop('after001'));
+    assert.equal(staleLeft(), 0);
   });
 });
