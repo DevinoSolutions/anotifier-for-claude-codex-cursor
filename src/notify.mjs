@@ -114,6 +114,19 @@ async function countRun(config, run) {
   await maybeSendHookSummary(config);
 }
 
+// The one way a run leaves WITHOUT dispatching: count it, flush error
+// reporting, answer the agent with the plain default response and exit 0. The
+// exit happens in the write callback, so a back-pressured stdout can never lose
+// the response; the returned promise never settles (the callback ends the
+// process), so nothing after the call site can run. Callers `return await` it.
+async function quietExit(config, run, event) {
+  await countRun(config, run);
+  await flushErrorReporting();
+  await new Promise(() => {
+    process.stdout.write(defaultResponseBody(event?.source), () => process.exit(0));
+  });
+}
+
 // Antigravity CLI's Stop hook must answer with a decision: "continue" re-enters
 // the agent loop, any other value lets it stop. Always answer "stop" so a
 // suppressed, failed or unmapped run can never keep the agent running.
@@ -221,14 +234,11 @@ export async function main({ focus } = {}) {
     // check simply runs on a later un-suppressed run.
     const suppressed = isSuppressed(config);
     if (suppressed) {
-      await countRun(config, {
+      return await quietExit(config, {
         outcome: suppressed.reason === 'snooze' ? 'suppressed_snooze' : 'suppressed_quiet',
         source: event.source,
         event: event.event,
-      });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      }, event);
     }
 
     // A claude Stop can fire while the turn's background subagents and shells are
@@ -244,10 +254,7 @@ export async function main({ focus } = {}) {
     // codex/gemini send no such field, and cursor's subagentStop -> task_complete
     // is per-subagent by design, so neither may be gated on it.
     if (event.source === 'claude' && event.event === 'task_complete' && event.hasLiveBackgroundWork) {
-      await countRun(config, { outcome: 'held_back', source: event.source, event: event.event });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      return await quietExit(config, { outcome: 'held_back', source: event.source, event: event.event }, event);
     }
 
     // A Cursor run the user stopped themselves (status 'aborted'): they are at
@@ -256,10 +263,7 @@ export async function main({ focus } = {}) {
     // expected outcome so nothing in errors.log). An errored run is NOT skipped:
     // it goes out as "Task failed" (router.mjs).
     if (event.event === 'task_complete' && event.runStatus === 'aborted') {
-      await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      return await quietExit(config, { outcome: 'skipped', source: event.source, event: event.event }, event);
     }
 
     // How long the turn took, for the agents that give us both ends of it. Read
@@ -274,10 +278,7 @@ export async function main({ focus } = {}) {
       if (isBelowMinDuration(event.durationMs, config)) {
         // Counted as 'skipped' (an expected no-alert exit): a new outcome name
         // would widen the opt-in telemetry payload the README itemizes.
-        await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
-        await flushErrorReporting();
-        process.stdout.write(defaultResponseBody(event?.source));
-        process.exit(0);
+        return await quietExit(config, { outcome: 'skipped', source: event.source, event: event.event }, event);
       }
     }
 
@@ -286,18 +287,12 @@ export async function main({ focus } = {}) {
     // exit as the held-back Stop above: plain '{}\n', no channel, no bell, no
     // lock, and nothing in errors.log, because this is expected, not a fault.
     if (isSilentNotification(event)) {
-      await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      return await quietExit(config, { outcome: 'skipped', source: event.source, event: event.event }, event);
     }
 
     // Deduplicate AFTER parsing so the lock can key on source+event+session
     if (!acquireNotifyLock(dedupKey(event))) {
-      await countRun(config, { outcome: 'duplicate', source: event.source, event: event.event });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      return await quietExit(config, { outcome: 'duplicate', source: event.source, event: event.event }, event);
     }
 
     const notification = route(event, config);
@@ -309,10 +304,7 @@ export async function main({ focus } = {}) {
         rawEvent: event.rawEvent,
         source: event.source,
       });
-      await countRun(config, { outcome: 'unmapped', source: event.source, rawEvent: event.rawEvent });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      return await quietExit(config, { outcome: 'unmapped', source: event.source, rawEvent: event.rawEvent }, event);
     }
 
     // Start the focus probe now (a no-op unless suppressWhenFocused is on and
@@ -340,10 +332,7 @@ export async function main({ focus } = {}) {
     // quiet exit as the gates above (plain '{}\n', no bell, no update notice) and
     // counted as 'skipped' so the telemetry outcome names stay as they were.
     if (focusProbe && (await focusProbe) === true) {
-      await countRun(config, { outcome: 'skipped', source: event.source, event: event.event });
-      await flushErrorReporting();
-      process.stdout.write(defaultResponseBody(event?.source));
-      process.exit(0);
+      return await quietExit(config, { outcome: 'skipped', source: event.source, event: event.event }, event);
     }
 
     const tasks = [];
