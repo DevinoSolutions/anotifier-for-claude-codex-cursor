@@ -38,6 +38,69 @@ export function dedupKey(event) {
   return `${event.source}-${event.event}${typeSuffix}${sessionSuffix}`.replace(/[^A-Za-z0-9_.-]/g, '_');
 }
 
+// Locks are never released (the short window makes that harmless), but a lock
+// is only ever looked at again when the SAME key comes back, and every new
+// session is a new key. So each run that wins a lock also sweeps the old ones.
+//
+// A lock matters for DEDUP_WINDOW_MS after it is created: a duplicate looks at
+// its age, and acquireNotifyLock above already deletes any lock older than the
+// window on sight. Nothing reads a lock after that, so anything past the window
+// is garbage. The prune age is far past it (400x) only so that a clock step or
+// a stalled, slow-starting duplicate can never see its lock vanish: it removes
+// no lock that could still be doing a job.
+export const LOCK_PRUNE_AGE_MS = 10 * 60 * 1000;
+// Bounded work, because the sweep sits on the hook path: look at no more than
+// this many directory entries (of any name) and remove no more than this many
+// files per run. A backlog from before this existed is therefore cleared over
+// a few dozen runs instead of in one slow one.
+export const LOCK_PRUNE_MAX_ENTRIES = 100;
+export const LOCK_PRUNE_MAX_REMOVALS = 20;
+// Exactly the names acquireNotifyLock writes: '.lock-' + dedupKey() output
+// (which is limited to these characters). No other file in ~/.anotifier can
+// match: the usage, context, turn and telemetry state locks are named
+// '<state file>.lock' (.usage-alerts.json.lock, .context-alerts.json.lock,
+// turns.json.lock, .telemetry.json.lock) and the approval slots live in
+// approvals/, so none of them starts with '.lock-'.
+const DEDUP_LOCK_NAME = /^.lock-[A-Za-z0-9_.-]+$/;
+
+// Remove stale dedup locks from `dir`. Never throws and never reports: any
+// failure (missing dir, a file another hook removed first, EPERM/EBUSY on
+// Windows while someone has it open) just means that file stays for a later
+// run. Safe to run concurrently from several hooks. `keep` is the lock this
+// run just created; `fsApi` is only for tests.
+export function pruneStaleLocks(dir, {
+  now = Date.now(),
+  maxAgeMs = LOCK_PRUNE_AGE_MS,
+  maxEntries = LOCK_PRUNE_MAX_ENTRIES,
+  maxRemovals = LOCK_PRUNE_MAX_REMOVALS,
+  keep = '',
+  fsApi = fs,
+} = {}) {
+  let handle;
+  try {
+    handle = fsApi.opendirSync(dir);
+    let removed = 0;
+    for (let seen = 0; seen < maxEntries && removed < maxRemovals; seen++) {
+      const entry = handle.readSync();
+      if (!entry) break;
+      const name = entry.name;
+      if (name === keep || !DEDUP_LOCK_NAME.test(name)) continue;
+      try {
+        const file = path.join(dir, name);
+        const stat = fsApi.lstatSync(file);
+        if (!stat.isFile() || now - stat.mtimeMs <= maxAgeMs) continue;
+        // Re-check right before the unlink: a hook reusing this key replaces the
+        // file in between, and a fresh lock must not be deleted.
+        if (fsApi.lstatSync(file).mtimeMs !== stat.mtimeMs) continue;
+        fsApi.unlinkSync(file);
+        removed++;
+      } catch {}
+    }
+  } catch {} finally {
+    try { handle?.closeSync(); } catch {}
+  }
+}
+
 export function acquireNotifyLock(key, baseDir = os.homedir()) {
   const dir = path.join(baseDir, '.anotifier');
   const lockFile = path.join(dir, `.lock-${key}`);
@@ -53,13 +116,16 @@ export function acquireNotifyLock(key, baseDir = os.homedir()) {
     const fd = fs.openSync(lockFile, 'wx');
     fs.writeSync(fd, String(process.pid));
     fs.closeSync(fd);
-    return true;
   } catch (err) {
     // EEXIST is the one true duplicate signal (a concurrent invocation won the
     // exclusive create). Any other failure — read-only HOME, ENOTDIR, quota —
     // fails OPEN: a rare double notification beats never notifying again.
     return err?.code !== 'EEXIST';
   }
+  // Only the run that won sweeps, and only after its own lock is in place, so
+  // the sweep can never change the answer above.
+  pruneStaleLocks(dir, { keep: path.basename(lockFile) });
+  return true;
 }
 
 export function parseArgs(argv) {
