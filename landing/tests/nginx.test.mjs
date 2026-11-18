@@ -97,15 +97,62 @@ test("nginx: the GA relay serves our gtag.js and the collect endpoint only", () 
   }
 });
 
+// nginx drops the server-level add_header set in any location that declares its
+// own (see the comment above the server-level headers in nginx.conf), so every
+// location that sets a header must repeat all seven. headers.test.mjs checks
+// the same thing over the network, one URL per block; this check is static and
+// covers every block, including ones no test requests.
+const SECURITY_HEADERS = [
+  "X-Content-Type-Options",
+  "Referrer-Policy",
+  "X-Frame-Options",
+  "Permissions-Policy",
+  "Strict-Transport-Security",
+  "Content-Security-Policy-Report-Only",
+  "Reporting-Endpoints",
+];
+const locationBlocks = () =>
+  [...conf.matchAll(/^    location ([^{]+?) \{\n([\s\S]*?)\n    \}\n/gm)].map(
+    (m) => ({ head: m[1], body: m[2] }),
+  );
+const headerNames = (text) =>
+  [...text.matchAll(/add_header (\S+)/g)].map((m) => m[1]);
+const headerBlocks = () =>
+  locationBlocks().filter(({ body }) => headerNames(body).length > 0);
+
+test("nginx: every location that sets add_header repeats the whole security header set", () => {
+  const serverLevel = [...conf.matchAll(/^ {4}add_header (\S+)/gm)].map(
+    (m) => m[1],
+  );
+  assert.deepEqual(
+    serverLevel.sort(),
+    [...SECURITY_HEADERS].sort(),
+    "the server-level headers are not the expected seven",
+  );
+  assert.ok(locationBlocks().length >= 8, "parsed too few locations");
+  assert.ok(headerBlocks().length >= 5, "expected the header-setting blocks");
+  for (const { head, body } of headerBlocks()) {
+    const names = headerNames(body);
+    for (const name of SECURITY_HEADERS)
+      assert.ok(
+        names.includes(name),
+        `location ${head} sets add_header but lacks ${name}`,
+      );
+  }
+});
+
 test("nginx: every Content-Security-Policy-Report-Only allows the replay worker", () => {
   const policies = [
     ...conf.matchAll(
       /add_header Content-Security-Policy-Report-Only "([^"]+)"/g,
     ),
   ].map((m) => m[1]);
-  assert.ok(
-    policies.length >= 4,
-    "expected a CSP in every header-setting block",
+  // One at server level plus one in every location that sets its own headers,
+  // so losing the policy from a single block fails (it used to take two).
+  assert.equal(
+    policies.length,
+    1 + headerBlocks().length,
+    "expected a CSP at server level and in every header-setting location",
   );
   for (const policy of policies) {
     assert.ok(
@@ -113,6 +160,37 @@ test("nginx: every Content-Security-Policy-Report-Only allows the replay worker"
       "a CSP copy lacks worker-src 'self' blob:",
     );
   }
+  assert.equal(new Set(policies).size, 1, "the CSP copies differ");
+});
+
+test("nginx: llms.txt and llms-full.txt are UTF-8 plain text and no other location sets a charset", () => {
+  const pattern = "^/llms(-full)?\\.txt$";
+  const body = locationBody(`~ ${pattern}`);
+  assert.match(body, /^\s*charset utf-8;$/m);
+  // The only charset directive in the whole file is the one in this block.
+  assert.equal(
+    [...conf.matchAll(/^\s*charset\s/gm)].length,
+    1,
+    "another location sets a charset (only the two llms files may)",
+  );
+  // These files used to be served by location /, so nothing else may change.
+  assert.match(body, /add_header Cache-Control "public, no-transform" always;/);
+  assert.match(body, /try_files \$uri =404;/);
+  assert.doesNotMatch(body, /\b(proxy_pass|rewrite|return|default_type)\b/);
+  // The pattern covers exactly the two files.
+  const re = new RegExp(pattern);
+  for (const path of ["/llms.txt", "/llms-full.txt"])
+    assert.ok(re.test(path), `${path} is not matched`);
+  for (const path of [
+    "/llms.txt/",
+    "/llms-full.txt.bak",
+    "/llms-fullx.txt",
+    "/xllms.txt",
+    "/guides/llms.txt",
+    "/robots.txt",
+    "/llms.html",
+  ])
+    assert.ok(!re.test(path), `${path} must not get the llms charset`);
 });
 
 test("nginx: pages are sent no-transform on every status", () => {

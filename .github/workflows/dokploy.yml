@@ -14,12 +14,18 @@
 # needs the private network: the image goes to GHCR (a public package, so Dokploy pulls without a credential) and the release is a
 # GitHub Deployment plus a manifest line in the release job log that Dokploy reads itself.
 #
-# THE IMAGE. ghcr.io/devinosolutions/anotifier-for-claude-codex-cursor/landing, tagged sha-<first 12 of the commit>. The four
-# NEXT_PUBLIC_* values the Dockerfile declares as build arguments (Google Analytics id, PostHog key and host, Sentry DSN) are inlined
+# THE IMAGE. ghcr.io/devinosolutions/anotifier-for-claude-codex-cursor/landing, tagged sha-<first 12 of the commit>. The three
+# NEXT_PUBLIC_* values the Dockerfile declares as build arguments (Google Analytics id, PostHog key, Sentry DSN) are inlined
 # into the browser bundle at build time. They are public client values, so they are repository VARIABLES with the same names as the
 # build arguments, not secrets. A variable that is empty or unset is left out of the build, so the Dockerfile default (empty: no
 # tracker) applies. WHEN A VALUE CHANGES, CHANGE THE SAME REPOSITORY VARIABLE, or the next build keeps the old one. The package must
 # be PUBLIC (Settings of the package on GitHub), set once after the first publish.
+#
+# THE TRACKING GUARD. The three values are checked against landing/nginx.conf BEFORE the image is built: the Google Analytics id must
+# be the one the /gx4t relay accepts, the Sentry DSN must be for project 67 (the only project /_t/s7e relays to), and the PostHog key
+# must look like a project key. A mismatch fails the build, so the previous release stays live; nginx would otherwise 404 the
+# analytics silently. There is no PostHog host variable: the browser always talks to the first-party path /_t/n4q (components/PostHog.tsx),
+# so no variable can send visitors' events to a third-party host. landing/tests/config.test.mjs pins the same facts in the repo.
 #
 # THE RELEASE. After the image is pushed and verified, the `release` job publishes ONE release for the application: the key is
 # `anotifier-landing` and the image is taken from a job output of THIS run (a tag is refused). The manifest is read from the release
@@ -62,16 +68,36 @@ jobs:
         id: args
         env:
           # The ARG lines of landing/Dockerfile, nothing else.
-          NAMES: NEXT_PUBLIC_GOOGLE_ANALYTICS_ID NEXT_PUBLIC_POSTHOG_KEY NEXT_PUBLIC_POSTHOG_HOST NEXT_PUBLIC_SENTRY_DSN
+          NAMES: NEXT_PUBLIC_GOOGLE_ANALYTICS_ID NEXT_PUBLIC_POSTHOG_KEY NEXT_PUBLIC_SENTRY_DSN
           # Repository variables only. Public client values, not secrets.
           VARS_JSON: ${{ toJSON(vars) }}
         run: |
           set -euo pipefail
+          get() { printf '%s' "${VARS_JSON}" | jq -r --arg key "$1" '.[$key] // ""'; }
+
+          # Tracking guard (see THE TRACKING GUARD above). Only names are printed, never a value.
+          ga="$(get NEXT_PUBLIC_GOOGLE_ANALYTICS_ID)"
+          if [ -n "${ga}" ]; then
+            relay="$(grep -oE 'if \(\$arg_(id|tid) != "G-[A-Z0-9]+"\)' landing/nginx.conf | grep -oE 'G-[A-Z0-9]+' | sort -u || true)"
+            [ "$(printf '%s\n' "${relay}" | grep -c .)" = 1 ] || { echo "::error::landing/nginx.conf does not name exactly one Google Analytics id in the /gx4t relay"; exit 1; }
+            [ "${ga}" = "${relay}" ] || { echo "::error::NEXT_PUBLIC_GOOGLE_ANALYTICS_ID is not the id the /gx4t relay in landing/nginx.conf accepts; nginx would 404 the tag and every hit"; exit 1; }
+          fi
+          dsn="$(get NEXT_PUBLIC_SENTRY_DSN)"
+          if [ -n "${dsn}" ] && ! printf '%s' "${dsn}" | grep -Eq '^https://[0-9a-f]+@sentry\.devino\.ca/67$'; then
+            echo "::error::NEXT_PUBLIC_SENTRY_DSN is not a DSN for project 67 on sentry.devino.ca; the /_t/s7e tunnel in landing/nginx.conf relays to that project only"; exit 1
+          fi
+          phkey="$(get NEXT_PUBLIC_POSTHOG_KEY)"
+          if [ -n "${phkey}" ] && ! printf '%s' "${phkey}" | grep -Eq '^phc_[A-Za-z0-9]+$'; then
+            echo "::error::NEXT_PUBLIC_POSTHOG_KEY does not look like a PostHog project key (phc_...)"; exit 1
+          fi
+          # The PostHog host is no longer a build argument. A leftover variable does nothing; say so.
+          [ -z "$(get NEXT_PUBLIC_POSTHOG_HOST)" ] || echo "::notice::the repository variable NEXT_PUBLIC_POSTHOG_HOST is not read any more (PostHog always uses /_t/n4q); it can be deleted"
+
           set_names=()
           {
             echo 'build-args<<EOF_BUILD_ARGS'
             for name in ${NAMES}; do
-              value="$(printf '%s' "${VARS_JSON}" | jq -r --arg key "${name}" '.[$key] // ""')"
+              value="$(get "${name}")"
               case "${value}" in *$'\n'*|*$'\r'*) echo "::error::variable ${name} is not a single line" >&2; exit 1 ;; esac
               # An empty argument would clobber the Dockerfile default: leave it out instead.
               [ -z "${value}" ] || { set_names+=("${name}"); echo "${name}=${value}"; }

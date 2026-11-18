@@ -25,6 +25,8 @@ const CASES = [
   ["hashed static chunk", chunk, 200],
   ["public asset", "/assets/icons/claude.png", 200],
   ["share image", "/docs/opengraph-image", 200],
+  ["llms.txt", "/llms.txt", 200],
+  ["llms-full.txt", "/llms-full.txt", 200],
   ["404 page", "/no-such-page/", 404],
   ["trailing-slash redirect", "/docs", 301],
   ["removed-guide redirect", "/guides/wsl-notify-send/", 301],
@@ -124,6 +126,42 @@ for (const [label, path, status] of PAGES) {
     }
   });
 }
+
+// llms.txt and llms-full.txt are UTF-8 (the second has non-ASCII text), and a
+// static export is served by file extension, so nginx has to say so
+// (nginx.conf, location ~ ^/llms(-full)?\.txt$). They used to go out as a bare
+// text/plain. Their caching and compression stay what the page location gives.
+for (const path of ["/llms.txt", "/llms-full.txt"]) {
+  test(`${path} is text/plain with an explicit UTF-8 charset`, async () => {
+    const res = await get(path, {
+      headers: {
+        "user-agent": "anotifier-site-tests",
+        "accept-encoding": "gzip",
+      },
+    });
+    assert.equal(res.status, 200, `${path} returned ${res.status}`);
+    assert.match(
+      res.headers.get("content-type") ?? "",
+      /^text\/plain; charset=utf-8$/i,
+    );
+    assert.ok(!res.body.includes("�"), `${path} is not valid UTF-8`);
+    assert.equal(
+      res.headers.get("cache-control"),
+      "public, no-transform",
+      `${path} changed its Cache-Control`,
+    );
+  });
+}
+
+test("llms-full.txt is still gzipped by nginx", async () => {
+  const res = await get("/llms-full.txt", {
+    headers: {
+      "user-agent": "anotifier-site-tests",
+      "accept-encoding": "gzip",
+    },
+  });
+  assert.equal(res.headers.get("content-encoding"), "gzip");
+});
 
 test("hashed static chunks keep their own immutable Cache-Control", async () => {
   const res = await get(chunk);

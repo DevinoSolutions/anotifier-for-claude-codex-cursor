@@ -9,11 +9,10 @@ COPY . .
 # no effect. Empty by default: the build then ships no gtag.js.
 ARG NEXT_PUBLIC_GOOGLE_ANALYTICS_ID=""
 ENV NEXT_PUBLIC_GOOGLE_ANALYTICS_ID=$NEXT_PUBLIC_GOOGLE_ANALYTICS_ID
-# Same for the PostHog project key: empty ships no PostHog at all.
+# Same for the PostHog project key: empty ships no PostHog at all. There is no
+# host argument: the browser always uses the first-party path /_t/n4q.
 ARG NEXT_PUBLIC_POSTHOG_KEY=""
 ENV NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY
-ARG NEXT_PUBLIC_POSTHOG_HOST=""
-ENV NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST
 # And the Sentry DSN for session replay: empty ships no Sentry at all.
 ARG NEXT_PUBLIC_SENTRY_DSN=""
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
