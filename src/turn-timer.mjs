@@ -25,7 +25,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getConfigDir } from './config-loader.mjs';
-import { readState, writeState, withLock } from './usage-alert.mjs';
+import { readJsonFile, writeJsonAtomic, withLock, sleepSync } from './state-file.mjs';
 import { logHookError } from './error-log.mjs';
 
 // Sources whose hooks give a start signal, and the raw hook event that carries it.
@@ -49,8 +49,6 @@ const MAX_ENTRIES = 200;
 const LOCK_TRIES = 5;
 const LOCK_WAIT_MS = 20;
 
-const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-
 export function turnStatePath() {
   return path.join(getConfigDir(), 'turns.json');
 }
@@ -71,7 +69,7 @@ function usableTurnId(turnId) {
 // it as "no duration", so the alert is still sent.
 function withTurnState(statePath, fn) {
   for (let i = 0; i < LOCK_TRIES; i++) {
-    const out = withLock(`${statePath}.lock`, () => ({ value: fn(readState(statePath)) }), 'turn-timer:lock');
+    const out = withLock(`${statePath}.lock`, () => ({ value: fn(readJsonFile(statePath).data) }), 'turn-timer:lock');
     if (out) return out.value;
     if (i < LOCK_TRIES - 1) sleepSync(LOCK_WAIT_MS);
   }
@@ -103,7 +101,7 @@ export function recordTurnStart({ source, sessionId, turnId } = {}, { statePath 
       next[key] = open && !Number.isFinite(open.endedAt)
         ? { ...open, turnId: usableTurnId(turnId), lastPromptAt: now }
         : { startedAt: now, turnId: usableTurnId(turnId) };
-      writeState(statePath, next);
+      writeJsonAtomic(statePath, next);
       return true;
     });
     return ok === true;
@@ -137,7 +135,7 @@ export function finishTurn({ source, sessionId, turnId } = {}, { statePath = tur
         if ((entry.endedTurnId || '') !== wanted) return null;
         endedAt = entry.endedAt;
       } else {
-        writeState(statePath, { ...state, [key]: { ...entry, endedAt, endedTurnId: wanted } });
+        writeJsonAtomic(statePath, { ...state, [key]: { ...entry, endedAt, endedTurnId: wanted } });
       }
       const elapsed = endedAt - entry.startedAt;
       return elapsed >= 0 && elapsed <= MAX_TURN_MS ? elapsed : null;

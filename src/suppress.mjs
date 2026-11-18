@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getConfigDir, parseHHMM } from './config-loader.mjs';
+import { readJsonFile } from './state-file.mjs';
 
 // Same directory and dotfile convention as .update-check.json. A separate file
 // rather than a key in that one: this is user intent with its own lifecycle
@@ -45,12 +46,8 @@ export function formatClock(ms) {
 // came out of it. The caller needs to tell those apart only to decide whether
 // there is anything worth unlinking.
 function readState(statePath) {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch (err) {
-    return err?.code === 'ENOENT' ? null : {};
-  }
+  const { status, data } = readJsonFile(statePath);
+  return status === 'missing' ? null : data;
 }
 
 // The active snooze deadline (epoch ms), or null. Opportunistically deletes a

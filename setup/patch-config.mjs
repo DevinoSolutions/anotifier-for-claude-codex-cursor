@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
+import { writeFileAtomic } from '../src/state-file.mjs';
 
 const MANAGED_TAG = 'anotifier';
 
@@ -55,15 +56,9 @@ function readJSONOrNull(filePath) {
   }
 }
 
-// Atomic write: temp file + rename, so a crash mid-write can never leave the
-// user's real tool config truncated. Mirrors src/config-loader.mjs saveConfig.
-function writeFileAtomic(filePath, content) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const tmpPath = `${filePath}.${process.pid}.tmp`;
-  fs.writeFileSync(tmpPath, content, 'utf8');
-  fs.renameSync(tmpPath, filePath);
-}
-
+// Atomic write (temp file + rename), so a crash mid-write can never leave the
+// user's real tool config truncated. No restrictive mode here on purpose: these
+// are the tool's own files, not ours.
 function writeJSON(filePath, data) {
   writeFileAtomic(filePath, JSON.stringify(data, null, 2) + '\n');
 }

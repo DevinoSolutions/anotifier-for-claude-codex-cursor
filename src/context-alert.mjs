@@ -20,7 +20,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { getConfigDir } from './config-loader.mjs';
-import { chatLabel, writeState, withLock } from './usage-alert.mjs';
+import { chatLabel } from './usage-alert.mjs';
+import { readJsonFile, writeJsonAtomic, withLock } from './state-file.mjs';
 import { logHookError } from './error-log.mjs';
 
 export const DEFAULT_CONTEXT_THRESHOLD = 85;
@@ -204,21 +205,13 @@ export function buildContextNotification(alert, payload) {
 // read error (EBUSY, EACCES, ...) is null so the caller skips the run: writing
 // back from an empty read would wipe every other session's entry.
 function readWarned(statePath) {
-  let raw;
-  try {
-    raw = fs.readFileSync(statePath, 'utf8');
-  } catch (err) {
-    if (err?.code === 'ENOENT') return {};
-    // Logged (only reached above the threshold, once per refresh) so a state
-    // path that stays unreadable shows up in `anotifier status` instead of
-    // silently ending every context warning.
-    logHookError('context-alert:state', err);
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch { return {}; }
+  const { status, data, error } = readJsonFile(statePath);
+  if (status !== 'unreadable') return data;
+  // Logged (only reached above the threshold, once per refresh) so a state
+  // path that stays unreadable shows up in `anotifier status` instead of
+  // silently ending every context warning.
+  logHookError('context-alert:state', error);
+  return null;
 }
 
 // Decide and record in one locked step; returns the notifications to send
@@ -239,7 +232,7 @@ export function checkContext(payload, config, { statePath = contextStatePath(), 
       const state = readWarned(statePath);
       if (!state) return null;
       const result = evaluateContext(payload, state, { threshold, now, ...deps });
-      if (result.alert) writeState(statePath, result.state);
+      if (result.alert) writeJsonAtomic(statePath, result.state);
       return result.alert;
     }, 'context-alert:lock');
     return alert ? [buildContextNotification(alert, payload)] : [];

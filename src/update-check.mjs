@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { getConfigDir } from './config-loader.mjs';
+import { readJsonFile } from './state-file.mjs';
 import { sendNtfy } from './ntfy.mjs';
 import { sendWebhook } from './webhook.mjs';
 import { resolveToastBackend } from './platforms/index.mjs';
@@ -59,13 +60,11 @@ export async function resolveUpdate(cachePath, fetchImpl, now) {
   return latest || null;
 }
 
+// null for anything but a usable object: a JSON scalar (`null`, `7`, `"x"`)
+// parses fine but would throw on property access, so only an object is state.
 function readCache(cachePath) {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-    // A JSON scalar (`null`, `7`, `"x"`) parses fine but would throw on property
-    // access — only an object is usable state.
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
-  } catch { return null; }
+  const { status, data } = readJsonFile(cachePath);
+  return status === 'ok' ? data : null;
 }
 
 // MERGES rather than overwrites: `lastNotifiedVersion` shares this file and is
