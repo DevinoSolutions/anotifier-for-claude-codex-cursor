@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { loadConfigResult } from '../src/config-loader.mjs';
 import { readRecentHookErrors, getErrorLogPath } from '../src/error-log.mjs';
 import { TOOL_EVENTS, detectManagedEvents, detectAntigravityEvents, isOurStatusline, TURN_START_EVENTS } from '../setup/patch-config.mjs';
-import { checkForUpdate, isNewer } from '../src/update-check.mjs';
+import { checkForUpdate } from '../src/update-check.mjs';
 import { readSnoozeUntil, quietHoursWindow, inQuietHours, formatClock } from '../src/suppress.mjs';
 import { effectiveThresholds } from '../src/usage-alert.mjs';
 import { effectiveContextThreshold } from '../src/context-alert.mjs';
@@ -15,9 +15,14 @@ import { SUPPORT_LINE } from '../src/support.mjs';
 import { toastPlatform } from '../src/platforms/index.mjs';
 import { PLATFORM_INFO, toastOffNoBackendLabel } from './toast-backend.mjs';
 import { c, box, kv, sectionHeader } from './ui.mjs';
+import { printUpdateBanner } from './update-banner.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
+
+// status prints the update banner itself, above its support line, so cli/index.mjs
+// must not print a second one after the command.
+export const printsOwnUpdateBanner = true;
 
 // Webhook URLs are secrets (Slack/Discord tokens, Telegram bot token in the
 // path), so status shows the origin only — never the full URL.
@@ -182,15 +187,9 @@ export async function run() {
     console.log(`    ${c.muted('see')} ${c.white(getErrorLogPath())}`);
   }
 
-  // Update check (shares the memoized, cached result with index.mjs). The
-  // cached hit can predate an upgrade, so the semver gate is re-asserted here
-  // too — otherwise this reads "v1.3.0 → v1.3.0" until the 24h TTL expires.
-  const latest = await checkForUpdate();
-  if (latest && isNewer(latest, pkg.version)) {
-    console.log();
-    console.log(`  ${c.warn('↑')} ${c.warn(`Update available: v${pkg.version} → v${latest}`)}`);
-    console.log(`    ${c.muted('npm i -g anotifier@latest')}`);
-  }
+  // Update check (shares the memoized, cached result with index.mjs). The blank
+  // line that ends the banner is the one before the support line below.
+  await printUpdateBanner(c, checkForUpdate(), { leadingBlank: true, trailingBlank: false });
 
   // Gentle, one-line ask at the very end of the command people run most.
   console.log();
