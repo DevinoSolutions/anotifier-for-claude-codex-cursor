@@ -9,14 +9,20 @@ import SiteFooter from "@/components/SiteFooter";
 import StarButton from "@/components/StarButton";
 import DiscordIcon from "@/components/DiscordIcon";
 import CopyButton from "@/components/home/CopyButton";
-import { COMMUNITY_URL, INSTALL_CMD } from "@/lib/site";
+import {
+  COMMUNITY_URL,
+  GITHUB_URL,
+  INSTALL_CMD,
+  NPM_URL,
+  SITE_URL,
+} from "@/lib/site";
 import { stripTags } from "@/lib/strip-tags";
 
 export function buildChannelMetadata(slug: string): Metadata {
   const channel = getChannel(slug);
   if (!channel) return {};
 
-  const url = `https://anotifier.io/${channel.slug}/`;
+  const url = `${SITE_URL}/${channel.slug}/`;
   return {
     title: channel.title,
     description: channel.description,
@@ -40,7 +46,7 @@ export default function ChannelPage({ slug }: { slug: string }) {
   const channel = getChannel(slug);
   if (!channel) notFound();
 
-  const url = `https://anotifier.io/${channel.slug}/`;
+  const url = `${SITE_URL}/${channel.slug}/`;
   const others = CHANNELS.filter((c) => c.slug !== channel.slug);
 
   const jsonLd = [
@@ -51,11 +57,8 @@ export default function ChannelPage({ slug }: { slug: string }) {
       operatingSystem: "macOS, Windows, Linux",
       applicationCategory: "DeveloperApplication",
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-      url: "https://anotifier.io/",
-      sameAs: [
-        "https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor",
-        "https://www.npmjs.com/package/anotifier",
-      ],
+      url: `${SITE_URL}/`,
+      sameAs: [GITHUB_URL, NPM_URL],
       description: channel.description,
     },
     {
@@ -75,7 +78,7 @@ export default function ChannelPage({ slug }: { slug: string }) {
           "@type": "ListItem",
           position: 1,
           name: "anotifier",
-          item: "https://anotifier.io/",
+          item: `${SITE_URL}/`,
         },
         { "@type": "ListItem", position: 2, name: channel.name, item: url },
       ],
@@ -103,7 +106,7 @@ export default function ChannelPage({ slug }: { slug: string }) {
           </Link>
           <div className="links">
             <Link href="/">Home</Link>
-            <a href="https://www.npmjs.com/package/anotifier">npm</a>
+            <a href={NPM_URL}>npm</a>
             <StarButton variant="nav" />
             <a
               href={COMMUNITY_URL}
@@ -128,7 +131,6 @@ export default function ChannelPage({ slug }: { slug: string }) {
           <div className="hero-row">
             {channel.icon && (
               // The headline names the service, so the logo is decorative.
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={channel.icon} alt="" width={56} height={56} />
             )}
             <h1>
@@ -302,7 +304,6 @@ export default function ChannelPage({ slug }: { slug: string }) {
           <div className="others">
             {AGENTS.map((agent) => (
               <Link href={`/${agent.slug}/`} key={agent.slug}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={agent.icon} alt="" width={20} height={20} />
                 {agent.name} notifications
               </Link>

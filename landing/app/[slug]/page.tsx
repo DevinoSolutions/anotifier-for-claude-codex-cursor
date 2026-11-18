@@ -11,7 +11,13 @@ import SiteFooter from "@/components/SiteFooter";
 import StarButton from "@/components/StarButton";
 import DiscordIcon from "@/components/DiscordIcon";
 import CopyButton from "@/components/home/CopyButton";
-import { COMMUNITY_URL, INSTALL_CMD } from "@/lib/site";
+import {
+  COMMUNITY_URL,
+  GITHUB_URL,
+  INSTALL_CMD,
+  NPM_URL,
+  SITE_URL,
+} from "@/lib/site";
 import { stripTags } from "@/lib/strip-tags";
 import "./agent-page.css";
 import "../docs/docs.css";
@@ -51,7 +57,7 @@ export async function generateMetadata({
   const agent = getAgent(slug);
   if (!agent) return {};
 
-  const url = `https://anotifier.io/${agent.slug}/`;
+  const url = `${SITE_URL}/${agent.slug}/`;
   return {
     title: agent.title,
     description: agent.description,
@@ -80,7 +86,7 @@ export default async function AgentPage({
   const agent = getAgent(slug);
   if (!agent) notFound();
 
-  const url = `https://anotifier.io/${agent.slug}/`;
+  const url = `${SITE_URL}/${agent.slug}/`;
   const others = AGENTS.filter((a) => a.slug !== agent.slug);
   const agentGuides = GUIDES.filter((g) => g.agentSlug === agent.slug);
   const guide = agentGuides[0];
@@ -99,11 +105,8 @@ export default async function AgentPage({
       operatingSystem: "macOS, Windows, Linux",
       applicationCategory: "DeveloperApplication",
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-      url: "https://anotifier.io/",
-      sameAs: [
-        "https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor",
-        "https://www.npmjs.com/package/anotifier",
-      ],
+      url: `${SITE_URL}/`,
+      sameAs: [GITHUB_URL, NPM_URL],
       description: agent.description,
     },
     {
@@ -123,7 +126,7 @@ export default async function AgentPage({
           "@type": "ListItem",
           position: 1,
           name: "anotifier",
-          item: "https://anotifier.io/",
+          item: `${SITE_URL}/`,
         },
         { "@type": "ListItem", position: 2, name: agent.name, item: url },
       ],
@@ -151,7 +154,7 @@ export default async function AgentPage({
           </Link>
           <div className="links">
             <Link href="/">Home</Link>
-            <a href="https://www.npmjs.com/package/anotifier">npm</a>
+            <a href={NPM_URL}>npm</a>
             <StarButton variant="nav" />
             <a
               href={COMMUNITY_URL}
@@ -174,7 +177,6 @@ export default async function AgentPage({
             <Link href="/">anotifier</Link> / <span>{agent.slug}</span>
           </div>
           <div className="hero-row">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={agent.icon}
               alt={`${agent.name} logo`}
@@ -336,7 +338,6 @@ export default async function AgentPage({
           <div className="others">
             {others.map((other) => (
               <Link href={`/${other.slug}/`} key={other.slug}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={other.icon} alt="" width={20} height={20} />
                 {other.name}
               </Link>

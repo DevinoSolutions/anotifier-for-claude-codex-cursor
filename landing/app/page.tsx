@@ -13,29 +13,35 @@ import Faq from "@/components/home/Faq";
 import FinalCta from "@/components/home/FinalCta";
 import Footer from "@/components/home/Footer";
 import SoundProvider from "@/components/home/SoundProvider";
-import { COMMUNITY_URL, VERSION } from "@/lib/site";
+import {
+  COMMUNITY_URL,
+  GITHUB_URL,
+  NPM_URL,
+  SITE_URL,
+  VERSION,
+} from "@/lib/site";
 
 const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
     {
       "@type": "Organization",
-      "@id": "https://anotifier.io/#org",
+      "@id": `${SITE_URL}/#org`,
       name: "DevinoSolutions",
       url: "https://github.com/DevinoSolutions",
       logo: {
         "@type": "ImageObject",
-        url: "https://anotifier.io/logo.png",
+        url: `${SITE_URL}/logo.png`,
         width: 512,
         height: 512,
       },
     },
     {
       "@type": "WebSite",
-      "@id": "https://anotifier.io/#website",
+      "@id": `${SITE_URL}/#website`,
       name: "anotifier",
-      url: "https://anotifier.io/",
-      publisher: { "@id": "https://anotifier.io/#org" },
+      url: `${SITE_URL}/`,
+      publisher: { "@id": `${SITE_URL}/#org` },
     },
     {
       "@type": "SoftwareApplication",
@@ -45,20 +51,16 @@ const jsonLd = {
       applicationCategory: "DeveloperApplication",
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       license: "https://www.gnu.org/licenses/agpl-3.0.html",
-      downloadUrl: "https://www.npmjs.com/package/anotifier",
-      installUrl: "https://anotifier.io/docs/#install",
+      downloadUrl: NPM_URL,
+      installUrl: `${SITE_URL}/docs/#install`,
       softwareHelp: {
         "@type": "CreativeWork",
-        url: "https://anotifier.io/docs/",
+        url: `${SITE_URL}/docs/`,
       },
-      url: "https://anotifier.io/",
-      image: "https://anotifier.io/logo.png",
-      author: { "@id": "https://anotifier.io/#org" },
-      sameAs: [
-        "https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor",
-        "https://www.npmjs.com/package/anotifier",
-        COMMUNITY_URL,
-      ],
+      url: `${SITE_URL}/`,
+      image: `${SITE_URL}/logo.png`,
+      author: { "@id": `${SITE_URL}/#org` },
+      sameAs: [GITHUB_URL, NPM_URL, COMMUNITY_URL],
       description:
         "Notifications for AI coding agents: desktop toasts, phone push, and webhooks for Claude Code, Codex CLI, Cursor, and Gemini CLI.",
     },

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { GITHUB_URL } from "@/lib/site";
 
 const rows: ReactNode[] = [
   "Real ntfy.sh round-trip — push sent, then read back off the server",
@@ -87,7 +88,7 @@ export default function Proof() {
       >
         every job is required and hard-fails ·{" "}
         <a
-          href="https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/actions"
+          href={`${GITHUB_URL}/actions`}
           style={{ color: "#9c9c9d", textDecoration: "underline" }}
         >
           live status on main →

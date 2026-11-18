@@ -131,7 +131,6 @@ export default async function GuidePage({
         <div className="kicker">[ GUIDE · {guide.name.toUpperCase()} ]</div>
         <div className="hero-row">
           {guide.icon && (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={guide.icon}
               alt={`${agentName} logo`}
@@ -241,10 +240,7 @@ export default async function GuidePage({
             <div className="others">
               {others.map((o) => (
                 <Link href={`/guides/${o.slug}/`} key={o.slug}>
-                  {o.icon && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={o.icon} alt="" width={20} height={20} />
-                  )}
+                  {o.icon && <img src={o.icon} alt="" width={20} height={20} />}
                   {o.name}
                 </Link>
               ))}
