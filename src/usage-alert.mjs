@@ -19,15 +19,9 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getConfigDir, loadConfigResult, resolveProjectConfig } from './config-loader.mjs';
-import { sendNtfy } from './ntfy.mjs';
-import { sendWebhook } from './webhook.mjs';
-import { resolveToastBackend } from './platforms/index.mjs';
+import { sendToChannels } from './channels.mjs';
 import { logHookError, flushErrorReporting } from './error-log.mjs';
 import { readJsonObject, writeJsonAtomic, withLock } from './state-file.mjs';
-
-// The lock helper lives in state-file.mjs now; re-exported so existing importers
-// of it from here keep working.
-export { withLock };
 
 export const DEFAULT_THRESHOLDS = [70, 85, 95];
 
@@ -217,28 +211,11 @@ export function projectConfigFor(config, workspace, { resolve = resolveProjectCo
   }
 }
 
-// Is any channel on? The one definition of "a channel" for the usage warning:
-// sendUsageNotifications sends through exactly these, and the statusline tap
-// skips (and so does not record) a usage warning that nothing could deliver.
-const toastOn = (config) => config?.toast?.enabled !== false;
-const ntfyOn = (config) => Boolean(config?.ntfy?.enabled && config?.ntfy?.topic);
-const webhookOn = (config) => Boolean(config?.webhook?.enabled && config?.webhook?.url);
-export const hasChannel = (config) => toastOn(config) || ntfyOn(config) || webhookOn(config);
-
-// Fan the warnings out over the channels the user has on. No terminal bell: a
-// statusline has no terminal of its own to ring.
-export async function sendUsageNotifications(config, notifications, {
-  resolveBackend = resolveToastBackend,
-  ntfy = sendNtfy,
-  webhook = sendWebhook,
-} = {}) {
-  const tasks = [];
-  for (const n of notifications) {
-    if (toastOn(config)) tasks.push(resolveBackend().then((send) => send(n)));
-    if (ntfyOn(config)) tasks.push(ntfy(config.ntfy, n));
-    if (webhookOn(config)) tasks.push(webhook(config.webhook, n));
-  }
-  const results = await Promise.allSettled(tasks);
+// Fan the warnings out over the channels the user has on (see channels.mjs; no
+// terminal bell: a statusline has no terminal of its own to ring). Also used for
+// the context warnings. The senders are injectable for tests.
+export async function sendUsageNotifications(config, notifications, deps = {}) {
+  const results = await sendToChannels(config, notifications, deps);
   for (const r of results) if (r.status === 'rejected') logHookError('usage-alert:send', r.reason);
   return results;
 }

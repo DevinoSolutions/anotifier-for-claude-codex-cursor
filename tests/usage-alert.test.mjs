@@ -6,9 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   evaluateUsage, effectiveThresholds, formatReset, chatLabel,
-  buildUsageNotification, checkUsage, sendUsageNotifications, DEFAULT_THRESHOLDS, withLock,
+  buildUsageNotification, checkUsage, sendUsageNotifications, DEFAULT_THRESHOLDS,
 } from '../src/usage-alert.mjs';
-import { withLock as stateFileWithLock } from '../src/state-file.mjs';
 import { useFakeHome } from './fake-home.mjs';
 import { readRecentHookErrors } from '../src/error-log.mjs';
 useFakeHome();
@@ -424,13 +423,5 @@ describe('checkUsage with a state file that cannot be read (EBUSY / EACCES / EPE
     assert.equal(checkUsage(payload(win(75)), cfg, { statePath, now: NOW }).length, 1);
     fs.writeFileSync(statePath, '[1,');
     assert.equal(checkUsage(payload(win(75)), cfg, { statePath, now: NOW }).length, 1);
-  });
-});
-
-// The lock helper moved to src/state-file.mjs (tests/state-file.test.mjs); this
-// module still re-exports it for existing importers.
-describe('withLock re-export', () => {
-  it('is the state-file helper', () => {
-    assert.equal(withLock, stateFileWithLock);
   });
 });
