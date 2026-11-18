@@ -2,11 +2,8 @@
 // Deliberately SDK-free: the package's zero-dependency guarantee applies to
 // error reporting too. Only used when the user opts in via config.sentry.
 //
-// Transport is node:https with agent:false, NOT fetch: undici's keep-alive
-// socket pool trips a libuv assertion (0xC0000409) on Windows when the hook
-// calls process.exit() right after sending — same proven pattern as ntfy.mjs.
-import https from 'node:https';
-import http from 'node:http';
+// Transport is http.mjs (node:https with agent:false, NOT fetch; see there for why).
+import { httpRequest } from './http.mjs';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -63,41 +60,35 @@ export function buildErrorEvent({ context, error, extra }) {
 // throws — Sentry is an observability mirror, not a dependency of the
 // notification path. A timeout resolves `{ ok: false, status: 0, timedOut: true }`
 // so latency can be told apart from a connection error. `opts.timeoutMs`
-// overrides the hook-safe default. The status lets a caller tell "our client failed" apart
+// overrides the hook-safe default and is an overall deadline for connect, wait
+// and body, not a socket idle timeout. The status lets a caller tell "our client failed" apart
 // from "the server is up but refusing" (5xx), which the live test needs.
-export function sendSentryEnvelope(sentryConfig, { context, error, extra }, { timeoutMs = SEND_TIMEOUT_MS } = {}) {
-  return new Promise((resolve) => {
-    const dsn = parseSentryDsn(sentryConfig?.dsn || '');
-    if (!dsn) { resolve({ ok: false, status: 0 }); return; }
+export async function sendSentryEnvelope(sentryConfig, { context, error, extra }, { timeoutMs = SEND_TIMEOUT_MS } = {}) {
+  const dsn = parseSentryDsn(sentryConfig?.dsn || '');
+  if (!dsn) return { ok: false, status: 0 };
 
-    const event = buildErrorEvent({ context, error, extra });
-    const envelope =
-      JSON.stringify({ event_id: event.event_id, sent_at: event.timestamp }) + '\n' +
-      JSON.stringify({ type: 'event' }) + '\n' +
-      JSON.stringify(event) + '\n';
+  const event = buildErrorEvent({ context, error, extra });
+  const envelope =
+    JSON.stringify({ event_id: event.event_id, sent_at: event.timestamp }) + '\n' +
+    JSON.stringify({ type: 'event' }) + '\n' +
+    JSON.stringify(event) + '\n';
 
-    let parsed;
-    try { parsed = new URL(dsn.envelopeUrl); } catch { resolve({ ok: false, status: 0 }); return; }
-    const transport = parsed.protocol === 'https:' ? https : http;
+  let parsed;
+  try { parsed = new URL(dsn.envelopeUrl); } catch { return { ok: false, status: 0 }; }
 
-    const req = transport.request(parsed, {
-      method: 'POST',
-      agent: false, // no keep-alive socket may outlive the hook's process.exit()
-      headers: {
-        'Content-Type': 'application/x-sentry-envelope',
-        'X-Sentry-Auth': `Sentry sentry_version=7, sentry_client=${pkg.name}/${pkg.version}, sentry_key=${dsn.publicKey}`,
-      },
-      timeout: timeoutMs,
-    }, (res) => {
-      res.resume(); // drain
-      const status = res.statusCode || 0;
-      res.on('end', () => resolve({ ok: status >= 200 && status < 300, status }));
-    });
-
-    req.on('error', () => resolve({ ok: false, status: 0 }));
-    req.on('timeout', () => { req.destroy(); resolve({ ok: false, status: 0, timedOut: true }); });
-    req.end(envelope);
+  // One overall deadline covering connect, wait and body (see http.mjs).
+  const res = await httpRequest(parsed, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-sentry-envelope',
+      'X-Sentry-Auth': `Sentry sentry_version=7, sentry_client=${pkg.name}/${pkg.version}, sentry_key=${dsn.publicKey}`,
+    },
+    body: envelope,
+    timeoutMs,
+    waitForBody: true,
   });
+  if (res.timedOut) return { ok: false, status: 0, timedOut: true };
+  return { ok: res.status >= 200 && res.status < 300, status: res.status };
 }
 
 // Boolean convenience used by error-log.mjs: true on 2xx, false on anything else.
