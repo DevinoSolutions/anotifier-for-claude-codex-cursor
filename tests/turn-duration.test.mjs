@@ -1,7 +1,7 @@
 // tests/turn-duration.test.mjs — the minimum-duration filter and the
 // "took 4m 12s" suffix: the turn timer, the routing of both, the config
 // validation, the hook wiring, and the real hook entry point.
-import { describe, it, before, after, beforeEach } from 'node:test';
+import { describe, it, before, after, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -189,6 +189,68 @@ describe('turn timer', () => {
     fs.mkdirSync(statePath); // a directory where the file should be
     assert.equal(recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 10 }), false);
     assert.equal(finishTurn({ source: 'claude', sessionId: 's' }, { statePath, now: 20 }), null);
+  });
+});
+
+describe('turn timer with a state file that cannot be read (EBUSY / EACCES / EPERM)', () => {
+  let dir;
+  let statePath;
+  beforeEach(() => { dir = tmpDir(); statePath = path.join(dir, 'turns.json'); });
+  afterEach(() => mock.restoreAll());
+  const failRead = (code) => {
+    const real = fs.readFileSync;
+    mock.method(fs, 'readFileSync', function (p, ...rest) {
+      if (p === statePath) throw Object.assign(new Error(code), { code });
+      return real.call(fs, p, ...rest);
+    });
+  };
+
+  for (const code of ['EBUSY', 'EACCES', 'EPERM']) {
+    it(`${code}: recording a start skips instead of wiping the other sessions' start times`, () => {
+      recordTurnStart({ source: 'claude', sessionId: 'other' }, { statePath, now: 1000 });
+      const before = fs.readFileSync(statePath, 'utf8');
+      const logged = readErrorLog().length;
+
+      failRead(code);
+      assert.equal(recordTurnStart({ source: 'claude', sessionId: 'mine' }, { statePath, now: 2000 }), false);
+      assert.ok(readErrorLog().slice(logged).some((l) => /turn-timer:state/.test(l)), 'the read error is logged');
+      mock.restoreAll();
+
+      assert.equal(fs.readFileSync(statePath, 'utf8'), before, 'the file is exactly as it was');
+      assert.equal(finishTurn({ source: 'claude', sessionId: 'other' }, { statePath, now: 5000 }), 4000, 'the other session still has its start');
+    });
+
+    it(`${code}: finishing a turn gives no duration and stamps nothing`, () => {
+      recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 1000 });
+      const before = fs.readFileSync(statePath, 'utf8');
+
+      failRead(code);
+      assert.equal(finishTurn({ source: 'claude', sessionId: 's' }, { statePath, now: 5000 }), null);
+      mock.restoreAll();
+
+      assert.equal(fs.readFileSync(statePath, 'utf8'), before, 'no endedAt was written');
+      assert.equal(finishTurn({ source: 'claude', sessionId: 's' }, { statePath, now: 5000 }), 4000, 'the turn can still be finished once readable');
+    });
+  }
+
+  it('a read error is not retried like a held lock', () => {
+    recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 1000 });
+    const real = fs.readFileSync;
+    let reads = 0;
+    mock.method(fs, 'readFileSync', function (p, ...rest) {
+      if (p === statePath) { reads++; throw Object.assign(new Error('busy'), { code: 'EBUSY' }); }
+      return real.call(fs, p, ...rest);
+    });
+    const logged = readErrorLog().length;
+    assert.equal(finishTurn({ source: 'claude', sessionId: 's' }, { statePath, now: 5000 }), null);
+    assert.equal(reads, 1);
+    assert.ok(!readErrorLog().slice(logged).some((l) => /turn-timer:lock/.test(l)), 'not reported as a lock failure');
+  });
+
+  it('a missing or corrupt file still starts fresh (unchanged)', () => {
+    assert.equal(recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 1000 }), true);
+    fs.writeFileSync(statePath, 'not json');
+    assert.equal(recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 2000 }), true);
   });
 });
 

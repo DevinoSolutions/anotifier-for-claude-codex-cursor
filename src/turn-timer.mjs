@@ -25,7 +25,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getConfigDir } from './config-loader.mjs';
-import { readJsonFile, writeJsonAtomic, withLock, sleepSync } from './state-file.mjs';
+import { readJsonObject, writeJsonAtomic, withLock, sleepSync } from './state-file.mjs';
 import { logHookError } from './error-log.mjs';
 
 // Sources whose hooks give a start signal, and the raw hook event that carries it.
@@ -66,10 +66,16 @@ function usableTurnId(turnId) {
 // Locked read-modify-write. Returns whatever `fn` returned, or undefined when
 // the lock could not be had after a few short tries. That is logged (errors.log,
 // shown by `anotifier status`) and otherwise changes nothing: the caller treats
-// it as "no duration", so the alert is still sent.
+// it as "no duration", so the alert is still sent. A state file that exists but
+// cannot be read (EBUSY, EACCES: an antivirus scan) is skipped the same way and
+// not retried: `fn` is never given an empty stand-in, which it would write back
+// over every other session's start time.
 function withTurnState(statePath, fn) {
   for (let i = 0; i < LOCK_TRIES; i++) {
-    const out = withLock(`${statePath}.lock`, () => ({ value: fn(readJsonFile(statePath).data) }), 'turn-timer:lock');
+    const out = withLock(`${statePath}.lock`, () => {
+      const state = readJsonObject(statePath, 'turn-timer:state');
+      return { value: state === null ? undefined : fn(state) };
+    }, 'turn-timer:lock');
     if (out) return out.value;
     if (i < LOCK_TRIES - 1) sleepSync(LOCK_WAIT_MS);
   }

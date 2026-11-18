@@ -42,21 +42,17 @@ export function formatClock(ms) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-// null = there is no state file at all; {} = there is one but nothing usable
-// came out of it. The caller needs to tell those apart only to decide whether
-// there is anything worth unlinking.
-function readState(statePath) {
-  const { status, data } = readJsonFile(statePath);
-  return status === 'missing' ? null : data;
-}
-
 // The active snooze deadline (epoch ms), or null. Opportunistically deletes a
 // state file that is expired or unusable — dead state should not linger in the
 // config dir or show up in `status`. A failed unlink changes nothing: the
 // timestamp check above has already decided the answer.
+//
+// A file that cannot be READ (EBUSY, EACCES, ...: an antivirus scan, say) reads
+// as not snoozed like any other broken state, but is left alone: it may hold a
+// perfectly good deadline, and deleting it would cancel the user's snooze.
 export function readSnoozeUntil(statePath = SNOOZE_PATH, now = Date.now()) {
-  const state = readState(statePath);
-  if (state === null) return null;
+  const { status, data: state } = readJsonFile(statePath);
+  if (status === 'missing' || status === 'unreadable') return null;
   const until = typeof state.until === 'number' && state.until > now ? state.until : null;
   if (until === null) { try { fs.unlinkSync(statePath); } catch {} }
   return until;

@@ -1,5 +1,5 @@
 // tests/usage-alert.test.mjs — Claude Code usage-limit early warning.
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -10,6 +10,7 @@ import {
 } from '../src/usage-alert.mjs';
 import { withLock as stateFileWithLock } from '../src/state-file.mjs';
 import { useFakeHome } from './fake-home.mjs';
+import { readRecentHookErrors } from '../src/error-log.mjs';
 useFakeHome();
 
 const NOW = Date.UTC(2026, 9, 9, 12, 0, 0); // fixed clock
@@ -371,6 +372,58 @@ describe('sendUsageNotifications', () => {
     assert.equal(calls.toast.length, 1);
     assert.equal(calls.webhook.length, 1);
     assert.equal(res.filter((r) => r.status === 'rejected').length, 1);
+  });
+});
+
+describe('checkUsage with a state file that cannot be read (EBUSY / EACCES / EPERM)', () => {
+  let dir, statePath;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-usage-b3-'));
+    statePath = path.join(dir, '.usage-alerts.json');
+  });
+  afterEach(() => { mock.restoreAll(); fs.rmSync(dir, { recursive: true, force: true }); });
+  const cfg = { usageAlerts: { enabled: true, thresholds: [70, 85, 95] } };
+  const errorsFor = (label) => readRecentHookErrors(200).filter((e) => e.context === label).length;
+  const failRead = (code) => {
+    const real = fs.readFileSync;
+    mock.method(fs, 'readFileSync', function (p, ...rest) {
+      if (p === statePath) throw Object.assign(new Error(code), { code });
+      return real.call(fs, p, ...rest);
+    });
+  };
+
+  for (const code of ['EBUSY', 'EACCES', 'EPERM']) {
+    it(`${code}: skips, does not re-send a warning already sent, and leaves the file alone`, () => {
+      // 70% was already announced for this window.
+      assert.equal(checkUsage(payload(win(75)), cfg, { statePath, now: NOW }).length, 1);
+      const before = fs.readFileSync(statePath, 'utf8');
+      const logged = errorsFor('usage-alert:state');
+
+      failRead(code);
+      // Read as {} this would announce 70% again.
+      assert.deepEqual(checkUsage(payload(win(75)), cfg, { statePath, now: NOW }), []);
+      // ...and a genuinely new level is also held back until the file is readable.
+      assert.deepEqual(checkUsage(payload(win(99)), cfg, { statePath, now: NOW }), []);
+      assert.equal(errorsFor('usage-alert:state'), logged + 2, 'each skipped round is logged');
+      mock.restoreAll();
+
+      assert.equal(fs.readFileSync(statePath, 'utf8'), before, 'state was not overwritten');
+      assert.ok(!fs.existsSync(`${statePath}.lock`), 'lock released');
+      // Once readable again, the next refresh carries on from the stored level.
+      assert.equal(checkUsage(payload(win(99)), cfg, { statePath, now: NOW }).length, 1);
+    });
+  }
+
+  it('a directory where the state file belongs (EISDIR) skips and writes nothing over it', () => {
+    fs.mkdirSync(statePath);
+    assert.deepEqual(checkUsage(payload(win(99)), cfg, { statePath, now: NOW }), []);
+    assert.ok(fs.statSync(statePath).isDirectory());
+  });
+
+  it('a missing or corrupt file still counts as empty (unchanged)', () => {
+    assert.equal(checkUsage(payload(win(75)), cfg, { statePath, now: NOW }).length, 1);
+    fs.writeFileSync(statePath, '[1,');
+    assert.equal(checkUsage(payload(win(75)), cfg, { statePath, now: NOW }).length, 1);
   });
 });
 

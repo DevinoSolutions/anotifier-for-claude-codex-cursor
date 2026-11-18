@@ -23,7 +23,7 @@ import { sendNtfy } from './ntfy.mjs';
 import { sendWebhook } from './webhook.mjs';
 import { resolveToastBackend } from './platforms/index.mjs';
 import { logHookError, flushErrorReporting } from './error-log.mjs';
-import { readJsonFile, writeJsonAtomic, withLock } from './state-file.mjs';
+import { readJsonObject, writeJsonAtomic, withLock } from './state-file.mjs';
 
 // The lock helper lives in state-file.mjs now; re-exported so existing importers
 // of it from here keep working.
@@ -175,8 +175,13 @@ export function checkUsage(payload, config, { statePath = STATE_PATH, now = Date
   if (!payload?.rate_limits) return [];
   try {
     const result = withLock(`${statePath}.lock`, () => {
-      const { alerts, state } = evaluateUsage(payload, readJsonFile(statePath).data, { thresholds: effectiveThresholds(config), now });
-      if (alerts.length || JSON.stringify(state) !== JSON.stringify(readJsonFile(statePath).data)) writeJsonAtomic(statePath, state);
+      // A state file that exists but cannot be read (EBUSY, EACCES: an antivirus
+      // scan) is NOT an empty one: evaluating against {} would re-send a warning
+      // that was already sent. Skip; the next refresh tries again.
+      const stored = readJsonObject(statePath, 'usage-alert:state');
+      if (stored === null) return [];
+      const { alerts, state } = evaluateUsage(payload, stored, { thresholds: effectiveThresholds(config), now });
+      if (alerts.length || JSON.stringify(state) !== JSON.stringify(stored)) writeJsonAtomic(statePath, state);
       return alerts;
     }, 'usage-alert:lock');
     return (result || []).map((a) => buildUsageNotification(a, payload, now));

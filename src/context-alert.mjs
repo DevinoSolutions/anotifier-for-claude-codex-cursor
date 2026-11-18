@@ -21,7 +21,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { getConfigDir } from './config-loader.mjs';
 import { chatLabel } from './usage-alert.mjs';
-import { readJsonFile, writeJsonAtomic, withLock } from './state-file.mjs';
+import { readJsonObject, writeJsonAtomic, withLock } from './state-file.mjs';
 import { logHookError } from './error-log.mjs';
 
 export const DEFAULT_CONTEXT_THRESHOLD = 85;
@@ -204,14 +204,10 @@ export function buildContextNotification(alert, payload) {
 // file and unparseable content both mean "nobody warned yet" ({}); any other
 // read error (EBUSY, EACCES, ...) is null so the caller skips the run: writing
 // back from an empty read would wipe every other session's entry.
+// Logged (only reached above the threshold, once per refresh) so a state path
+// that stays unreadable shows up in `anotifier status`.
 function readWarned(statePath) {
-  const { status, data, error } = readJsonFile(statePath);
-  if (status !== 'unreadable') return data;
-  // Logged (only reached above the threshold, once per refresh) so a state
-  // path that stays unreadable shows up in `anotifier status` instead of
-  // silently ending every context warning.
-  logHookError('context-alert:state', error);
-  return null;
+  return readJsonObject(statePath, 'context-alert:state');
 }
 
 // Decide and record in one locked step; returns the notifications to send

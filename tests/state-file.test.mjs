@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readJsonFile, writeFileAtomic, writeJsonAtomic, withLock } from '../src/state-file.mjs';
+import { readJsonFile, readJsonObject, writeFileAtomic, writeJsonAtomic, withLock } from '../src/state-file.mjs';
 import { readRecentHookErrors } from '../src/error-log.mjs';
 import { useFakeHome } from './fake-home.mjs';
 useFakeHome();
@@ -271,5 +271,36 @@ describe('writeFileAtomic', () => {
     assert.throws(() => writeFileAtomic(file, 'new'), { code: 'EPERM' });
     mock.restoreAll();
     assert.equal(fs.readFileSync(file, 'utf8'), 'old');
+  });
+});
+
+describe('readJsonObject', () => {
+  let dir;
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'an-readobj-')); });
+  afterEach(() => { mock.restoreAll(); fs.rmSync(dir, { recursive: true, force: true }); });
+  const errorsFor = (label) => readRecentHookErrors(200).filter((e) => e.context === label).length;
+
+  it('the object when ok; {} when missing or corrupt', () => {
+    const file = path.join(dir, 's.json');
+    assert.deepEqual(readJsonObject(file), {});
+    fs.writeFileSync(file, '{"a":1}');
+    assert.deepEqual(readJsonObject(file), { a: 1 });
+    fs.writeFileSync(file, '[1,');
+    assert.deepEqual(readJsonObject(file), {});
+  });
+
+  it('null, and logged under the label, when the file cannot be read', () => {
+    const file = path.join(dir, 's.json');
+    fs.writeFileSync(file, '{"a":1}');
+    const real = fs.readFileSync;
+    mock.method(fs, 'readFileSync', function (p, ...rest) {
+      if (p === file) throw Object.assign(new Error('busy'), { code: 'EBUSY' });
+      return real.call(fs, p, ...rest);
+    });
+    const before = errorsFor('test:read-object');
+    assert.equal(readJsonObject(file, 'test:read-object'), null);
+    assert.equal(errorsFor('test:read-object'), before + 1);
+    assert.equal(readJsonObject(file), null, 'without a label it is just not logged');
+    assert.equal(errorsFor('test:read-object'), before + 1);
   });
 });

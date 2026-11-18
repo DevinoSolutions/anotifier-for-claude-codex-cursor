@@ -41,6 +41,20 @@ export function readJsonFile(file) {
   }
 }
 
+// The common case of readJsonFile: the object, with {} for a missing or corrupt
+// file (nothing stored yet) and null for a file that could not be READ. A caller
+// that reads, changes and writes back must treat null as "skip this round":
+// writing back from an empty stand-in would wipe whatever the file really holds
+// (other sessions' entries, an already-sent warning). `label`, when given, logs
+// the read error to errors.log so a path that stays unreadable shows up in
+// `anotifier status` instead of silently ending a feature.
+export function readJsonObject(file, label) {
+  const { status, data, error } = readJsonFile(file);
+  if (status !== 'unreadable') return data;
+  if (label) logHookError(label, error);
+  return null;
+}
+
 // Atomic write: temp file + rename, so a crash mid-write can never leave a
 // truncated file behind. `mode` (e.g. 0o600) is applied to the temp file and
 // chmod-ed again (best effort; Windows has no POSIX modes) because the write's

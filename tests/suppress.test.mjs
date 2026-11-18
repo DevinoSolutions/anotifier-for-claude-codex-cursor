@@ -2,7 +2,7 @@
 // The clock and the state path are both dependency-injected, and every
 // wall-clock time is built with the LOCAL-time Date constructor, so these pass
 // identically at 3am, in CI, and in any timezone.
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -240,4 +240,29 @@ describe('isSuppressed — the single gate the hook path asks', () => {
   it('a missing config never throws (defaults are absent on a fresh install)', () => {
     assert.equal(isSuppressed(undefined, { statePath, now: noon }), null);
   });
+});
+
+describe('snooze state file that cannot be read', () => {
+  let dir, statePath;
+  const NOW = at(12, 0).getTime();
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-snooze-'));
+    statePath = path.join(dir, '.snooze.json');
+  });
+  afterEach(() => { mock.restoreAll(); fs.rmSync(dir, { recursive: true, force: true }); });
+
+  for (const code of ['EBUSY', 'EACCES', 'EPERM']) {
+    it(`${code}: reads as not snoozed (fail-open) but does not delete the file`, () => {
+      writeSnoozeUntil(NOW + 60_000, statePath);
+      const real = fs.readFileSync;
+      mock.method(fs, 'readFileSync', function (p, ...rest) {
+        if (p === statePath) throw Object.assign(new Error(code), { code });
+        return real.call(fs, p, ...rest);
+      });
+      assert.equal(readSnoozeUntil(statePath, NOW), null);
+      mock.restoreAll();
+      assert.equal(fs.existsSync(statePath), true, 'the snooze survives a transient read error');
+      assert.equal(readSnoozeUntil(statePath, NOW), NOW + 60_000);
+    });
+  }
 });
