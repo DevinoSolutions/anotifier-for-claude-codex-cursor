@@ -17,6 +17,9 @@ export function isProbeTimeout(err) {
 // 'unknown'. `platform` and `run` are injectable so tests run on any OS.
 export function probeBinary(bin, { platform = os.platform(), run = execFileSync, timeout = 10000 } = {}) {
   if (platform === 'win32') {
+    // Deliberately unlike POSIX below: where.exe is part of Windows, so a failed
+    // spawn is not "cannot tell" and only a timeout is 'unknown'. This keeps what
+    // setup's old `where pwsh` check and doctor's `has()` did; do not unify.
     try {
       run('where', [bin], { stdio: 'ignore', timeout });
       return 'found';
