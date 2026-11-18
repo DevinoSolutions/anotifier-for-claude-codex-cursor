@@ -6,8 +6,7 @@
 // unguessable token and the Telegram endpoint carries the bot token in its
 // path, so failures are logged with the URL ORIGIN ONLY — never the full URL,
 // headers, or body — because errors.log can be mirrored to Sentry.
-import https from 'node:https';
-import http from 'node:http';
+import { httpRequest } from './http.mjs';
 import { logHookError } from './error-log.mjs';
 import { httpFailureReason, networkFailureReason, noteFailure } from './channel-failure.mjs';
 
@@ -50,66 +49,42 @@ export function buildWebhookRequest(webhookConfig, notification) {
 // failure must not take down the notification path or the host agent.
 // timeoutMs defaults to the 5s contract; overridable only so tests can exercise
 // the timeout branch deterministically.
-export function sendWebhook(webhookConfig, notification, { timeoutMs = SEND_TIMEOUT_MS } = {}) {
-  return new Promise((resolve) => {
-    if (!webhookConfig.url) {
-      logHookError('webhook', new Error('webhook is enabled but no url is configured'));
-      noteFailure('webhook', 'other');
-      resolve(false);
-      return;
-    }
+export async function sendWebhook(webhookConfig, notification, { timeoutMs = SEND_TIMEOUT_MS } = {}) {
+  if (!webhookConfig.url) {
+    logHookError('webhook', new Error('webhook is enabled but no url is configured'));
+    noteFailure('webhook', 'other');
+    return false;
+  }
 
-    const { url, headers, body } = buildWebhookRequest(webhookConfig, notification);
+  const { url, headers, body } = buildWebhookRequest(webhookConfig, notification);
 
-    let parsed;
-    try {
-      parsed = new URL(url);
-    } catch {
-      // Never surface the offending value — a malformed webhook URL is still a secret.
-      logHookError('webhook', new Error('webhook url is not a valid URL'));
-      noteFailure('webhook', 'other');
-      resolve(false);
-      return;
-    }
-    const transport = parsed.protocol === 'https:' ? https : http;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    // Never surface the offending value — a malformed webhook URL is still a secret.
+    logHookError('webhook', new Error('webhook url is not a valid URL'));
+    noteFailure('webhook', 'other');
+    return false;
+  }
 
-    // transport.request throws SYNCHRONOUSLY (not via 'error') on a non-http(s)
-    // protocol that still parses as a URL (ftp://…) and on invalid header chars
-    // (CRLF in authorization) — either would reject this promise and break the
-    // never-throws contract, so the whole request setup is guarded.
-    try {
-      const req = transport.request(parsed, {
-        method: 'POST',
-        agent: false, // no keep-alive socket may outlive the hook's process.exit() (see sentry.mjs)
-        headers,
-        timeout: timeoutMs,
-      }, (res) => {
-        res.resume(); // drain
-        const ok = res.statusCode >= 200 && res.statusCode < 300;
-        if (!ok) {
-          logHookError('webhook', new Error(`webhook endpoint responded ${res.statusCode}`), { url: parsed.origin });
-          noteFailure('webhook', httpFailureReason(res.statusCode));
-        }
-        resolve(ok);
-      });
+  // One overall deadline, not a socket idle timeout (see http.mjs). A synchronous
+  // setup failure (ftp://, CRLF in authorization) comes back as res.error with
+  // res.setupError, and its message names the protocol/header, never the URL value.
+  const res = await httpRequest(parsed, { method: 'POST', headers, body, timeoutMs });
 
-      req.on('error', (err) => {
-        logHookError('webhook', err, { url: parsed.origin });
-        noteFailure('webhook', networkFailureReason(err));
-        resolve(false);
-      });
-      req.on('timeout', () => {
-        req.destroy();
-        logHookError('webhook', new Error(`webhook request timed out after ${timeoutMs}ms`), { url: parsed.origin });
-        noteFailure('webhook', 'timeout');
-        resolve(false);
-      });
-      req.end(body);
-    } catch (err) {
-      // err.message for these node errors names the protocol/header, never the URL value.
-      logHookError('webhook', err, { url: parsed.origin });
-      noteFailure('webhook', 'other');
-      resolve(false);
-    }
-  });
+  if (res.timedOut) {
+    logHookError('webhook', new Error(`webhook request timed out after ${timeoutMs}ms`), { url: parsed.origin });
+    noteFailure('webhook', 'timeout');
+    return false;
+  }
+  if (res.error) {
+    logHookError('webhook', res.error, { url: parsed.origin });
+    noteFailure('webhook', res.setupError ? 'other' : networkFailureReason(res.error));
+    return false;
+  }
+  if (res.status >= 200 && res.status < 300) return true;
+  logHookError('webhook', new Error(`webhook endpoint responded ${res.status}`), { url: parsed.origin });
+  noteFailure('webhook', httpFailureReason(res.status));
+  return false;
 }

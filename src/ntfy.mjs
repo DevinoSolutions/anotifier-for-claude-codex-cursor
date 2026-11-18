@@ -1,5 +1,4 @@
-import https from 'node:https';
-import http from 'node:http';
+import { httpRequest } from './http.mjs';
 import { logHookError } from './error-log.mjs';
 import { httpFailureReason, networkFailureReason, noteFailure } from './channel-failure.mjs';
 
@@ -67,60 +66,41 @@ export async function sendNtfyDetailed(ntfyConfig, notification) {
   return { ok, via: ok ? 'fallback' : null, fallback };
 }
 
-function postNtfy(ntfyConfig, notification, timeoutMs, context) {
-  return new Promise((resolve) => {
-    const { url, headers, body } = buildNtfyRequest(ntfyConfig, notification);
+async function postNtfy(ntfyConfig, notification, timeoutMs, context) {
+  const { url, headers, body } = buildNtfyRequest(ntfyConfig, notification);
 
-    // A bare-hostname typo (server: "ntfy.sh" with no scheme) makes `new URL`
-    // throw, which would break this module's resolve-false-never-throw contract
-    // and crash `anotifier test ntfy` with a raw "Invalid URL" (mirrors webhook.mjs).
-    let parsed;
-    try {
-      parsed = new URL(url);
-    } catch {
-      logHookError(context, new Error(`ntfy server is not a valid URL: ${ntfyConfig.server || 'https://ntfy.sh'}`));
-      noteFailure('ntfy', 'other');
-      resolve(false);
-      return;
-    }
-    const transport = parsed.protocol === 'https:' ? https : http;
+  // A bare-hostname typo (server: "ntfy.sh" with no scheme) makes `new URL`
+  // throw, which would break this module's resolve-false-never-throw contract
+  // and crash `anotifier test ntfy` with a raw "Invalid URL" (mirrors webhook.mjs).
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    logHookError(context, new Error(`ntfy server is not a valid URL: ${ntfyConfig.server || 'https://ntfy.sh'}`));
+    noteFailure('ntfy', 'other');
+    return false;
+  }
 
-    let done = false;
-    let timer;
-    const finish = (ok, err, reason) => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      if (err) logHookError(context, err, { url: parsed.origin });
-      if (!ok) noteFailure('ntfy', reason);
-      resolve(ok);
-    };
-
-    // transport.request can throw SYNCHRONOUSLY (not via 'error') on a non-http(s)
-    // protocol that still parses (e.g. ftp://) or invalid header chars — guard the
-    // whole setup so a bad config can never reject this promise (see webhook.mjs).
-    try {
-      const req = transport.request(parsed, {
-        method: 'POST',
-        agent: false, // no keep-alive socket may outlive the hook's process.exit() (see sentry.mjs)
-        headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' },
-      }, (res) => {
-        res.resume(); // drain
-        const ok = res.statusCode >= 200 && res.statusCode < 300;
-        finish(ok, ok ? null : new Error(`ntfy server responded ${res.statusCode}`), httpFailureReason(res.statusCode));
-      });
-
-      // One deadline for the whole attempt (DNS, connect, response headers).
-      // The socket `timeout` option is only an idle timer, which a server
-      // sending a byte at a time could keep alive far past the hook's budget.
-      timer = setTimeout(() => {
-        finish(false, new Error(`ntfy request timed out after ${timeoutMs}ms`), 'timeout');
-        req.destroy();
-      }, timeoutMs);
-      req.on('error', (err) => finish(false, err, networkFailureReason(err)));
-      req.end(body);
-    } catch (err) {
-      finish(false, err, 'other');
-    }
+  // One deadline for the whole attempt (DNS, connect, response headers); see http.mjs.
+  const res = await httpRequest(parsed, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' },
+    body,
+    timeoutMs,
   });
+
+  if (res.timedOut) {
+    logHookError(context, new Error(`ntfy request timed out after ${timeoutMs}ms`), { url: parsed.origin });
+    noteFailure('ntfy', 'timeout');
+    return false;
+  }
+  if (res.error) {
+    logHookError(context, res.error, { url: parsed.origin });
+    noteFailure('ntfy', res.setupError ? 'other' : networkFailureReason(res.error));
+    return false;
+  }
+  if (res.status >= 200 && res.status < 300) return true;
+  logHookError(context, new Error(`ntfy server responded ${res.status}`), { url: parsed.origin });
+  noteFailure('ntfy', httpFailureReason(res.status));
+  return false;
 }

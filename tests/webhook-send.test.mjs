@@ -5,7 +5,9 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import net from 'node:net';
 import { sendWebhook } from '../src/webhook.mjs';
+import { runScoped } from '../src/channel-failure.mjs';
 import { useFakeHome } from './fake-home.mjs';
 useFakeHome();
 
@@ -152,5 +154,39 @@ describe('sendWebhook (real local HTTP server, no mocking)', () => {
     const ok = await sendWebhook({ url: base, format: 'generic', authorization: 'Bearer bad\r\nvalue' }, NOTIF);
     assert.equal(ok, false);
     assert.equal(last, null, 'no HTTP request should have been made');
+  });
+});
+
+// B4: the deadline is an overall one, not a socket idle timeout. A server that
+// sends a byte every 40 ms never trips an idle timer, so with the old socket
+// `timeout` option this request ran until the server gave up (1.2 s here) and
+// then reported a success.
+describe('sendWebhook overall deadline (slow-drip server)', () => {
+  it('cuts a server that drips response headers faster than the idle timeout', async () => {
+    const sockets = new Set();
+    const drip = net.createServer((sock) => {
+      sockets.add(sock);
+      sock.on('error', () => {});
+      sock.write('HTTP/1.1 200 OK\r\n');
+      const dripper = setInterval(() => sock.write('X-Drip: 1\r\n'), 40);
+      // It finally ends the headers with a valid 200, which is what the old code reported.
+      const finish = setTimeout(() => { clearInterval(dripper); sock.end('\r\n'); }, 1200);
+      sock.on('close', () => { sockets.delete(sock); clearInterval(dripper); clearTimeout(finish); });
+    });
+    await new Promise((r) => drip.listen(0, '127.0.0.1', r));
+    try {
+      const started = Date.now();
+      const run = runScoped(() => sendWebhook({ url: `http://127.0.0.1:${drip.address().port}` }, NOTIF, { timeoutMs: 200 }));
+      assert.equal(await run.promise, false);
+      const elapsed = Date.now() - started;
+      assert.equal(run.reason(), 'timeout');
+      assert.ok(elapsed >= 190 && elapsed < 900, `took ${elapsed} ms, expected the 200 ms deadline`);
+      // The deadline destroys the socket rather than leaving it dripping.
+      await new Promise((r) => setTimeout(r, 100));
+      assert.equal(sockets.size, 0, 'the server side of the connection was closed');
+    } finally {
+      for (const s of sockets) s.destroy();
+      await new Promise((r) => drip.close(r));
+    }
   });
 });

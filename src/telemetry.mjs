@@ -26,9 +26,8 @@
 //   Counters are best-effort: two hooks racing on the file can lose an
 //   increment, which is fine for stats (see "State file" for the write rules).
 //
-// Transport is node:https with agent:false and never throws (see sentry.mjs).
-import http from 'node:http';
-import https from 'node:https';
+// Transport is http.mjs (node:https with agent:false) and never throws.
+import { httpRequest } from './http.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -250,51 +249,34 @@ const FAILED = { ok: false, status: 0 };
 // POST one or more events in ONE request. Resolves { ok, status }; status 0 = no
 // response. Never throws. `timeoutMs` is an absolute deadline for the whole
 // request (connect, send and response), not an idle timeout that resets per byte.
-export function sendEvents(events, { env = process.env, statePath = STATE_PATH, timeoutMs = SEND_TIMEOUT_MS } = {}) {
-  return new Promise((resolve) => {
-    let settled = false;
-    let timer;
-    const done = (result) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(result);
-    };
-    try {
-      if (!events.length) { done(FAILED); return; }
-      const base = new URL(captureUrl(env));
-      const distinctId = getInstallId(statePath);
-      if (!distinctId) { done(FAILED); return; } // state file mid-write: skip this send
-      const timestamp = new Date().toISOString();
-      const shape = ({ event, properties }) => ({
-        event,
-        distinct_id: distinctId,
-        properties: { ...baseProperties(), ...properties },
-        timestamp,
-      });
-      const single = events.length === 1;
-      const url = single ? base : new URL('/batch/', base);
-      const body = JSON.stringify(single
-        ? { api_key: TELEMETRY_KEY, ...shape(events[0]) }
-        : { api_key: TELEMETRY_KEY, batch: events.map(shape) });
-      const transport = url.protocol === 'https:' ? https : http;
-      const req = transport.request(url, {
-        method: 'POST',
-        agent: false, // no keep-alive socket may outlive the hook's process.exit()
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-      }, (res) => {
-        res.resume();
-        const status = res.statusCode || 0;
-        res.on('end', () => done({ ok: status >= 200 && status < 300, status }));
-        res.on('error', () => done(FAILED));
-      });
-      req.on('error', () => done(FAILED));
-      // A ref'd timer on purpose: it is cleared the moment the request settles,
-      // and node <= 22 drains the event loop if only unref'd timers remain.
-      timer = setTimeout(() => { req.destroy(); done(FAILED); }, timeoutMs);
-      req.end(body);
-    } catch { done(FAILED); }
-  });
+export async function sendEvents(events, { env = process.env, statePath = STATE_PATH, timeoutMs = SEND_TIMEOUT_MS } = {}) {
+  try {
+    if (!events.length) return FAILED;
+    const base = new URL(captureUrl(env));
+    const distinctId = getInstallId(statePath);
+    if (!distinctId) return FAILED; // state file mid-write: skip this send
+    const timestamp = new Date().toISOString();
+    const shape = ({ event, properties }) => ({
+      event,
+      distinct_id: distinctId,
+      properties: { ...baseProperties(), ...properties },
+      timestamp,
+    });
+    const single = events.length === 1;
+    const url = single ? base : new URL('/batch/', base);
+    const body = JSON.stringify(single
+      ? { api_key: TELEMETRY_KEY, ...shape(events[0]) }
+      : { api_key: TELEMETRY_KEY, batch: events.map(shape) });
+    const res = await httpRequest(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      body,
+      timeoutMs,
+      waitForBody: true,
+    });
+    // status 0: no complete response (network error, timeout, reset mid-body).
+    return res.status ? { ok: res.status >= 200 && res.status < 300, status: res.status } : FAILED;
+  } catch { return FAILED; }
 }
 
 export function sendEvent(event, properties, options) {

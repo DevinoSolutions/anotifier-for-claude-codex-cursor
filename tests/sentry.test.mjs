@@ -4,6 +4,7 @@
 // AAN_TOAST_LIVE in platforms.test.mjs) — there is no mocked transport here.
 import { describe, it } from 'node:test';
 import http from 'node:http';
+import net from 'node:net';
 import assert from 'node:assert/strict';
 import { parseSentryDsn, buildErrorEvent, sendSentryErrorEvent, sendSentryEnvelope } from '../src/sentry.mjs';
 
@@ -80,6 +81,77 @@ describe('sendSentryErrorEvent', () => {
       for (const s of sockets) s.destroy();
       await new Promise((res) => server.close(res));
     }
+  });
+
+  // B4: timeoutMs is an overall deadline, not a socket idle timeout. Each server
+  // below sends a byte every 40 ms, so an idle timer never fires: with the old
+  // socket `timeout` option these resolved { ok: true, status: 200 } after the
+  // server finished (1.2 s), long past the 200 ms the caller allowed.
+  for (const [name, serve] of [
+    ['response headers', (sock) => {
+      sock.write('HTTP/1.1 200 OK\r\n');
+      return { drip: () => sock.write('X-Drip: 1\r\n'), end: () => sock.end('\r\n') };
+    }],
+    ['the response body', (sock) => {
+      sock.write('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n');
+      return { drip: () => sock.write('1\r\nx\r\n'), end: () => sock.end('0\r\n\r\n') };
+    }],
+  ]) {
+    it(`cuts a server that drips ${name} faster than the idle timeout`, async () => {
+      const sockets = new Set();
+      const drip = net.createServer((sock) => {
+        sockets.add(sock);
+        sock.on('error', () => {});
+        const { drip: step, end } = serve(sock);
+        const dripper = setInterval(step, 40);
+        const finish = setTimeout(() => { clearInterval(dripper); end(); }, 1200);
+        sock.on('close', () => { sockets.delete(sock); clearInterval(dripper); clearTimeout(finish); });
+      });
+      await new Promise((res) => drip.listen(0, '127.0.0.1', res));
+      try {
+        const started = Date.now();
+        const r = await sendSentryEnvelope(
+          { enabled: true, dsn: `http://k@127.0.0.1:${drip.address().port}/7` },
+          { context: 'x', error: new Error('y') },
+          { timeoutMs: 200 },
+        );
+        const elapsed = Date.now() - started;
+        assert.deepEqual(r, { ok: false, status: 0, timedOut: true });
+        assert.ok(elapsed >= 190 && elapsed < 900, `took ${elapsed} ms, expected the 200 ms deadline`);
+        await new Promise((res) => setTimeout(res, 100));
+        assert.equal(sockets.size, 0, 'the server side of the connection was closed');
+      } finally {
+        for (const s of sockets) s.destroy();
+        await new Promise((res) => drip.close(res));
+      }
+    });
+  }
+
+  it('resolves status 0 (not a hang) when the connection is reset mid-body', async () => {
+    const sockets = new Set();
+    const server = net.createServer((sock) => {
+      sockets.add(sock);
+      sock.on('error', () => {});
+      sock.write('HTTP/1.1 200 OK\r\nContent-Length: 30\r\n\r\nabc');
+      setTimeout(() => sock.destroy(), 30);
+    });
+    await new Promise((res) => server.listen(0, '127.0.0.1', res));
+    try {
+      const r = await sendSentryEnvelope(
+        { enabled: true, dsn: `http://k@127.0.0.1:${server.address().port}/7` },
+        { context: 'x', error: new Error('y') },
+        { timeoutMs: 5000 },
+      );
+      assert.deepEqual(r, { ok: false, status: 0 });
+    } finally {
+      for (const s of sockets) s.destroy();
+      await new Promise((res) => server.close(res));
+    }
+  });
+
+  it('resolves status 0 (not a rejection) for a DSN whose protocol is not http(s)', async () => {
+    const r = await sendSentryEnvelope({ enabled: true, dsn: 'ftp://k@127.0.0.1/7' }, { context: 'x', error: new Error('y') });
+    assert.deepEqual(r, { ok: false, status: 0 });
   });
 
   // Live delivery proof. Four honest outcomes, never a fake pass:
