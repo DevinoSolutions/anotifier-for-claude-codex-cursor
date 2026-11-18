@@ -1,7 +1,13 @@
 // tests/parse-input.test.mjs
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { parseInput, hasTurnStart } from '../src/parse-input.mjs';
+import { dedupKey } from '../src/notify.mjs';
 
 describe('parseInput', () => {
   it('normalizes Claude Code Stop event', () => {
@@ -251,6 +257,76 @@ describe('hasTurnStart', () => {
     for (const source of SOURCES) {
       const maps = raw.some((hook_event_name) => parseInput({ hook_event_name }, source).event === 'turn_start');
       assert.equal(hasTurnStart(source), maps, source);
+    }
+  });
+});
+
+describe('parseInput session id', () => {
+  const id = (raw, source = 'claude') => parseInput({ hook_event_name: 'Stop', ...raw }, source).sessionId;
+
+  it('keeps a string id as is, and falls through an empty one', () => {
+    assert.equal(id({ session_id: 'abc-123' }), 'abc-123');
+    assert.equal(id({ session_id: '', sessionId: 'camel' }), 'camel');
+    assert.equal(id({ conversationId: 'conv' }), 'conv');
+    assert.equal(id({}), '');
+  });
+
+  it('a numeric id is kept as its string: it still names one session', () => {
+    assert.equal(id({ session_id: 12345 }), '12345');
+    assert.equal(id({ session_id: 1.5 }), '1.5');
+    assert.equal(id({ session_id: -7 }), '-7');
+  });
+
+  it('an id that is not a string or a finite number is ignored, not carried', () => {
+    for (const bad of [{}, [], ['a'], true, false, null, NaN, Infinity, 0]) {
+      assert.equal(id({ session_id: bad }), '', JSON.stringify(bad) ?? String(bad));
+    }
+  });
+
+  it('an unusable id falls through to the next field', () => {
+    assert.equal(id({ session_id: { nested: 1 }, sessionId: 'next' }), 'next');
+    assert.equal(id({ session_id: true, conversationId: 'conv' }), 'conv');
+  });
+
+  it('Cursor keeps its conversation_id, and only for Cursor', () => {
+    assert.equal(id({ conversation_id: 'chat-1' }, 'cursor'), 'chat-1');
+    assert.equal(id({ conversation_id: 'chat-1' }, 'claude'), '');
+    assert.equal(id({ conversation_id: {} }, 'cursor'), '');
+    assert.equal(id({ conversation_id: 42 }, 'cursor'), '', 'a number is not accepted for this one');
+  });
+
+  it('never makes the dedup key throw, whatever the payload sends', () => {
+    for (const session_id of [12345, 1e21, {}, [], true, null, NaN, 'x'.repeat(500)]) {
+      const event = parseInput({ session_id, hook_event_name: 'Stop', cwd: '/p' }, 'claude');
+      assert.equal(typeof event.sessionId, 'string');
+      assert.doesNotThrow(() => dedupKey(event), String(session_id));
+    }
+    assert.equal(dedupKey(parseInput({ session_id: 12345678999, hook_event_name: 'Stop' }, 'claude')), 'claude-task_complete-12345678');
+  });
+});
+
+describe('numeric session_id through the real hook', () => {
+  it('runs clean: exit 0, {} out, nothing in errors.log', () => {
+    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-numeric-sid-'));
+    try {
+      fs.mkdirSync(path.join(home, '.anotifier'), { recursive: true });
+      fs.writeFileSync(path.join(home, '.anotifier', 'config.json'), JSON.stringify({
+        toast: { enabled: false }, ntfy: { enabled: false }, terminalBell: { enabled: false },
+        updateCheck: { enabled: false },
+      }));
+      const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {
+        cwd: repoRoot,
+        input: JSON.stringify({ hook_event_name: 'Stop', cwd: '/work/app', session_id: 12345678 }),
+        env: { ...process.env, HOME: home, USERPROFILE: home },
+        encoding: 'utf8', timeout: 30000,
+      });
+      assert.equal(res.status, 0, res.stderr);
+      assert.deepEqual(JSON.parse(res.stdout), {});
+      const logPath = path.join(home, '.anotifier', 'errors.log');
+      assert.equal(fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : '', '');
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
     }
   });
 });

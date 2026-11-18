@@ -91,6 +91,22 @@ function readRunStatus(raw, source, hookEvent) {
   return value === 'aborted' || value === 'error' ? value : '';
 }
 
+// The session id as a string, or ''. Downstream it keys the dedup lock
+// (notify.mjs slices it) and the turn timer, so it must be a string: a payload
+// that sends a non-string id must not make the hook throw. A finite number is
+// kept as its decimal string, because it still names ONE session: dropping it
+// would put every session into one dedup bucket (two chats finishing together
+// would swallow each other's alert) and lose the turn duration. Anything else
+// (object, array, boolean, NaN) has no usable id and is skipped, so the next
+// candidate field gets its turn, as an empty or missing one always did.
+function readSessionId(candidates) {
+  for (const value of candidates) {
+    if (typeof value === 'string' && value) return value;
+    if (typeof value === 'number' && Number.isFinite(value) && value !== 0) return String(value);
+  }
+  return '';
+}
+
 export function parseInput(raw, source, eventOverride) {
   // --event CLI arg takes priority (used by Codex/Cursor which don't send hook_event_name on stdin).
   // Claude and Gemini include hook_event_name in stdin JSON.
@@ -111,8 +127,11 @@ export function parseInput(raw, source, eventOverride) {
     projectName: cwd ? (cwd.split(/[\\/]/).filter(Boolean).pop() || '') : '',
     // Cursor names it conversation_id (stable across a chat's turns), which makes
     // the dedup lock per conversation instead of global.
-    sessionId: raw.session_id || raw.sessionId || raw.conversationId
-      || (source === 'cursor' && typeof raw.conversation_id === 'string' ? raw.conversation_id : ''),
+    sessionId: readSessionId([
+      raw.session_id, raw.sessionId, raw.conversationId,
+      // Cursor's own field stays string-only (see tests/cursor-hook-input.test.mjs).
+      source === 'cursor' && typeof raw.conversation_id === 'string' ? raw.conversation_id : undefined,
+    ]),
     // Codex names the turn on both its prompt and its Stop hook; the turn timer
     // refuses to pair a start and a finish that disagree.
     turnId: typeof raw.turn_id === 'string' ? raw.turn_id : '',
