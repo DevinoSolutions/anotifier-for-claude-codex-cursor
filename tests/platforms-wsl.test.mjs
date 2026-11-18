@@ -125,6 +125,35 @@ describe('findWslPowerShell (what doctor and setup report)', () => {
     const exe = findWslPowerShell({ existsSync: () => { throw new Error('EACCES'); }, onPath: () => false });
     assert.equal(exe, null);
   });
+
+  // The `which` binary is missing on some distros, so the default PATH probe
+  // must go through `command -v` in /bin/sh (like setup and doctor do).
+  describe('default PATH probe', () => {
+    const notFound = () => Object.assign(new Error('exit 1'), { status: 1 });
+
+    it('asks /bin/sh `command -v`, never the which binary', () => {
+      const calls = [];
+      const run = (cmd, args) => {
+        calls.push([cmd, args]);
+        if (args.at(-1) !== 'pwsh.exe') throw notFound();
+      };
+      const exe = findWslPowerShell({ existsSync: () => false, run });
+      assert.equal(exe, 'pwsh.exe');
+      assert.ok(calls.length >= 2, 'probes each bare candidate until one is found');
+      for (const [cmd, args] of calls) {
+        assert.equal(cmd, '/bin/sh');
+        assert.match(args[1], /^command -v/);
+      }
+      assert.ok(!calls.some(([cmd]) => cmd === 'which'));
+    });
+
+    it('a failing or unstartable probe reads as not found, not a throw', () => {
+      const timedOut = () => { throw Object.assign(new Error('t'), { code: 'ETIMEDOUT', killed: true }); };
+      assert.equal(findWslPowerShell({ existsSync: () => false, run: timedOut }), null);
+      const noShell = () => { throw Object.assign(new Error('x'), { code: 'ENOENT' }); };
+      assert.equal(findWslPowerShell({ existsSync: () => false, run: noShell }), null);
+    });
+  });
 });
 
 // Live delivery under WSL, mirroring platforms.test.mjs's AAN_TOAST_LIVE gate so

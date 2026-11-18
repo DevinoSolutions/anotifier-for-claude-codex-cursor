@@ -4,7 +4,7 @@
 // PowerShell across the /mnt/c boundary. Detection and delivery are both
 // best-effort: every probe is guarded and any failure resolves to "unavailable"
 // rather than throwing into the hook path.
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import { logHookError } from '../error-log.mjs';
 import { execFailureReason, noteFailure } from '../channel-failure.mjs';
 import { PLAY_SCRIPT, prepareSoundFile, windowsPlayerArgs } from './sound.mjs';
+import { probeBinary } from '../probe-binary.mjs';
 
 // --- Detection -------------------------------------------------------------
 
@@ -220,7 +221,8 @@ async function deliverToast(run, log, title, message, silent) {
 // For `anotifier doctor` and setup: the first PowerShell the toast path would
 // try that exists, without firing anything. Absolute /mnt/c paths are checked on
 // disk; bare names are looked up on PATH (interop appends the Windows PATH).
-export function findWslPowerShell({ existsSync = fs.existsSync, onPath = whichSync } = {}) {
+// `run` is the exec used by the PATH probe, injectable for tests.
+export function findWslPowerShell({ existsSync = fs.existsSync, run, onPath = (bin) => onPathSync(bin, run) } = {}) {
   for (const exe of EXE_CANDIDATES) {
     const found = exe.startsWith('/') ? existsGuarded(existsSync, exe) : onPath(exe);
     if (found) return exe;
@@ -228,7 +230,8 @@ export function findWslPowerShell({ existsSync = fs.existsSync, onPath = whichSy
   return null;
 }
 
-function whichSync(bin) {
-  try { execFileSync('which', [bin], { stdio: 'ignore', timeout: 5000 }); return true; }
-  catch { return false; }
+// `command -v` through /bin/sh, not the `which` binary, which is missing on some
+// distros. Anything but a clean hit (including a timeout) counts as not found.
+function onPathSync(bin, run) {
+  return probeBinary(bin, { platform: 'linux', run, timeout: 5000 }) === 'found';
 }
