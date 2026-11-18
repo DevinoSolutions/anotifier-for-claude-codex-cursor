@@ -25,3 +25,21 @@ export function useFakeHome() {
     process.once('exit', restore);
   });
 }
+
+// Test helper: make a spawned hook or CLI hermetic with respect to the update
+// check. Both read `<home>/.anotifier/.update-check.json` and, when it is missing
+// or older than 24 h, ask registry.npmjs.org for the latest version. A test that
+// spawns notify.mjs or cli/index.mjs must never reach the network: it would be
+// slow offline, and it fails on any checkout whose version is behind npm's latest
+// (the hook announces the update on a channel the test did not expect). A fresh
+// "nothing newer" cache is the product's own offline state: no request is made and
+// nothing is announced. This works for the hook and the CLI alike, whatever the
+// test's config.json says. An existing cache file is left alone, so a test that
+// seeds its own (update-banner, update-notify) keeps full control.
+export function seedFreshUpdateCache(home, now = Date.now()) {
+  const dir = path.join(home, '.anotifier');
+  const file = path.join(dir, '.update-check.json');
+  if (fs.existsSync(file)) return;
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ checkedAt: now, latest: null }));
+}

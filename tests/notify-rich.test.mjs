@@ -14,6 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { seedFreshUpdateCache } from './fake-home.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCRUB = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'CURSOR_API_KEY', 'NTFY_TOKEN'];
@@ -44,6 +45,7 @@ function mkHome(ntfyConfig) {
     terminalBell: { enabled: false },
     ntfy: ntfyConfig,
   }));
+  seedFreshUpdateCache(home);
   return home;
 }
 

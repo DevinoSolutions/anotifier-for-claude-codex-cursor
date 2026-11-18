@@ -11,6 +11,7 @@ import { spawn } from 'node:child_process';
 import {
   startFakeNtfy, actionByLabel, tap, selfSignedPems, repoRoot,
 } from './approval-helpers.mjs';
+import { seedFreshUpdateCache } from './fake-home.mjs';
 
 const TOKEN = 'tk_setuptestabcdefghijklmnopqrs';
 let fake;
@@ -25,6 +26,7 @@ beforeEach(() => fake.reset());
 function freshHome() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-appr-setup-'));
   fs.mkdirSync(path.join(home, '.claude'));
+  seedFreshUpdateCache(home);
   homes.push(home);
   return home;
 }

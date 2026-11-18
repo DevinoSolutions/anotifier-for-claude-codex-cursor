@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { seedFreshUpdateCache } from './fake-home.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCRUB = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'CURSOR_API_KEY', 'NTFY_TOKEN'];
@@ -24,6 +25,7 @@ function runNotify(input, source = 'claude', extraArgs = [], config = ALL_DISABL
   const cfgDir = path.join(home, '.anotifier');
   fs.mkdirSync(cfgDir, { recursive: true });
   fs.writeFileSync(path.join(cfgDir, 'config.json'), JSON.stringify(config));
+  seedFreshUpdateCache(home);
   const env = { ...process.env, HOME: home, USERPROFILE: home };
   for (const k of SCRUB) delete env[k];
   const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', source, ...extraArgs], {
@@ -54,6 +56,7 @@ describe('notify.mjs subprocess robustness (a hook must never crash)', () => {
 
   it('logs the unmapped event name to errors.log so misconfigured wiring is visible', () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-unmapped-'));
+    seedFreshUpdateCache(home);
     const env = { ...process.env, HOME: home, USERPROFILE: home };
     for (const k of SCRUB) delete env[k];
     const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {
@@ -89,6 +92,7 @@ describe('notify.mjs subprocess robustness (a hook must never crash)', () => {
     // Deliberately invalid JSON: the loader must fall back to defaults, keep the
     // hook alive (exit 0 + valid JSON), and record the parse failure to errors.log.
     fs.writeFileSync(path.join(cfgDir, 'config.json'), '{ not: valid json ,,, ');
+    seedFreshUpdateCache(home);
     const env = { ...process.env, HOME: home, USERPROFILE: home };
     for (const k of SCRUB) delete env[k];
     const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {
@@ -146,6 +150,7 @@ describe('notify.mjs claude terminalSequence bell (F1)', () => {
       path.join(cfgDir, 'config.json'),
       JSON.stringify({ toast: { enabled: false }, ntfy: { enabled: false }, terminalBell: { enabled: true } }),
     );
+    seedFreshUpdateCache(home);
     const env = { ...process.env, HOME: home, USERPROFILE: home };
     for (const k of SCRUB) delete env[k];
     const input = JSON.stringify({ hook_event_name: 'Stop', cwd: '/work/app', session_id: 'dup' });
@@ -183,6 +188,7 @@ describe('notify.mjs claude notification_type', () => {
       const cfgDir = path.join(home, '.anotifier');
       fs.mkdirSync(cfgDir, { recursive: true });
       fs.writeFileSync(path.join(cfgDir, 'config.json'), JSON.stringify(BELL_ONLY));
+      seedFreshUpdateCache(home);
       const env = { ...process.env, HOME: home, USERPROFILE: home };
       for (const k of SCRUB) delete env[k];
       const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {

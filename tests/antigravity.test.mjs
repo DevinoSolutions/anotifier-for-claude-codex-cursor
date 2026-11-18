@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { seedFreshUpdateCache } from './fake-home.mjs';
 import { parseInput } from '../src/parse-input.mjs';
 import { route } from '../src/router.mjs';
 import { loadConfig } from '../src/config-loader.mjs';
@@ -97,6 +98,7 @@ describe('antigravity hook response', () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-agy-sub-'));
     fs.mkdirSync(path.join(home, '.anotifier'), { recursive: true });
     fs.writeFileSync(path.join(home, '.anotifier', 'config.json'), JSON.stringify(config));
+    seedFreshUpdateCache(home);
     const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'antigravity', '--event', 'Stop'], {
       cwd: repoRoot, input, env: { ...process.env, HOME: home, USERPROFILE: home }, encoding: 'utf8', timeout: 30000,
     });
