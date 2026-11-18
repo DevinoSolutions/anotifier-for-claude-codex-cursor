@@ -76,24 +76,65 @@ function resolveNotifyPath() {
 
 const ICON_URL = 'https://claude.ai/images/claude_app_icon.png';
 const ICON_DEADLINE_MS = 10000;
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+// Antivirus scanning the fresh file, or a toast still holding the old icon, can
+// make a Windows rename fail for a moment.
+const RENAME_RETRIES = 3;
+const RENAME_RETRY_MS = 75;
+const RENAME_RETRYABLE = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const STALE_TEMP_MS = 60000;
 
-// An icon file counts only when it has bytes: an empty one (left by an older
-// failed download) is not an icon, and Linux toasts would pass it as --icon.
-// A 0-byte leftover is removed so a failed retry leaves no icon at all.
+// True when the file starts with the PNG signature. A captive portal or a
+// challenge page answers 200 with HTML, and that is not an icon.
+function hasPngSignature(file) {
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const head = Buffer.alloc(PNG_SIGNATURE.length);
+    const n = fs.readSync(fd, head, 0, head.length, 0);
+    return n === head.length && head.equals(PNG_SIGNATURE);
+  } catch { return false; } finally {
+    if (fd !== undefined) { try { fs.closeSync(fd); } catch { /* best effort */ } }
+  }
+}
+
+// An icon file counts only when it is a PNG: an empty or non-PNG one (left by
+// an older failed or bad download) is not an icon, and Linux toasts would pass
+// it as --icon. Such a leftover is removed so the download is retried and a
+// failed retry leaves no icon at all.
 export function hasUsableIcon(iconPath) {
-  let size;
-  try { size = fs.statSync(iconPath).size; } catch { return false; }
-  if (size > 0) return true;
+  try { fs.statSync(iconPath); } catch { return false; }
+  if (hasPngSignature(iconPath)) return true;
   try { fs.rmSync(iconPath, { force: true }); } catch { /* best effort */ }
   return false;
 }
 
+// Temp files from a download that was killed (Ctrl+C is handled, a hard kill is
+// not) are named <icon>.<pid>.tmp; drop the ones nobody can still be writing.
+export function sweepStaleIconTemps(iconPath, { maxAgeMs = STALE_TEMP_MS, now = Date.now() } = {}) {
+  const dir = path.dirname(iconPath);
+  const prefix = `${path.basename(iconPath)}.`;
+  let names;
+  try { names = fs.readdirSync(dir); } catch { return; }
+  for (const name of names) {
+    if (!name.startsWith(prefix) || !name.endsWith('.tmp')) continue;
+    const file = path.join(dir, name);
+    try {
+      if (now - fs.statSync(file).mtimeMs > maxAgeMs) fs.rmSync(file, { force: true });
+    } catch { /* best effort */ }
+  }
+}
+
 // Downloads to a temp file beside the target and renames it into place only
-// after a complete 200 response, so a failure never leaves a partial or empty
-// icon. One overall deadline covers connecting, waiting and the body, so a
-// server that goes silent (or drips bytes) cannot hang setup. Resolves true or
-// false; never rejects. `url` and `timeoutMs` are injectable for tests.
-export function downloadIcon(destPath, { url = ICON_URL, timeoutMs = ICON_DEADLINE_MS } = {}) {
+// after a complete 200 response whose body is a PNG, so a failure never leaves
+// a partial, empty or non-image icon. One overall deadline covers connecting,
+// waiting and the body, so a server that goes silent (or drips bytes) cannot
+// hang setup. The temp file is also removed if the process exits mid-download
+// (setup's Ctrl+C handler calls process.exit). Resolves true or false; never
+// rejects. `url`, `timeoutMs`, `rename` and `retryDelayMs` are injectable for tests.
+export function downloadIcon(destPath, {
+  url = ICON_URL, timeoutMs = ICON_DEADLINE_MS, rename = fs.renameSync, retryDelayMs = RENAME_RETRY_MS,
+} = {}) {
   return new Promise((resolve) => {
     const tmpPath = `${destPath}.${process.pid}.tmp`;
     let settled = false;
@@ -103,13 +144,15 @@ export function downloadIcon(destPath, { url = ICON_URL, timeoutMs = ICON_DEADLI
     let file = null;
     let timer = null;
 
+    const removeTmp = () => { try { fs.rmSync(tmpPath, { force: true }); } catch { /* best effort */ } };
+    const onExit = () => { try { fs.unlinkSync(tmpPath); } catch { /* best effort */ } };
     const settle = (ok) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      process.removeListener('exit', onExit);
       resolve(ok);
     };
-    const removeTmp = () => { try { fs.rmSync(tmpPath, { force: true }); } catch { /* best effort */ } };
     // Stop everything and drop the temp file. The file is removed only once its
     // handle is closed, which Windows requires.
     const fail = () => {
@@ -126,17 +169,32 @@ export function downloadIcon(destPath, { url = ICON_URL, timeoutMs = ICON_DEADLI
         settle(false);
       }
     };
-    // The file is closed and flushed: accept it only if the whole body arrived
-    // and it is not empty, then move it into place.
-    const commit = () => {
+    const moveIntoPlace = (retriesLeft) => {
       if (settled || failing) return;
       try {
-        if (!res?.complete || fs.statSync(tmpPath).size === 0) throw new Error('incomplete icon');
-        fs.renameSync(tmpPath, destPath);
-      } catch { fail(); return; }
+        rename(tmpPath, destPath);
+      } catch (err) {
+        if (retriesLeft > 0 && RENAME_RETRYABLE.has(err?.code)) {
+          setTimeout(() => moveIntoPlace(retriesLeft - 1), retryDelayMs);
+        } else {
+          fail();
+        }
+        return;
+      }
       settle(true);
     };
+    // The file is closed and flushed: accept it only if the whole body arrived,
+    // it is not empty and it is a PNG, then move it into place.
+    const commit = () => {
+      if (settled || failing) return;
+      let ok = false;
+      try { ok = Boolean(res?.complete) && hasPngSignature(tmpPath); } catch { ok = false; }
+      if (!ok) { fail(); return; }
+      moveIntoPlace(RENAME_RETRIES);
+    };
 
+    sweepStaleIconTemps(destPath);
+    process.once('exit', onExit);
     timer = setTimeout(fail, timeoutMs);
     try {
       const client = new URL(url).protocol === 'http:' ? http : https;
