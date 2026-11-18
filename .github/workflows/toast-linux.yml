@@ -6,9 +6,9 @@ name: Toast Linux
 on:
   push:
     branches: [main]
-    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore', 'landing/**']
   pull_request:
-    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore', 'landing/**']
 
 concurrency:
   group: '${{ github.workflow }}-${{ github.ref }}'

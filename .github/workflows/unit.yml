@@ -1,5 +1,9 @@
 name: Unit
 
+# Deliberately NO landing/** path filter, unlike the other CLI lanes: `npm test` reads the
+# site. tests/community.test.mjs walks the whole repo (landing/ included) for a non-canonical
+# Discord invite and pins landing/lib/site.ts; tests/brand-icons.test.mjs pins landing/ icons,
+# channels.ts and the footers. A landing-only PR can break either one.
 on:
   push:
     branches: [main]
