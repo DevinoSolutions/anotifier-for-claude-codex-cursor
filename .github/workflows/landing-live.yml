@@ -4,6 +4,17 @@
 # served by the production nginx.conf. This one proves what visitors and
 # crawlers actually get after Dokploy deploys (Cloudflare included): daily, and
 # on demand after a deploy. It reads nothing from the repo but the tests.
+#
+# A RED RUN OPENS AN ISSUE. A failed scheduled run only emails whoever last
+# edited the cron line, and this one once sat red for four days unseen. So the
+# `report` job keeps exactly ONE open issue titled "Landing (live site) is
+# failing": it opens it when a run fails (naming the failing tests and linking
+# the run), adds a comment to it on every later failing run, and closes it with
+# a comment when a run passes again. Only that job holds `issues: write`; the
+# job that runs the tests (and downloads the published package with npx) holds
+# `contents: read` alone. No secret and no service beyond GITHUB_TOKEN and the
+# `gh` CLI that ships on the runner. Tests marked `todo` (the GitHub Sponsors
+# link) never fail a run, so they never open the issue.
 name: Landing (live site)
 
 on:
@@ -27,6 +38,8 @@ jobs:
     name: Live site tests (anotifier.io)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      failed: ${{ steps.failed.outputs.failed }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -34,5 +47,108 @@ jobs:
           node-version: 22
 
       # The tests use only node built-ins, fetch and Chrome: no npm install.
+      # This is `npm run test:site` (node --test tests/*.test.mjs) plus a TAP
+      # report on the side, which the next step reads for the failing names.
       - name: Site tests against https://anotifier.io
-        run: npm run test:site
+        run: |
+          node --test \
+            --test-reporter=spec --test-reporter-destination=stdout \
+            --test-reporter=tap --test-reporter-destination="${RUNNER_TEMP}/live.tap" \
+            tests/*.test.mjs
+
+      # Names of the failing tests, for the issue. `# TODO` and `# SKIP` lines
+      # are not failures. An empty list means the run died outside the tests.
+      - name: Collect the failing test names
+        id: failed
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          failed=''
+          if [ -f "${RUNNER_TEMP}/live.tap" ]; then
+            failed="$(grep -E '^[[:space:]]*not ok [0-9]+ - ' "${RUNNER_TEMP}/live.tap" \
+              | grep -vE '# (TODO|SKIP)' \
+              | sed -E 's/^[[:space:]]*not ok [0-9]+ - //' \
+              | sort -u | head -n 40 || true)"
+          fi
+          {
+            echo 'failed<<EOF_FAILED_TESTS'
+            printf '%s\n' "${failed}"
+            echo 'EOF_FAILED_TESTS'
+          } >> "${GITHUB_OUTPUT}"
+
+  report:
+    name: Open or close the failing-run issue
+    needs: live
+    # A cancelled run (a newer one superseded it) says nothing either way.
+    if: ${{ always() && needs.live.result != 'cancelled' && needs.live.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    # No checkout here, so the workflow-level `landing` folder does not exist.
+    defaults:
+      run:
+        working-directory: .
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      RESULT: ${{ needs.live.result }}
+      FAILED_TESTS: ${{ needs.live.outputs.failed }}
+      TRIGGER: ${{ github.event_name }}
+    steps:
+      - name: Keep one issue in step with the result
+        run: |
+          set -euo pipefail
+          title='Landing (live site) is failing'
+          label='live-site-red'
+
+          # Open issues with exactly this title, oldest first. Listed, not
+          # searched: the search index lags, and a lag would mean a second issue.
+          open_numbers() {
+            gh issue list --state open --limit 500 --json number,title \
+              --jq "[.[] | select(.title == \"${title}\")] | sort_by(.number) | .[].number"
+          }
+          numbers="$(open_numbers)"
+          first="$(printf '%s\n' "${numbers}" | head -n 1)"
+
+          case "${RESULT}" in
+            success)
+              for n in ${numbers}; do
+                gh issue close "${n}" --reason completed \
+                  --comment "The live-site tests pass again ([run](${RUN_URL}), ${TRIGGER}). Closing; a failing run will reopen the alert as a new issue."
+                echo "closed #${n}"
+              done
+              [ -n "${numbers}" ] || echo "run passed and no open issue: nothing to do"
+              ;;
+            failure)
+              tests="${FAILED_TESTS:-}"
+              [ -n "${tests//[[:space:]]/}" ] || tests='(none recorded: the run failed before or outside the tests, see the log)'
+              body="$(mktemp)"
+              {
+                echo "The live-site tests failed ([run](${RUN_URL}), ${TRIGGER}, $(date -u +%Y-%m-%d))."
+                echo
+                echo 'Failing tests:'
+                echo
+                echo '```'
+                printf '%s\n' "${tests}"
+                echo '```'
+                echo
+                echo 'This issue closes itself when a later run passes. Reproduce with `npm run test:site` in `landing/` (it targets https://anotifier.io by default).'
+              } > "${body}"
+              if [ -n "${first}" ]; then
+                gh issue comment "${first}" --body-file "${body}"
+                echo "commented on #${first}"
+              else
+                # The label is a convenience: make it if missing, and create the
+                # issue without it if that is not possible. Never skip the issue.
+                gh label create "${label}" --color B60205 \
+                  --description 'The scheduled live-site test run is red' 2>/dev/null || true
+                gh issue create --title "${title}" --body-file "${body}" --label "${label}" \
+                  || gh issue create --title "${title}" --body-file "${body}"
+              fi
+              ;;
+            *)
+              echo "live job result is '${RESULT}': leaving the issue as it is"
+              ;;
+          esac
