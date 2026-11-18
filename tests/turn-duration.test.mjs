@@ -174,11 +174,11 @@ describe('turn timer', () => {
   });
 
   it('removeTurnState deletes the state, its lock and leftover temp files, and nothing else', () => {
-    for (const name of ['turns.json', 'turns.json.lock', 'turns.json.123.tmp', 'config.json', 'turns.json.bak', '.telemetry.json']) {
+    for (const name of ['turns.json', 'turns.json.lock', 'turns.json.logged', 'turns.json.123.tmp', 'config.json', 'turns.json.bak', '.telemetry.json']) {
       fs.writeFileSync(path.join(dir, name), '{}');
     }
     const { removed, failed } = removeTurnState(dir);
-    assert.deepEqual(removed.sort(), ['turns.json', 'turns.json.123.tmp', 'turns.json.lock']);
+    assert.deepEqual(removed.sort(), ['turns.json', 'turns.json.123.tmp', 'turns.json.lock', 'turns.json.logged']);
     assert.deepEqual(failed, []);
     assert.deepEqual(fs.readdirSync(dir).sort(), ['.telemetry.json', 'config.json', 'turns.json.bak']);
     assert.deepEqual(removeTurnState(dir), { removed: [], failed: [] }, 'idempotent');
@@ -612,5 +612,22 @@ describe('notify.mjs end to end (real subprocess, real local HTTP server)', () =
     });
     assert.equal(res.status, 0);
     assert.equal(res.stdout, '{}\n');
+  });
+});
+
+describe('turn timer: a state file that stays unreadable is logged once, not per hook', () => {
+  let dir;
+  let statePath;
+  beforeEach(() => { dir = tmpDir(); statePath = path.join(dir, 'turns.json'); });
+
+  it('ten hook calls against an unreadable turns.json add one turn-timer:state line', () => {
+    fs.mkdirSync(statePath); // a directory where the file belongs: EISDIR on every read
+    const count = () => readErrorLog().filter((l) => /turn-timer:state/.test(l)).length;
+    const before = count();
+    for (let i = 0; i < 5; i++) {
+      assert.equal(recordTurnStart({ source: 'claude', sessionId: 's' }, { statePath, now: 1000 + i }), false);
+      assert.equal(finishTurn({ source: 'claude', sessionId: 's' }, { statePath, now: 2000 + i }), null);
+    }
+    assert.equal(count(), before + 1);
   });
 });

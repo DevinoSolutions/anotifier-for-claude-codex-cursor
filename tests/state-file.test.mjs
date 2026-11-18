@@ -304,3 +304,128 @@ describe('readJsonObject', () => {
     assert.equal(errorsFor('test:read-object'), before + 1);
   });
 });
+
+describe('readJsonObject: a file that stays unreadable is logged at most once per interval', () => {
+  let dir, file;
+  const HOUR = 60 * 60 * 1000;
+  const T0 = 1_700_000_000_000;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'an-readlog-'));
+    file = path.join(dir, 's.json');
+  });
+  afterEach(() => { mock.restoreAll(); fs.rmSync(dir, { recursive: true, force: true }); });
+
+  // A label unique to this test's directory, so earlier tests' lines never count.
+  const label = () => `test:unreadable-${path.basename(dir)}`;
+  const logged = (l) => readRecentHookErrors(500).filter((e) => e.context === l).length;
+  // Fail reads of the given files with EACCES; everything else reads normally.
+  const failRead = (...targets) => {
+    const real = fs.readFileSync;
+    mock.method(fs, 'readFileSync', function (p, ...rest) {
+      if (targets.includes(p)) throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+      return real.call(fs, p, ...rest);
+    });
+  };
+
+  it('N consecutive unreadable rounds log one line, and every round still skips', () => {
+    fs.writeFileSync(file, '{"a":1}');
+    failRead(file);
+    const l = label();
+    for (let i = 0; i < 20; i++) assert.equal(readJsonObject(file, l, { now: T0 + i * 1000 }), null);
+    assert.equal(logged(l), 1);
+  });
+
+  it('logs again once the interval has passed, then stays quiet again', () => {
+    fs.writeFileSync(file, '{"a":1}');
+    failRead(file);
+    const l = label();
+    readJsonObject(file, l, { now: T0 });
+    readJsonObject(file, l, { now: T0 + HOUR - 1 });
+    assert.equal(logged(l), 1, 'just under an hour: still quiet');
+    readJsonObject(file, l, { now: T0 + HOUR });
+    assert.equal(logged(l), 2);
+    readJsonObject(file, l, { now: T0 + HOUR + 5000 });
+    assert.equal(logged(l), 2);
+  });
+
+  it('the interval is a parameter', () => {
+    fs.writeFileSync(file, '{"a":1}');
+    failRead(file);
+    const l = label();
+    readJsonObject(file, l, { now: T0, logIntervalMs: 1000 });
+    readJsonObject(file, l, { now: T0 + 999, logIntervalMs: 1000 });
+    readJsonObject(file, l, { now: T0 + 1000, logIntervalMs: 1000 });
+    assert.equal(logged(l), 2);
+  });
+
+  it('a readable round in between breaks nothing: it reads normally and the limiter carries on', () => {
+    fs.writeFileSync(file, '{"a":1}');
+    const l = label();
+    failRead(file);
+    assert.equal(readJsonObject(file, l, { now: T0 }), null);
+    mock.restoreAll();
+    assert.deepEqual(readJsonObject(file, l, { now: T0 + 1000 }), { a: 1 });
+    failRead(file);
+    assert.equal(readJsonObject(file, l, { now: T0 + 2000 }), null);
+    assert.equal(logged(l), 1, 'still inside the interval of the first line');
+    assert.equal(readJsonObject(file, l, { now: T0 + HOUR + 1 }), null);
+    assert.equal(logged(l), 2);
+  });
+
+  it('a healthy file never gets a marker, and neither does a call with no label', () => {
+    fs.writeFileSync(file, '{"a":1}');
+    readJsonObject(file, label());
+    assert.equal(fs.existsSync(`${file}.logged`), false);
+    failRead(file);
+    readJsonObject(file); // unreadable, no label: nothing to log
+    assert.equal(fs.existsSync(`${file}.logged`), false);
+  });
+
+  it('files are limited independently', () => {
+    const other = path.join(dir, 'other.json');
+    fs.writeFileSync(file, '{}');
+    fs.writeFileSync(other, '{}');
+    failRead(file, other);
+    const l = label();
+    readJsonObject(file, l, { now: T0 });
+    readJsonObject(other, l, { now: T0 });
+    readJsonObject(file, l, { now: T0 + 1 });
+    readJsonObject(other, l, { now: T0 + 1 });
+    assert.equal(logged(l), 2);
+  });
+
+  it('a garbled marker, or a marker from the future (clock moved back), counts as never logged', () => {
+    fs.writeFileSync(file, '{}');
+    failRead(file);
+    const l = label();
+    fs.writeFileSync(`${file}.logged`, 'not a number');
+    readJsonObject(file, l, { now: T0 });
+    assert.equal(logged(l), 1);
+    fs.writeFileSync(`${file}.logged`, String(T0 + 10 * HOUR));
+    readJsonObject(file, l, { now: T0 });
+    assert.equal(logged(l), 2);
+  });
+
+  it('a marker that cannot be written is swallowed, and then nothing is logged (no per-round flood)', () => {
+    fs.writeFileSync(file, '{}');
+    const real = fs.writeFileSync;
+    mock.method(fs, 'writeFileSync', function (p, ...rest) {
+      if (p === `${file}.logged`) throw Object.assign(new Error('EACCES'), { code: 'EACCES' });
+      return real.call(fs, p, ...rest);
+    });
+    failRead(file);
+    const l = label();
+    for (let i = 0; i < 10; i++) assert.equal(readJsonObject(file, l, { now: T0 + i }), null);
+    assert.equal(logged(l), 0);
+    assert.equal(fs.existsSync(`${file}.logged`), false);
+  });
+
+  it('a marker path that is a directory (cannot be read or written) is swallowed too', () => {
+    fs.writeFileSync(file, '{}');
+    fs.mkdirSync(`${file}.logged`);
+    failRead(file);
+    const l = label();
+    assert.equal(readJsonObject(file, l, { now: T0 }), null);
+    assert.equal(logged(l), 0);
+  });
+});

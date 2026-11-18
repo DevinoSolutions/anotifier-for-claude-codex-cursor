@@ -403,7 +403,7 @@ describe('checkUsage with a state file that cannot be read (EBUSY / EACCES / EPE
       assert.deepEqual(checkUsage(payload(win(75)), cfg, { statePath, now: NOW }), []);
       // ...and a genuinely new level is also held back until the file is readable.
       assert.deepEqual(checkUsage(payload(win(99)), cfg, { statePath, now: NOW }), []);
-      assert.equal(errorsFor('usage-alert:state'), logged + 2, 'each skipped round is logged');
+      assert.equal(errorsFor('usage-alert:state'), logged + 1, 'logged once for the path, not once per skipped round');
       mock.restoreAll();
 
       assert.equal(fs.readFileSync(statePath, 'utf8'), before, 'state was not overwritten');

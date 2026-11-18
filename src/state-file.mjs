@@ -41,17 +41,51 @@ export function readJsonFile(file) {
   }
 }
 
+// How often a file that STAYS unreadable is reported. The hooks and the
+// statusline are short-lived processes that read their state on every event or
+// refresh, so an unreadable file (say, root-owned after a sudo run) would put a
+// line in errors.log per round, and that log is small enough (128 KB, halved
+// when full) for the flood to push every real hook error out of `anotifier
+// status` within hours.
+export const UNREADABLE_LOG_INTERVAL_MS = 60 * 60 * 1000;
+
+// True when this unreadable file should be logged now, and records that it was.
+// The "last logged" time lives in a small marker file next to the state file
+// (`<file>.logged`, holding epoch ms), because nothing else survives between
+// processes. Everything here is best effort and cannot fail the round:
+//   - an unreadable or garbled marker counts as "never logged";
+//   - if the marker cannot be written, we do NOT log. The error log lives in the
+//     same config directory, so a directory that cannot take the marker cannot
+//     take the log line either; and with no marker to remember it by, logging
+//     would mean one line per round, which is the flood this exists to prevent.
+// The marker is only ever created for a file that is unreadable, so a healthy
+// install never has one.
+function shouldLogUnreadable(file, now, intervalMs) {
+  const marker = `${file}.logged`;
+  try {
+    const last = Number(fs.readFileSync(marker, 'utf8'));
+    if (Number.isFinite(last) && now - last >= 0 && now - last < intervalMs) return false;
+  } catch { /* no marker yet, or unreadable: treat as never logged */ }
+  try {
+    fs.writeFileSync(marker, String(now), 'utf8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // The common case of readJsonFile: the object, with {} for a missing or corrupt
 // file (nothing stored yet) and null for a file that could not be READ. A caller
 // that reads, changes and writes back must treat null as "skip this round":
 // writing back from an empty stand-in would wipe whatever the file really holds
 // (other sessions' entries, an already-sent warning). `label`, when given, logs
 // the read error to errors.log so a path that stays unreadable shows up in
-// `anotifier status` instead of silently ending a feature.
-export function readJsonObject(file, label) {
+// `anotifier status` instead of silently ending a feature; at most once per
+// `logIntervalMs` (default an hour) per file, however many rounds skip.
+export function readJsonObject(file, label, { now = Date.now(), logIntervalMs = UNREADABLE_LOG_INTERVAL_MS } = {}) {
   const { status, data, error } = readJsonFile(file);
   if (status !== 'unreadable') return data;
-  if (label) logHookError(label, error);
+  if (label && shouldLogUnreadable(file, now, logIntervalMs)) logHookError(label, error);
   return null;
 }
 

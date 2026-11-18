@@ -9,6 +9,7 @@ import {
   checkContext, effectiveContextThreshold, STATE_TTL_MS, DEFAULT_CONTEXT_THRESHOLD,
 } from '../src/context-alert.mjs';
 import { useFakeHome } from './fake-home.mjs';
+import { readRecentHookErrors } from '../src/error-log.mjs';
 useFakeHome();
 
 const NOW = Date.UTC(2026, 9, 9, 12, 0, 0); // fixed clock
@@ -497,5 +498,26 @@ describe('checkContext', () => {
   it('never throws, even when the state path is unusable', () => {
     fs.writeFileSync(path.join(dir, 'file'), 'x');
     assert.deepEqual(checkContext(at(190000), cfg, opts({ statePath: path.join(dir, 'file', 'nested', 's.json') })), []);
+  });
+});
+
+describe('checkContext with a state file that stays unreadable', () => {
+  let dir, statePath;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-ctx-log-'));
+    statePath = path.join(dir, '.context-alerts.json');
+    fs.mkdirSync(statePath); // EISDIR on every read
+  });
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  it('skips every round but logs one line, not one per refresh', () => {
+    const count = () => readRecentHookErrors(500).filter((e) => e.context === 'context-alert:state').length;
+    const before = count();
+    const cfg = { contextAlerts: { enabled: true, threshold: 85 } };
+    const p = payload(190000, { size: 200000 });
+    for (let i = 0; i < 8; i++) {
+      assert.deepEqual(checkContext(p, cfg, { statePath, now: NOW + i, env: {}, home: path.join(dir, 'nohome') }), []);
+    }
+    assert.equal(count(), before + 1);
   });
 });

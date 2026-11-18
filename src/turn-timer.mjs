@@ -159,7 +159,7 @@ export function removeTurnState(dir = getConfigDir()) {
   let names = [];
   try { names = fs.readdirSync(dir); } catch { return { removed, failed }; }
   const base = path.basename(turnStatePath());
-  const ours = (n) => n === base || n === `${base}.lock` || (n.startsWith(`${base}.`) && n.endsWith('.tmp'));
+  const ours = (n) => n === base || n === `${base}.lock` || n === `${base}.logged` || (n.startsWith(`${base}.`) && n.endsWith('.tmp'));
   for (const name of names.filter(ours)) {
     try { fs.unlinkSync(path.join(dir, name)); removed.push(name); }
     catch (err) { if (err?.code !== 'ENOENT') failed.push({ name, message: err.message }); }

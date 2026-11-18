@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { writeFileAtomic } from '../src/state-file.mjs';
+import { TURN_START_EVENT_NAMES } from '../src/parse-input.mjs';
 
 const MANAGED_TAG = 'anotifier';
 
@@ -23,7 +24,8 @@ export const TOOL_EVENTS = {
 // The events that only record when a turn started (src/turn-timer.mjs); they
 // never notify. They run on every prompt the user sends, so they get a short
 // timeout: a stuck one must cost the agent seconds, not the usual ten.
-export const TURN_START_EVENTS = new Set(['UserPromptSubmit', 'BeforeAgent']);
+// Derived from parse-input's event table, which decides what each event means.
+export const TURN_START_EVENTS = TURN_START_EVENT_NAMES;
 const TURN_START_TIMEOUT_S = 5;
 
 // Hook timeout for an event, in seconds (Gemini takes milliseconds: its

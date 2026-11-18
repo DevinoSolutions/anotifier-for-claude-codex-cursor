@@ -39,10 +39,21 @@ const EVENT_MAP = {
   },
 };
 
+// The raw hook event names that mean "a turn started", across every agent
+// (UserPromptSubmit for claude and codex, BeforeAgent for gemini). setup/
+// patch-config.mjs uses it to give those hooks a short timeout and to tell them
+// apart from alert events in `status`.
+export const TURN_START_EVENT_NAMES = new Set(
+  Object.values(EVENT_MAP).flatMap((events) => Object.entries(events).filter(([, e]) => e === 'turn_start').map(([name]) => name)),
+);
+
 // True when this agent has a hook that marks the START of a turn, i.e. some raw
 // event maps to `turn_start` above. The turn timer (src/turn-timer.mjs) only
-// pairs a start with a finish for these agents, so the answer is derived from the
-// one table that decides what each hook event means, never kept in a second copy.
+// pairs a start with a finish for these agents. Both this and
+// TURN_START_EVENT_NAMES are derived from EVENT_MAP, the one table that decides
+// what each hook event means; the lists of which events each tool WIRES
+// (TOOL_EVENTS in setup/patch-config.mjs, hooks/hooks.json) are separate, since
+// they say what gets installed, not what an event means.
 export function hasTurnStart(source) {
   return Object.hasOwn(EVENT_MAP, source) && Object.values(EVENT_MAP[source]).includes('turn_start');
 }

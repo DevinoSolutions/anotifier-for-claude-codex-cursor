@@ -6,7 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseInput, hasTurnStart } from '../src/parse-input.mjs';
+import { parseInput, hasTurnStart, TURN_START_EVENT_NAMES } from '../src/parse-input.mjs';
+import { TURN_START_EVENTS } from '../setup/patch-config.mjs';
 import { dedupKey } from '../src/notify.mjs';
 
 describe('parseInput', () => {
@@ -327,6 +328,23 @@ describe('numeric session_id through the real hook', () => {
       assert.equal(fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : '', '');
     } finally {
       fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('TURN_START_EVENT_NAMES', () => {
+  it('is the raw start-of-turn hook names of all agents, and setup uses exactly that', () => {
+    assert.deepEqual([...TURN_START_EVENT_NAMES].sort(), ['BeforeAgent', 'UserPromptSubmit']);
+    assert.equal(TURN_START_EVENTS, TURN_START_EVENT_NAMES);
+  });
+
+  it('every one of them parses to turn_start for some agent, and no other name does', () => {
+    const all = ['UserPromptSubmit', 'BeforeAgent', 'Stop', 'AfterAgent', 'Notification', 'PermissionRequest', 'SessionStart',
+      'beforeSubmitPrompt', 'PreInvocation', 'PostInvocation', 'PreToolUse', 'PostToolUse', 'stop', 'sessionEnd', 'subagentStop'];
+    for (const name of all) {
+      const starts = ['claude', 'codex', 'gemini', 'antigravity', 'cursor']
+        .some((source) => parseInput({ hook_event_name: name }, source).event === 'turn_start');
+      assert.equal(TURN_START_EVENT_NAMES.has(name), starts, name);
     }
   });
 });
