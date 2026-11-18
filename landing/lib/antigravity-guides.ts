@@ -81,7 +81,7 @@ const AGY_SRC =
 export const ANTIGRAVITY_GUIDES: Guide[] = [
   {
     slug: "antigravity-cli-notifications",
-    updated: "2026-11-14",
+    updated: "2026-11-18",
     kind: "agent",
     agentSlug: "antigravity-cli",
     name: "Antigravity CLI",

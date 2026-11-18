@@ -111,7 +111,7 @@ powershell.exe -Command "[System.Reflection.Assembly]::LoadWithPartialName('Syst
 export const AGENTS: Agent[] = [
   {
     slug: "claude-code",
-    updated: "2026-10-29",
+    updated: "2026-11-18",
     name: "Claude Code",
     linkText: "Claude Code notifier",
     title: "Claude Code Notifier — Desktop, Phone & Slack Alerts",
@@ -371,7 +371,7 @@ export const AGENTS: Agent[] = [
       {
         q: "Does it work on Windows and WSL?",
         aHtml:
-          '<p>Yes. On Windows the toast needs PowerShell 7 and the BurntToast module; <code>anotifier setup</code> installs BurntToast for your user. Inside WSL the toast goes to Windows through interop, as a plainer banner without the agent icon or click-to-focus, and with no sound unless <code>toastSound</code> is an audio file of your own (1.8.0 and later), so run anotifier from the WSL shell where your Claude Code settings live. macOS and Linux work too, with <code>osascript</code> and <code>notify-send</code>. See the <a href="/guides/windows-wsl-notifications/">Windows and WSL guide</a>.</p>',
+          '<p>Yes. On Windows the toast needs PowerShell 7 and the BurntToast module; <code>anotifier setup</code> installs BurntToast for your user. Inside WSL the toast goes to Windows through interop, as a plainer banner without the agent icon or click-to-focus, and with the default Windows sound (sound names have no effect, but an audio file set as <code>toastSound</code> plays instead, 1.8.0 and later), so run anotifier from the WSL shell where your Claude Code settings live. macOS and Linux work too, with <code>osascript</code> and <code>notify-send</code>. See the <a href="/guides/windows-wsl-notifications/">Windows and WSL guide</a>.</p>',
       },
       {
         q: "Can anotifier warn me before Claude Code auto-compacts?",
@@ -540,7 +540,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "cursor",
-    updated: "2026-10-16",
+    updated: "2026-11-18",
     name: "Cursor",
     title: "Cursor Agent Notifier — Desktop, Phone & Slack Alerts",
     description:
@@ -862,7 +862,7 @@ export const AGENTS: Agent[] = [
   },
   {
     slug: "vscode",
-    updated: "2026-10-16",
+    updated: "2026-11-18",
     name: "VS Code",
     title: "VS Code AI Agent Notifier — Claude Code & Cursor Alerts",
     description:

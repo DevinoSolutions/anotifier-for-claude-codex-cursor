@@ -10,7 +10,7 @@ import { COMMUNITY_URL } from "./site";
 export const TOPIC_GUIDES: Guide[] = [
   {
     slug: "windows-wsl-notifications",
-    updated: "2026-11-14",
+    updated: "2026-11-18",
     kind: "topic",
     name: "Windows & WSL",
     title: "Claude Code Windows Notifications: Native, WSL & Fixes",
@@ -42,7 +42,7 @@ export const TOPIC_GUIDES: Guide[] = [
               [
                 "A WSL distribution",
                 "`powershell.exe` (or `pwsh.exe`) reached through Windows interop, running `toast-wsl.ps1`",
-                "A plain toast with the title and message, shown under Windows PowerShell's name: no agent icon or click-to-focus, and no sound unless `toastSound` is an audio file of your own (1.8.0 and later)",
+                "A plain toast with the title and message, shown under Windows PowerShell's name: no agent icon or click-to-focus, and the default Windows sound: sound names have no effect, but an audio file set as `toastSound` (1.8.0 and later) plays instead",
                 "Interop on, and PowerShell reachable through `/mnt/c` or the PATH",
               ],
             ],
@@ -137,7 +137,7 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "The result is deliberately simple: the title and the message, with no per-agent icon or click-to-focus, and no sound unless `toastSound` is the path of an audio file of your own (1.8.0 and later). Each attempt has 7 seconds. A failure is logged to `~/.anotifier/errors.log` as `toast:wsl`; when none of the four works, the entry lists each one it tried.",
+            text: "The result is deliberately simple: the title and the message, with no per-agent icon or click-to-focus, and the default Windows sound: sound names have no effect, but an audio file set as `toastSound` (1.8.0 and later) plays instead. Each attempt has 7 seconds. A failure is logged to `~/.anotifier/errors.log` as `toast:wsl`; when none of the four works, the entry lists each one it tried.",
           },
           {
             kind: "ul",
@@ -347,7 +347,7 @@ export const TOPIC_GUIDES: Guide[] = [
       },
       {
         q: "Does it work in WSL2?",
-        a: "Yes. Run npx anotifier@latest setup inside the WSL distribution where the agent runs. anotifier detects WSL and sends the toast through powershell.exe and Windows interop, which is on by default. The toast is plain: a title and a message under Windows PowerShell's name, with no agent icon or click-to-focus, and no sound unless the toastSound setting is an audio file of your own (1.8.0 and later).",
+        a: "Yes. Run npx anotifier@latest setup inside the WSL distribution where the agent runs. anotifier detects WSL and sends the toast through powershell.exe and Windows interop, which is on by default. The toast is plain: a title and a message under Windows PowerShell's name, with no agent icon or click-to-focus; it plays the default Windows sound, or your own audio file if toastSound is one (1.8.0 and later).",
       },
       {
         q: "Do I need wsl-notify-send or BurntToast inside WSL?",
@@ -377,7 +377,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "macos-linux-notifications",
-    updated: "2026-10-16",
+    updated: "2026-11-18",
     kind: "topic",
     name: "macOS & Linux",
     title: "Claude Code & Codex Notifications on macOS and Linux",
@@ -482,7 +482,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "agent-hooks-explained",
-    updated: "2026-10-22",
+    updated: "2026-11-18",
     kind: "topic",
     name: "Agent hooks",
     title: "Agent Hooks Explained: Claude Code, Codex, Cursor, Gemini",
@@ -630,7 +630,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "notifications-not-working",
-    updated: "2026-10-16",
+    updated: "2026-11-18",
     kind: "topic",
     name: "Troubleshooting",
     title: "Agent Notifications Not Working? Troubleshooting Guide",
@@ -825,7 +825,7 @@ export const TOPIC_GUIDES: Guide[] = [
   },
   {
     slug: "ntfy-phone-notifications",
-    updated: "2026-10-16",
+    updated: "2026-11-18",
     kind: "topic",
     name: "ntfy phone push",
     title: "Claude Code ntfy: Phone Alerts When Your Agent Finishes",

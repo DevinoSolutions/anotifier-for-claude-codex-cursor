@@ -39,7 +39,7 @@ export const WINDOWS_SOUND = (file: string) =>
 export const CLAUDE_GUIDES: Guide[] = [
   {
     slug: "claude-code-permission-notifications",
-    updated: "2026-10-22",
+    updated: "2026-11-18",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code permissions",
@@ -396,7 +396,7 @@ export const CLAUDE_GUIDES: Guide[] = [
   },
   {
     slug: "claude-code-notification-sound",
-    updated: "2026-10-29",
+    updated: "2026-11-18",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code sounds",
@@ -1506,7 +1506,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
   },
   {
     slug: "claude-code-hooks-security",
-    updated: "2026-10-22",
+    updated: "2026-11-18",
     kind: "topic",
     agentSlug: "claude-code",
     name: "Claude Code hooks security",
@@ -1901,7 +1901,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
   },
   {
     slug: "ccnotify",
-    updated: "2026-11-14",
+    updated: "2026-11-18",
     kind: "topic",
     agentSlug: "claude-code",
     name: "ccnotify",

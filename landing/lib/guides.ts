@@ -149,6 +149,9 @@ const WHAT_ANOTIFIER_ADDS: Block[] = [
     Built-in column too. */
 const CURSOR_ROWS: Record<string, { builtIn?: string; anotifier?: string }> = {
   "Desktop toast": { builtIn: "Yes, Cursor's OS notification setting" },
+  "Names the project": {
+    anotifier: "Yes from 1.8.0, `my-app · Cursor` (the first workspace folder)",
+  },
   "Urgent for approvals, calm for done": {
     anotifier: "No, finished runs only",
   },
@@ -282,7 +285,7 @@ const GEMINI_SRC =
 const AGENT_GUIDES: Guide[] = [
   {
     slug: "claude-code-notifications",
-    updated: "2026-10-16",
+    updated: "2026-11-18",
     kind: "agent",
     agentSlug: "claude-code",
     name: "Claude Code",
@@ -628,7 +631,7 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "codex-cli-notifications",
-    updated: "2026-10-22",
+    updated: "2026-11-18",
     kind: "agent",
     agentSlug: "codex",
     name: "Codex CLI",
@@ -858,7 +861,7 @@ const AGENT_GUIDES: Guide[] = [
   },
   {
     slug: "cursor-agent-notifications",
-    updated: "2026-10-29",
+    updated: "2026-11-18",
     kind: "agent",
     agentSlug: "cursor",
     name: "Cursor",

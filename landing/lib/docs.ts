@@ -748,10 +748,10 @@ export const DOCS: DocSection[] = [
       {
         kind: "ul",
         items: [
-          'Turn it on with `anotifier config focus` or in `~/.anotifier/config.json`. When it is on, "task complete" and needs-input alerts send nothing on any channel (toast, ntfy, webhook, bell). `anotifier status` shows it as `When focused`, and a `projects` rule can turn it on or off for one folder.',
+          'Turn it on with `anotifier config focus` or in `~/.anotifier/config.json`. When it is on, every alert (task complete, needs input, and a new session if you turned that alert on) sends nothing on any channel (toast, ntfy, webhook, bell). `anotifier status` shows it as `When focused`, and a `projects` rule can turn it on or off for one folder.',
           "It is opt-in because every alert waits for a short window probe: about 1 s on Windows and WSL, a fraction of a second on macOS and Linux. If the probe fails or takes too long, the alert is sent.",
           'Only a clear "yes, in front" skips. When anotifier cannot tell it sends as usual: under tmux, screen or zellij, over ssh, on Wayland, on Linux without `xdotool`, and for an editor on macOS.',
-          "It compares the foreground window with the first window up the agent's process tree. For VS Code, Cursor, Windsurf and other VS Code-based editors, whose windows share one process, the window title must also have the project folder name as one of its ` - `-separated parts.",
+          "It compares the foreground window with the first window up the agent's process tree. For VS Code (Insiders, VSCodium and Code - OSS included), Cursor, Windsurf and Antigravity, whose windows share one process, the window title must also have the project folder name as one of its ` - `-separated parts.",
           "Another tab or pane of the same terminal window counts as in front. The idle reminder is never suppressed, and the usage-limit and context warnings and the update notice do not use this setting.",
         ],
       },
@@ -771,8 +771,8 @@ export const DOCS: DocSection[] = [
         kind: "ul",
         items: [
           "A value is read as a file, not a sound name, when it starts with `~/`, is an absolute path, contains a `/` or backslash, or ends in `.wav`, `.mp3`, `.aiff`, `.aif`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.opus` or `.flac`. Existing sound names keep working.",
-          "The file plays in the background and the toast itself is silent, so you hear one sound. Windows plays `.wav` directly and other formats through Windows Media, capped at 30 seconds; macOS uses `afplay`; Linux uses the first of `pw-play`, `paplay` and `aplay` (`.wav` only) that starts (Linux toasts have no other sound); WSL has Windows play it.",
-          "A missing file leaves the default sound on Windows and macOS, and a player that cannot start is logged, both without the path. `anotifier config sounds` checks the file exists, `anotifier test toast` plays it, and `anotifier doctor` warns about a missing one.",
+          "The file plays in the background. On Windows and WSL the toast is made silent, so you hear one sound; on macOS the notification is sent without a sound name. Windows plays `.wav` directly and other formats through Windows Media, capped at 30 seconds; macOS uses `afplay`; Linux uses the first of `pw-play`, `paplay` and `aplay` (`.wav` only) that starts (Linux toasts have no other sound); WSL has Windows play it.",
+          "A missing file leaves the default sound on Windows (on macOS the notification is sent as it is for `Default`), and a player that cannot start is logged, both without the path. `anotifier config sounds` checks the file exists, `anotifier test toast` plays it, and `anotifier doctor` warns about a missing one.",
         ],
       },
     ],
