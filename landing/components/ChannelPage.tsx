@@ -5,12 +5,10 @@ import { AGENTS } from "@/lib/agents";
 import { CHANNELS, getChannel } from "@/lib/channels";
 import Blocks from "@/components/docs/Blocks";
 import JsonLd from "@/components/JsonLd";
-import LogoMark from "@/components/LogoMark";
+import PageNav from "@/components/PageNav";
 import SiteFooter from "@/components/SiteFooter";
-import StarButton from "@/components/StarButton";
-import DiscordIcon from "@/components/DiscordIcon";
 import CopyButton from "@/components/home/CopyButton";
-import { COMMUNITY_URL, INSTALL_CMD, NPM_URL, SITE_URL } from "@/lib/site";
+import { INSTALL_CMD, SITE_URL } from "@/lib/site";
 import {
   breadcrumbListLd,
   faqPageLd,
@@ -52,36 +50,7 @@ export default function ChannelPage({ slug }: { slug: string }) {
     <>
       <JsonLd data={jsonLd} />
 
-      <nav aria-label="Primary">
-        <div className="wrap">
-          <Link
-            href="/"
-            aria-label="anotifier home"
-            style={{ display: "inline-flex" }}
-          >
-            <LogoMark size={28} />
-          </Link>
-          <Link href="/" className="brand">
-            anotifier
-          </Link>
-          <div className="links">
-            <Link href="/">Home</Link>
-            <a href={NPM_URL}>npm</a>
-            <StarButton variant="nav" />
-            <a
-              href={COMMUNITY_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="navDiscord"
-              aria-label="Join our Discord"
-              title="Join our Discord"
-              style={{ display: "inline-flex" }}
-            >
-              <DiscordIcon size={18} />
-            </a>
-          </div>
-        </div>
-      </nav>
+      <PageNav variant="product" />
 
       <main className="wrap">
         <header>

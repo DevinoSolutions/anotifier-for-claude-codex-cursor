@@ -1,10 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import LogoMark from "@/components/LogoMark";
+import PageNav from "@/components/PageNav";
 import SiteFooter from "@/components/SiteFooter";
-import StarButton from "@/components/StarButton";
-import DiscordIcon from "@/components/DiscordIcon";
-import { COMMUNITY_URL } from "@/lib/site";
 
 /**
  * Chrome shared by every long-form page (docs, guides, compare): the compact
@@ -20,39 +17,7 @@ export default function DocShell({
 }) {
   return (
     <>
-      <nav aria-label="Primary">
-        <div className="wrap">
-          <Link
-            href="/"
-            aria-label="anotifier home"
-            style={{ display: "inline-flex" }}
-          >
-            <LogoMark size={28} />
-          </Link>
-          <Link href="/" className="brand">
-            anotifier
-          </Link>
-          <div className="links">
-            <Link href="/docs/">Docs</Link>
-            <Link href="/guides/">Guides</Link>
-            <Link href="/compare/" className="navOptional">
-              Compare
-            </Link>
-            <StarButton variant="nav" />
-            <a
-              href={COMMUNITY_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="navDiscord"
-              aria-label="Join our Discord"
-              title="Join our Discord"
-              style={{ display: "inline-flex" }}
-            >
-              <DiscordIcon size={18} />
-            </a>
-          </div>
-        </div>
-      </nav>
+      <PageNav variant="docs" />
 
       <main className="wrap">
         <div className="crumb" style={{ paddingTop: "40px" }}>
