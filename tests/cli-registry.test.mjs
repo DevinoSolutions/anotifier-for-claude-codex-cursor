@@ -32,6 +32,12 @@ function seedAllTools() {
 }
 
 function runStatus() {
+  // A fresh cache, so status never asks the npm registry about updates.
+  fs.mkdirSync(path.join(home, '.anotifier'), { recursive: true });
+  fs.writeFileSync(
+    path.join(home, '.anotifier', '.update-check.json'),
+    JSON.stringify({ checkedAt: Date.now(), latest: null }),
+  );
   const res = spawnSync(process.execPath, ['cli/index.mjs', 'status'], {
     cwd: repoRoot,
     env: { ...process.env, HOME: home, USERPROFILE: home, ANOTIFIER_TELEMETRY: '0' },
@@ -43,10 +49,12 @@ function runStatus() {
 }
 
 describe('detectTools reads the registry', () => {
-  it('returns every registry tool, in registry order, with its label and dir', () => {
+  it('returns every tool, in the order setup lists them, with its label and dir', () => {
     seedAllTools();
     const tools = detectTools(home);
-    assert.deepEqual(tools.map((t) => t.name), Object.keys(TOOL_EVENTS));
+    // The literal user-visible list and order, not a copy of the registry.
+    assert.deepEqual(tools.map((t) => t.label), ['Claude Code', 'Codex CLI', 'Cursor IDE', 'Gemini CLI', 'Antigravity CLI']);
+    assert.deepEqual(tools.map((t) => t.name), ['claude', 'codex', 'cursor', 'gemini', 'antigravity']);
     for (const t of tools) {
       assert.equal(t.label, TOOL_EVENTS[t.name].label);
       assert.equal(t.dir, path.join(home, TOOL_EVENTS[t.name].dir));
@@ -69,8 +77,8 @@ describe('detectTools reads the registry', () => {
 describe('status reads the registry', () => {
   it('lists every registry tool, installed or not', () => {
     const out = runStatus();
-    for (const t of Object.values(TOOL_EVENTS)) {
-      assert.match(out, new RegExp(`${t.label} not installed`), `${t.label} row`);
+    for (const label of ['Claude Code', 'Codex CLI', 'Cursor IDE', 'Gemini CLI', 'Antigravity CLI']) {
+      assert.match(out, new RegExp(`${label} not installed`), `${label} row`);
     }
   });
 
