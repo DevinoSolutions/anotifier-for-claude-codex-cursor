@@ -1,21 +1,22 @@
-// HTTP-level checks against a real server (see site-helpers.mjs for BASE_URL).
+// Generic invariants over every page in the sitemap (HTTP-level checks against
+// a real server; see site-helpers.mjs for BASE_URL). Anything that names one
+// page's own copy lives in content-pins.test.mjs.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  AGENT_GUIDES,
   BASE_URL,
   SITE_URL,
+  decodeEntities,
   get,
   meta,
+  plainText,
   retried,
+  schemaFaqs,
   sitemapPaths,
+  stripTags,
+  visibleFaqs,
 } from "./site-helpers.mjs";
-
-const AGENT_GUIDES = {
-  "/claude-code/": "/guides/claude-code-notifications/",
-  "/codex/": "/guides/codex-cli-notifications/",
-  "/cursor/": "/guides/cursor-agent-notifications/",
-  "/gemini-cli/": "/guides/gemini-cli-notifications/",
-};
 
 const paths = await sitemapPaths();
 const pages = new Map(
@@ -66,256 +67,6 @@ test("titles are unique across the site", () => {
   }
 });
 
-test("agent pages target the product, guides the how-to, and link to each other", () => {
-  for (const [agent, guide] of Object.entries(AGENT_GUIDES)) {
-    const a = pages.get(agent);
-    const g = pages.get(guide);
-    assert.match(a.title, /Notifier/, `${agent} title should name the tool`);
-    assert.doesNotMatch(
-      a.title,
-      /Notifications/,
-      `${agent} title competes with ${guide}`,
-    );
-    assert.match(
-      a.h1Text,
-      agent === "/claude-code/"
-        ? /^anotifier: the Claude Code notifier /
-        : /^anotifier for /,
-      `${agent} h1`,
-    );
-    assert.ok(
-      a.body.includes(`href="${guide}"`),
-      `${agent} does not link ${guide}`,
-    );
-    assert.ok(
-      g.body.includes(`href="${agent}"`),
-      `${guide} does not link ${agent}`,
-    );
-  }
-});
-
-const decodeEntities = (t) =>
-  t
-    .replace(/&#x27;|&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&");
-
-// The visible FAQ questions and the FAQPage JSON-LD questions of a rendered
-// page, so a test can check that the two stay in step.
-function faqQuestions(body) {
-  const ld = [
-    ...body.matchAll(
-      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g,
-    ),
-  ].flatMap((m) => JSON.parse(m[1]));
-  const schemaQs = ld
-    .filter((d) => d["@type"] === "FAQPage")
-    .flatMap((d) => d.mainEntity.map((q) => q.name));
-  // Strip tags until none are left, so a nested "<<b>script>" can't survive.
-  const stripTags = (s) => {
-    let prev;
-    do {
-      prev = s;
-      s = s.replace(/<[^>]*>/g, "");
-    } while (s !== prev);
-    return s;
-  };
-  const visibleQs = [...body.matchAll(/<summary>([\s\S]*?)<\/summary>/g)].map(
-    (m) => decodeEntities(stripTags(m[1])),
-  );
-  return { schemaQs, visibleQs };
-}
-
-test("/claude-code/ compares the options, shows the hand-written hooks, and keeps FAQ schema in step", () => {
-  const { body } = pages.get("/claude-code/");
-  for (const id of ["options", "by-hand"]) {
-    assert.ok(body.includes(`id="${id}"`), `/claude-code/ lacks #${id}`);
-  }
-  assert.ok(
-    body.includes('<th scope="col">'),
-    "/claude-code/ comparison table has no column headers",
-  );
-
-  const { schemaQs, visibleQs } = faqQuestions(body);
-  assert.ok(visibleQs.length > 0, "/claude-code/ shows no FAQ questions");
-  for (const q of visibleQs) {
-    assert.ok(schemaQs.includes(q), `FAQ "${q}" is missing from the JSON-LD`);
-  }
-
-  for (const guide of [
-    "/guides/claude-code-notifications/",
-    "/guides/claude-code-permission-notifications/",
-  ]) {
-    assert.match(
-      pages.get(guide).body,
-      /<a[^>]+href="\/claude-code\/"[^>]*>\s*Claude Code notifier\s*<\/a>/,
-      `${guide} has no "Claude Code notifier" link to /claude-code/`,
-    );
-  }
-});
-
-test("the Cursor guide leads with the answer, shows valid hooks.json examples, and keeps FAQ schema in step", () => {
-  const g = pages.get("/guides/cursor-agent-notifications/");
-  assert.match(g.title, /^Cursor Notification When Done/, "guide title");
-  for (const id of [
-    "built-in",
-    "hook",
-    "hook-os",
-    "anotifier",
-    "phone",
-    "windows",
-    "troubleshooting",
-    "mute",
-    "faq",
-  ]) {
-    assert.ok(g.body.includes(`id="${id}"`), `Cursor guide lacks #${id}`);
-  }
-
-  // The paragraph under the h1 is the direct answer.
-  const sub = g.body.match(/<p class="sub">([\s\S]*?)<\/p>/)?.[1] ?? "";
-  assert.match(sub, /sound/, "intro does not mention the built-in sound");
-  assert.match(sub, /hooks\.json/, "intro does not mention hooks.json");
-
-  // Every hooks.json example parses and has the shape Cursor documents.
-  const hookFiles = [
-    ...g.body.matchAll(/<pre data-lang="json"><code>([\s\S]*?)<\/code>/g),
-  ]
-    .map((m) => JSON.parse(decodeEntities(m[1])))
-    .filter((j) => j.hooks);
-  assert.ok(
-    hookFiles.length >= 4,
-    `only ${hookFiles.length} hooks.json examples`,
-  );
-  for (const file of hookFiles) {
-    assert.equal(file.version, 1, "hooks.json example without version 1");
-    assert.deepEqual(Object.keys(file.hooks), ["stop"]);
-    for (const entry of file.hooks.stop) {
-      assert.equal(typeof entry.command, "string", "stop entry has no command");
-    }
-  }
-
-  const { schemaQs, visibleQs } = faqQuestions(g.body);
-  assert.ok(visibleQs.length >= 4, `only ${visibleQs.length} FAQ questions`);
-  assert.deepEqual(schemaQs, visibleQs, "FAQ JSON-LD differs from the page");
-
-  for (const href of [
-    "/cursor/",
-    "/guides/notifications-not-working/",
-    "/guides/ntfy-phone-notifications/",
-  ]) {
-    assert.ok(
-      g.body.includes(`href="${href}`),
-      `Cursor guide does not link ${href}`,
-    );
-  }
-});
-
-test("the Claude Code hub leads with the answer, explains the events, shows valid JSON, keeps FAQ schema in step and is linked from the pages around it", () => {
-  const hub = "/guides/claude-code-notifications/";
-  const g = pages.get(hub);
-  assert.match(g.title, /^Claude Code Notifications When/, "guide title");
-  assert.match(
-    g.h1Text,
-    /^Claude Code notifications: get alerted when it finishes or needs you$/,
-    "guide h1",
-  );
-  for (const id of [
-    "answer",
-    "events",
-    "channels",
-    "built-in",
-    "hook",
-    "phone",
-    "anotifier",
-    "quiet",
-    "troubleshooting",
-    "faq",
-  ]) {
-    assert.ok(g.body.includes(`id="${id}"`), `Claude Code hub lacks #${id}`);
-  }
-
-  // The paragraph under the h1 is the direct answer: both events, and the
-  // one-command route.
-  const sub = g.body.match(/<p class="sub">([\s\S]*?)<\/p>/)?.[1] ?? "";
-  assert.match(sub, /Stop/, "intro does not name the Stop event");
-  assert.match(sub, /Notification/, "intro does not name Notification");
-  assert.match(sub, /npx anotifier@latest setup/, "intro has no setup command");
-
-  // Every JSON example parses. Hook examples use only the two events the
-  // guide teaches, each with a command handler; the config example sets a
-  // quiet-hours window of valid HH:MM times.
-  const blocks = [
-    ...g.body.matchAll(/<pre data-lang="json"><code>([\s\S]*?)<\/code>/g),
-  ].map((m) => JSON.parse(decodeEntities(m[1])));
-  const hookFiles = blocks.filter((j) => j.hooks);
-  assert.ok(hookFiles.length >= 2, `only ${hookFiles.length} hook examples`);
-  for (const file of hookFiles) {
-    for (const [event, groups] of Object.entries(file.hooks)) {
-      assert.ok(["Stop", "Notification"].includes(event), `hook ${event}`);
-      for (const group of groups) {
-        for (const h of group.hooks) {
-          assert.equal(h.type, "command", `${event} handler type`);
-          assert.equal(typeof h.command, "string", `${event} has no command`);
-        }
-      }
-    }
-  }
-  const quiet = blocks.find((j) => j.quietHours)?.quietHours;
-  assert.ok(quiet, "no quietHours example");
-  assert.equal(quiet.enabled, true);
-  assert.match(quiet.from, /^([01]\d|2[0-3]):[0-5]\d$/, "quietHours.from");
-  assert.match(quiet.to, /^([01]\d|2[0-3]):[0-5]\d$/, "quietHours.to");
-
-  const { schemaQs, visibleQs } = faqQuestions(g.body);
-  assert.ok(visibleQs.length >= 7, `only ${visibleQs.length} FAQ questions`);
-  assert.deepEqual(schemaQs, visibleQs, "FAQ JSON-LD differs from the page");
-  for (const topic of [/finishes/, /permission/, /phone/, /Slack/, /night/]) {
-    assert.ok(
-      visibleQs.some((q) => topic.test(q)),
-      `no FAQ question matches ${topic}`,
-    );
-  }
-
-  // Links out to the neighbouring pages.
-  for (const href of [
-    "/guides/claude-code-permission-notifications/",
-    "/guides/claude-code-notification-sound/",
-    "/guides/ntfy-phone-notifications/",
-    "/guides/windows-wsl-notifications/",
-    "/guides/macos-linux-notifications/",
-    "/guides/notifications-not-working/",
-    "/guides/claude-code-usage-limit-notifications/",
-    "/slack/",
-    "/discord/",
-    "/telegram/",
-    "/phone/",
-    "/claude-code/",
-  ]) {
-    assert.ok(g.body.includes(`href="${href}`), `hub does not link ${href}`);
-  }
-
-  // Links in from the pages around it.
-  for (const from of [
-    "/",
-    "/claude-code/",
-    "/docs/",
-    "/guides/",
-    "/guides/claude-code-notification-sound/",
-    "/guides/claude-code-permission-notifications/",
-    "/guides/ntfy-phone-notifications/",
-    "/guides/notifications-not-working/",
-    "/guides/ccnotify/",
-    "/guides/claude-code-auto-compact-warning/",
-  ]) {
-    assert.ok(
-      pages.get(from).body.includes(`href="${hub}"`),
-      `${from} does not link the hub`,
-    );
-  }
-});
-
 test("no page names the experimental approval flag", () => {
   for (const [path, page] of pages) {
     assert.doesNotMatch(
@@ -324,17 +75,6 @@ test("no page names the experimental approval flag", () => {
       `${path} mentions an experimental flag`,
     );
   }
-});
-
-test("home: descriptive title and an h1 that reads as one sentence", () => {
-  const home = pages.get("/");
-  for (const name of ["Claude Code", "Codex", "Cursor", "Gemini"]) {
-    assert.ok(home.title.includes(name), `home title lacks ${name}`);
-  }
-  assert.equal(
-    home.h1Text,
-    "Know the moment your Claude Code, Codex, Cursor or Gemini CLI agent needs you.",
-  );
 });
 
 test("home: no render-blocking stylesheet and no early gtag.js preload", () => {
@@ -548,23 +288,6 @@ test("the 404 page declares no canonical", async () => {
   assert.equal(meta(res.body).canonical, null, "404 page has a canonical");
 });
 
-const TOPIC_GUIDES = [
-  "/guides/claude-code-permission-notifications/",
-  "/guides/claude-code-notification-sound/",
-  "/guides/codex-notification-sound/",
-  "/guides/windows-wsl-notifications/",
-  "/guides/macos-linux-notifications/",
-  "/guides/agent-hooks-explained/",
-  "/guides/notifications-not-working/",
-  "/guides/ntfy-phone-notifications/",
-];
-
-test("sitemap lists the platform and topic guides", () => {
-  for (const p of TOPIC_GUIDES) {
-    assert.ok(paths.includes(p), `${p} missing from sitemap`);
-  }
-});
-
 test("home links every guide, so crawlers reach them from the top page", () => {
   const { body } = pages.get("/");
   const guides = paths.filter((p) => /^\/guides\/.+\/$/.test(p));
@@ -673,5 +396,130 @@ test("every guide offers the install command before its first section", () => {
       `${p}: install command only appears after the first section`,
     );
     assert.match(beforeH2, /<button/, `${p}: no copy button by the command`);
+  }
+});
+
+// A FAQPage is only worth its markup if the questions and answers a visitor
+// reads are the ones the JSON-LD hands to search engines.
+test("every page with a FAQPage shows the same questions and answers", () => {
+  let checked = 0;
+  const problems = [];
+  for (const [p, { body }] of pages) {
+    const schema = schemaFaqs(body);
+    const { details, buttons, headings } = visibleFaqs(body);
+    if (schema.length === 0) {
+      if (details.length + buttons.length > 0)
+        problems.push(`${p} shows FAQ questions but has no FAQPage JSON-LD`);
+      continue;
+    }
+    checked++;
+    const schemaQs = schema.map((f) => f.q);
+    // The guides index prints each question as an <h3> among other headings,
+    // so there the questions are looked up rather than listed.
+    const shown = details.length
+      ? details
+      : buttons.length
+        ? buttons
+        : schemaQs.map((q) => headings.find((h) => h.q === q) ?? { q: null });
+    const shownQs = shown.map((f) => f.q);
+    if (JSON.stringify(shownQs) !== JSON.stringify(schemaQs)) {
+      problems.push(
+        `${p}: visible FAQ questions differ from the JSON-LD. Shown: ${JSON.stringify(shownQs)} JSON-LD: ${JSON.stringify(schemaQs)}`,
+      );
+      continue;
+    }
+    // The home answers only render once a question is opened, so they are not
+    // in the static HTML; every other page prints them.
+    for (const [i, f] of shown.entries()) {
+      if (f.a !== null && f.a !== plainText(schema[i].a))
+        problems.push(
+          `${p}: the answer to "${f.q}" differs from the JSON-LD. Shown: ${JSON.stringify(f.a)} JSON-LD: ${JSON.stringify(plainText(schema[i].a))}`,
+        );
+    }
+  }
+  assert.deepEqual(problems, []);
+  assert.ok(checked >= 20, `only ${checked} pages carry a FAQPage`);
+  assert.ok(
+    visibleFaqs(pages.get("/").body).buttons.length >= 5,
+    "home FAQ questions were not found: did the markup change?",
+  );
+});
+
+// The text a visitor reads, minus code (which may legitimately hold backticks,
+// asterisks and brackets) and minus scripts and styles.
+const readableText = (body) =>
+  decodeEntities(
+    stripTags(
+      body
+        .replace(/<(script|style)\b[\s\S]*?<\/\1>/g, " ")
+        .replace(/<pre\b[\s\S]*?<\/pre>/g, " ")
+        .replace(/<code\b[\s\S]*?<\/code>/g, " "),
+      " ",
+    ),
+  );
+
+test("no page prints raw markdown: backticks, ** or ](", () => {
+  const leaks = [];
+  for (const [p, { body, title, description }] of pages) {
+    const shown = {
+      text: readableText(body),
+      title: title ?? "",
+      description: description ?? "",
+    };
+    for (const [where, text] of Object.entries(shown)) {
+      for (const m of text.matchAll(/`|\*\*|\]\(/g)) {
+        const at = m.index;
+        leaks.push(
+          `${p} ${where}: ...${text.slice(Math.max(0, at - 30), at + 30).replace(/\s+/g, " ")}...`,
+        );
+      }
+    }
+  }
+  assert.deepEqual(leaks, []);
+});
+
+test("FAQPage JSON-LD answers are plain text: no HTML entity or backtick", () => {
+  const leaks = [];
+  for (const [p, { body }] of pages) {
+    for (const { q, a } of schemaFaqs(body)) {
+      for (const [where, text] of [
+        ["question", q],
+        ["answer", a],
+      ]) {
+        for (const m of text.matchAll(/&(?:[a-z]+|#\d+|#x[0-9a-f]+);|`/gi)) {
+          leaks.push(
+            `${p} ${where} of "${q}": ...${text.slice(Math.max(0, m.index - 30), m.index + 30)}...`,
+          );
+        }
+      }
+    }
+  }
+  assert.deepEqual(leaks, []);
+});
+
+// llms.txt is a hand-written index for language models. Every page has to be
+// in it, and nothing in it may point at a page the site does not have.
+// URLs on the site that are deliberately not pages in the sitemap:
+const LLMS_NON_PAGES = ["/llms-full.txt"];
+
+test("llms.txt lists every sitemap page and only pages the sitemap has", async () => {
+  const { status, body } = await get("/llms.txt");
+  assert.equal(status, 200, `/llms.txt returned ${status}`);
+  const listed = new Set(
+    [...body.matchAll(/https:\/\/anotifier\.io(\/[^\s)>\]"'`]*)?/g)].map(
+      // A fragment, a query or a closing full stop is not part of the page.
+      (m) => (m[1] ?? "/").replace(/[#?].*$/, "").replace(/[.,;:]+$/, ""),
+    ),
+  );
+  assert.ok(listed.size > 20, `only ${listed.size} URLs found in llms.txt`);
+  const missing = paths.filter((p) => !listed.has(p));
+  assert.deepEqual(missing, [], "sitemap pages missing from llms.txt");
+  const unknown = [...listed].filter(
+    (p) => !paths.includes(p) && !LLMS_NON_PAGES.includes(p),
+  );
+  assert.deepEqual(unknown, [], "llms.txt URLs that are not sitemap pages");
+  for (const p of LLMS_NON_PAGES) {
+    assert.ok(!paths.includes(p), `${p} is a page now: drop it from the list`);
+    assert.equal((await get(p)).status, 200, `${p} does not answer 200`);
   }
 });

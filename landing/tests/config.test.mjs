@@ -145,7 +145,7 @@ test("GA: nginx.conf accepts exactly one measurement id, everywhere it names it"
     "expected the id in the /gx4t/ filter, its proxy_pass and the collect filter",
   );
   // The tests that hard-code the production id must agree with nginx.conf.
-  for (const file of ["tests/nginx.test.mjs", "tests/site.test.mjs"]) {
+  for (const file of ["tests/nginx.test.mjs", "tests/seo.test.mjs"]) {
     assert.deepEqual(realGaIds(read(file)), ids, `${file} uses another GA id`);
   }
   // CI builds with a dummy id that nginx 404s, so a CI run can never send a
