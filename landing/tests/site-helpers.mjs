@@ -8,16 +8,45 @@ export const BASE_URL = (
 ).replace(/\/+$/, "");
 export const SITE_URL = "https://anotifier.io";
 
+// The named entities our pages are rendered with, as the characters they stand
+// for. A numeric reference is decoded by its code point.
 const ENTITIES = {
   amp: "&",
   lt: "<",
   gt: ">",
   quot: '"',
-  "#x27": "'",
-  "#39": "'",
+  apos: "'",
+  nbsp: " ",
+  ldquo: "“",
+  rdquo: "”",
+  lsquo: "‘",
+  rsquo: "’",
+  middot: "·",
+  mdash: "—",
+  ndash: "–",
+  hellip: "…",
 };
-const decode = (s) =>
-  s.replace(/&(amp|lt|gt|quot|#x27|#39);/g, (_, e) => ENTITIES[e]);
+
+// The text an HTML fragment's entities stand for, in one pass so "&amp;quot;"
+// ends up as the text "&quot;" and not as a quote.
+export const decodeEntities = (s) =>
+  s.replace(/&(?:([a-z]+)|#(\d+)|#x([0-9a-f]+));/gi, (all, name, dec, hex) => {
+    if (name) return ENTITIES[name] ?? all;
+    return String.fromCodePoint(dec ? Number(dec) : parseInt(hex, 16));
+  });
+
+// Removes every tag, repeating until none is left so a nested "<<b>script>"
+// cannot survive. `replacement` stands in for each tag: "" joins the text on
+// both sides, as lib/strip-tags.ts does for the FAQ JSON-LD; " " keeps words
+// from running together.
+export function stripTags(html, replacement = "") {
+  let prev;
+  do {
+    prev = html;
+    html = html.replace(/<[^>]*>/g, replacement);
+  } while (html !== prev);
+  return html;
+}
 
 // A request that dies at the network level (a reset or terminated TLS socket:
 // undici's "fetch failed" / "terminated") never got an answer, so it says
@@ -80,10 +109,35 @@ export async function sitemapPaths() {
   );
 }
 
+// Each agent page and the how-to guide that answers the same question.
+export const AGENT_GUIDES = {
+  "/claude-code/": "/guides/claude-code-notifications/",
+  "/codex/": "/guides/codex-cli-notifications/",
+  "/cursor/": "/guides/cursor-agent-notifications/",
+  "/gemini-cli/": "/guides/gemini-cli-notifications/",
+};
+
+// The visible FAQ questions and the FAQPage JSON-LD questions of a rendered
+// page, so a test can check that the two stay in step.
+export function faqQuestions(body) {
+  const ld = [
+    ...body.matchAll(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g,
+    ),
+  ].flatMap((m) => JSON.parse(m[1]));
+  const schemaQs = ld
+    .filter((d) => d["@type"] === "FAQPage")
+    .flatMap((d) => d.mainEntity.map((q) => q.name));
+  const visibleQs = [...body.matchAll(/<summary>([\s\S]*?)<\/summary>/g)].map(
+    (m) => decodeEntities(stripTags(m[1])),
+  );
+  return { schemaQs, visibleQs };
+}
+
 export function meta(html) {
   const pick = (re) => {
     const m = html.match(re);
-    return m ? decode(m[1]) : null;
+    return m ? decodeEntities(m[1]) : null;
   };
   const h1s = [...html.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/g)];
   return {
@@ -92,12 +146,7 @@ export function meta(html) {
     canonical: pick(/<link rel="canonical" href="([^"]*)"/),
     h1Count: h1s.length,
     h1Text: h1s[0]
-      ? decode(
-          h1s[0][1]
-            .replace(/<[^>]+>/g, " ")
-            .replace(/\s+/g, " ")
-            .trim(),
-        )
+      ? decodeEntities(stripTags(h1s[0][1], " ").replace(/\s+/g, " ").trim())
       : null,
   };
 }
