@@ -36,3 +36,20 @@ jobs:
         env:
           # live Sentry delivery test runs on ONE leg (ubuntu, node 22): one leg proves delivery, the others would only flood the prod Sentry project; empty = auto-skip
           AAN_SENTRY_TEST_DSN: ${{ (matrix.os == 'ubuntu-latest' && matrix.node == 22) && secrets.AAN_SENTRY_TEST_DSN || '' }}
+
+  # One extra leg, ubuntu + newest node only: the same suite with every non-loopback
+  # connection refused (tests/offline-preload.cjs, inherited by spawned children through
+  # NODE_OPTIONS). A test that quietly reaches the internet fails here instead of passing
+  # on a connected runner. No AAN_SENTRY_TEST_DSN: that live delivery test needs the network.
+  unit-offline:
+    name: Unit (network blocked)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Unit + integration tests, network blocked
+        # absolute path on purpose: tests spawn children with other working directories
+        run: NODE_OPTIONS="--require=$GITHUB_WORKSPACE/tests/offline-preload.cjs" npm test
