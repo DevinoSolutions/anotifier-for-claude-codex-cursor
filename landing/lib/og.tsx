@@ -40,7 +40,7 @@ function twoLines(text: string): string {
     .replace(/[\s,;:.]+$/, "")}…`;
 }
 
-export interface OgCard {
+interface OgCard {
   /** Mono kicker above the headline, e.g. "GUIDE · CLAUDE CODE". */
   kicker: string;
   title: string;
