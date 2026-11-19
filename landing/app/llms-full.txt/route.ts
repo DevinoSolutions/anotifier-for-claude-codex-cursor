@@ -2,6 +2,7 @@ import { DOCS, DOCS_DESCRIPTION, DOCS_FAQ } from "@/lib/docs";
 import { GUIDES } from "@/lib/guides";
 import { ALTERNATIVES, COMPARE_INTRO } from "@/lib/alternatives";
 import {
+  absoluteLinks,
   blocksToMarkdown,
   faqToMarkdown,
   sectionsToMarkdown,
@@ -60,7 +61,7 @@ export function GET() {
       ].join("\n"),
     ),
   ];
-  return new Response(parts.join("\n"), {
+  return new Response(absoluteLinks(parts.join("\n")), {
     headers: { "content-type": "text/plain; charset=utf-8" },
   });
 }
