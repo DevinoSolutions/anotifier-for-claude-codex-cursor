@@ -1,5 +1,5 @@
-import type { Guide } from "./guides";
-import { WINDOWS_SOUND, json } from "./claude-guides";
+import type { Guide } from "./content-types";
+import { WINDOWS_SOUND, json } from "./content-utils";
 
 /**
  * Codex CLI deep dive: sounds and approval alerts. Codex facts follow its docs

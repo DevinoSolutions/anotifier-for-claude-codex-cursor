@@ -1,11 +1,5 @@
-import type { Block } from "./docs";
+import type { Dated, Heading, HtmlFaq, PageSection } from "./content-types";
 import { COMMUNITY_URL } from "./site";
-
-interface ChannelH1 {
-  pre: string;
-  em: string;
-  post: string;
-}
 
 interface ChannelStep {
   /** Short mono label shown as a badge (e.g. "Slack", "config", "test"). */
@@ -14,24 +8,8 @@ interface ChannelStep {
   text: string;
 }
 
-interface ChannelSection {
-  id: string;
-  kicker: string;
-  title: string;
-  blocks: Block[];
-}
-
-interface ChannelFaq {
-  q: string;
-  /** Inner HTML of the answer container (simple inline tags: <p>, <code>, <a>). */
-  aHtml: string;
-}
-
-export interface Channel {
+export interface Channel extends Dated {
   slug: string;
-  /** Last significant edit of this page's content (YYYY-MM-DD): the
-      sitemap <lastmod>. Bump it when you change the entry, not on every build. */
-  updated: string;
   /** Display name used in breadcrumb, headings, and cross-links (e.g. "Slack"). */
   name: string;
   /** Public path to the service's own logo file, shown beside the headline.
@@ -41,7 +19,7 @@ export interface Channel {
   kind: "webhook" | "ntfy";
   title: string;
   description: string;
-  h1: ChannelH1;
+  h1: Heading;
   sub: string;
   /** Lede paragraph under the "Set up" section. */
   setupIntro: string;
@@ -51,8 +29,8 @@ export interface Channel {
   config: string;
   /** Extra sections after the config block: what the channel posts,
       troubleshooting. Same shape as an agent page's sections. */
-  sections?: ChannelSection[];
-  faqs: ChannelFaq[];
+  sections?: PageSection[];
+  faqs: HtmlFaq[];
 }
 
 export const CHANNELS: Channel[] = [

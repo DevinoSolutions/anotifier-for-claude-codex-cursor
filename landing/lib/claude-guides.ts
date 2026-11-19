@@ -1,4 +1,5 @@
-import type { Guide } from "./guides";
+import type { Guide } from "./content-types";
+import { WINDOWS_SOUND, json } from "./content-utils";
 
 /**
  * Claude Code deep dives: permission prompts and sounds. Claude Code facts
@@ -20,8 +21,6 @@ const asyncHook = (command: string, matcher?: string) => ({
   hooks: [{ type: "command", command, async: true }],
 });
 
-export const json = (value: unknown) => JSON.stringify(value, null, 2);
-
 const NEEDS_YOU_SCRIPT = `#!/bin/sh
 input=$(cat)
 type=$(printf '%s' "$input" | jq -r '.notification_type')
@@ -32,9 +31,6 @@ case "$type" in
   idle_prompt)
     notify-send -- 'Claude Code is waiting' "$msg" ;;
 esac`;
-
-export const WINDOWS_SOUND = (file: string) =>
-  `powershell.exe -NoProfile -Command "(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\${file}').PlaySync()"`;
 
 export const CLAUDE_GUIDES: Guide[] = [
   {

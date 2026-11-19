@@ -1,5 +1,5 @@
-import type { Guide } from "./guides";
-import { json } from "./claude-guides";
+import type { Guide } from "./content-types";
+import { json } from "./content-utils";
 import { COMMUNITY_URL } from "./site";
 
 /**

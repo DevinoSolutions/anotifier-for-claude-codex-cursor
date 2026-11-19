@@ -1,5 +1,6 @@
-import type { Block, DocFaq } from "./docs";
-import { CLAUDE_GUIDES, json } from "./claude-guides";
+import type { Block, Guide } from "./content-types";
+import { json } from "./content-utils";
+import { CLAUDE_GUIDES } from "./claude-guides";
 import { ANTIGRAVITY_GUIDES } from "./antigravity-guides";
 import { CODEX_GUIDES } from "./codex-guides";
 import { TOPIC_GUIDES } from "./topic-guides";
@@ -12,33 +13,6 @@ import { TOPIC_GUIDES } from "./topic-guides";
  * then explain what anotifier adds. Facts about each agent's own features are
  * kept to what their public docs state; anotifier facts mirror lib/docs.ts.
  */
-
-interface GuideSection {
-  id: string;
-  title: string;
-  blocks: Block[];
-}
-
-export interface Guide {
-  slug: string;
-  /** Last significant edit of this page's content (YYYY-MM-DD): the
-      sitemap <lastmod>. Bump it when you change the entry, not on every build. */
-  updated: string;
-  /** "agent": how to get notified by one agent. "topic": a platform or
-      feature (Windows, hooks, ntfy, troubleshooting) across every agent. */
-  kind: "agent" | "topic";
-  /** Agent slug on this site, for cross-links (/claude-code/ etc.). */
-  agentSlug?: string;
-  /** Short label for the kicker, cards, and breadcrumb. */
-  name: string;
-  icon?: string;
-  title: string;
-  description: string;
-  h1: string;
-  intro: string;
-  sections: GuideSection[];
-  faqs: DocFaq[];
-}
 
 // The WinRT toast call from lib/topic-guides.ts (anotifier's own WSL toast,
 // assets/windows/toast-wsl.ps1): no module, runs on Windows PowerShell 5.1.

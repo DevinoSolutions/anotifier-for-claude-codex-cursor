@@ -1,4 +1,4 @@
-import type { Block, DocFaq, DocSection } from "./docs";
+import type { Block, DocFaq, DocSection } from "./content-types";
 import { SITE_URL } from "./site";
 
 /**
