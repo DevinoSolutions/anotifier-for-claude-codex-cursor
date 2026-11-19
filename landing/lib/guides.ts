@@ -1,5 +1,5 @@
 import type { Block, Guide } from "./content-types";
-import { json } from "./content-utils";
+import { json, winToastParamScript } from "./content-utils";
 import { CLAUDE_GUIDES } from "./claude-guides";
 import { ANTIGRAVITY_GUIDES } from "./antigravity-guides";
 import { CODEX_GUIDES } from "./codex-guides";
@@ -14,22 +14,9 @@ import { TOPIC_GUIDES } from "./topic-guides";
  * kept to what their public docs state; anotifier facts mirror lib/docs.ts.
  */
 
-// The WinRT toast call from lib/topic-guides.ts (anotifier's own WSL toast,
+// The WinRT toast call from lib/content-utils.ts (anotifier's own WSL toast,
 // assets/windows/toast-wsl.ps1): no module, runs on Windows PowerShell 5.1.
-const CODEX_WIN_TOAST_PS1 = `param(
-  [string]$Title = 'Codex',
-  [string]$Message = 'Done'
-)
-$ErrorActionPreference = 'Stop'
-$null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
-$null = [Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime]
-$AppId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe'
-$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
-$texts = $xml.GetElementsByTagName('text')
-$null = $texts.Item(0).AppendChild($xml.CreateTextNode($Title))
-$null = $texts.Item(1).AppendChild($xml.CreateTextNode($Message))
-$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($AppId).Show($toast)`;
+const CODEX_WIN_TOAST_PS1 = winToastParamScript("Codex");
 
 const codexWindowsToast = (message: string) =>
   `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\\.codex\\win-toast.ps1" -Title Codex -Message "${message}"`;

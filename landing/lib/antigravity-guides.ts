@@ -1,5 +1,5 @@
 import type { Guide } from "./content-types";
-import { json } from "./content-utils";
+import { WIN_TOAST_PRELUDE, json } from "./content-utils";
 
 /**
  * Antigravity CLI notifications. Antigravity facts follow Google's docs, read
@@ -60,11 +60,7 @@ echo '${STOP_REPLY}'
 exit 0`;
 
 const WIN_SCRIPT = `$ErrorActionPreference = 'SilentlyContinue'
-$null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
-$null = [Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime]
-$AppId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe'
-$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
-$texts = $xml.GetElementsByTagName('text')
+${WIN_TOAST_PRELUDE}
 $null = $texts.Item(0).AppendChild($xml.CreateTextNode('Antigravity CLI'))
 $null = $texts.Item(1).AppendChild($xml.CreateTextNode('Run finished'))
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($AppId).Show([Windows.UI.Notifications.ToastNotification]::new($xml))
