@@ -39,8 +39,10 @@ jobs:
 
   # One extra leg, ubuntu + newest node only: the same suite with every non-loopback
   # connection refused (tests/offline-preload.cjs, inherited by spawned children through
-  # NODE_OPTIONS). A test that quietly reaches the internet fails here instead of passing
-  # on a connected runner. No AAN_SENTRY_TEST_DSN: that live delivery test needs the network.
+  # NODE_OPTIONS). The hook and the CLI swallow network errors on purpose, so a refused
+  # connection does not by itself fail a test: the preload also appends one line per refused
+  # connection to TRAP_LOG, and the second step fails the job if that log is not empty.
+  # No AAN_SENTRY_TEST_DSN: the live Sentry delivery test needs the network.
   unit-offline:
     name: Unit (network blocked)
     runs-on: ubuntu-latest
@@ -52,4 +54,16 @@ jobs:
           node-version: 22
       - name: Unit + integration tests, network blocked
         # absolute path on purpose: tests spawn children with other working directories
-        run: NODE_OPTIONS="--require=$GITHUB_WORKSPACE/tests/offline-preload.cjs" npm test
+        run: npm test
+        env:
+          NODE_OPTIONS: --require=${{ github.workspace }}/tests/offline-preload.cjs
+          TRAP_LOG: ${{ runner.temp }}/net.log
+      - name: Fail if anything tried to reach the network
+        # always(): print the log even when the tests themselves failed
+        if: ${{ always() }}
+        run: |
+          if [ -s "$RUNNER_TEMP/net.log" ]; then
+            echo "::error::a test, or a process it spawned, tried to connect to a non-loopback host:"
+            cat "$RUNNER_TEMP/net.log"
+            exit 1
+          fi
