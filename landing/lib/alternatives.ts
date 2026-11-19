@@ -4,7 +4,7 @@
  * project does not mention a capability the table says "not listed".
  */
 
-export interface Alternative {
+interface Alternative {
   name: string;
   url: string;
   /** e.g. "open source CLI", "paid SaaS", "macOS app" */

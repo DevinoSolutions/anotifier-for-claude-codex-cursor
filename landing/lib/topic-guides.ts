@@ -1,5 +1,6 @@
-import type { Guide } from "./guides";
-import { json } from "./claude-guides";
+import type { Guide } from "./content-types";
+import { json, winToastParamScript } from "./content-utils";
+import { WSL_TOAST_SOUND } from "./facts";
 import { COMMUNITY_URL } from "./site";
 
 /**
@@ -17,20 +18,7 @@ import { COMMUNITY_URL } from "./site";
 
 // The same WinRT call anotifier's own WSL toast makes (assets/windows/toast-wsl.ps1),
 // minus the comments and the -Silent switch: no module, runs on Windows PowerShell 5.1.
-const WSL_TOAST_PS1 = `param(
-  [string]$Title = 'WSL',
-  [string]$Message = 'Done'
-)
-$ErrorActionPreference = 'Stop'
-$null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
-$null = [Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime]
-$AppId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe'
-$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
-$texts = $xml.GetElementsByTagName('text')
-$null = $texts.Item(0).AppendChild($xml.CreateTextNode($Title))
-$null = $texts.Item(1).AppendChild($xml.CreateTextNode($Message))
-$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($AppId).Show($toast)`;
+const WSL_TOAST_PS1 = winToastParamScript("WSL");
 
 const WSL_SETUP_SCRIPTS = `mkdir -p ~/bin
 cat > ~/bin/win-toast.ps1 <<'EOF'
@@ -81,7 +69,8 @@ export const TOPIC_GUIDES: Guide[] = [
               [
                 "A WSL distribution",
                 "`powershell.exe` (or `pwsh.exe`) reached through Windows interop, running `toast-wsl.ps1`",
-                "A plain toast with the title and message, shown under Windows PowerShell's name: no agent icon or click-to-focus, and the default Windows sound: sound names have no effect, but an audio file set as `toastSound` (1.8.0 and later) plays instead",
+                "A plain toast with the title and message, shown under Windows PowerShell's name: no agent icon or click-to-focus, and " +
+                  WSL_TOAST_SOUND,
                 "Interop on, and PowerShell reachable through `/mnt/c` or the PATH",
               ],
             ],
@@ -176,7 +165,10 @@ export const TOPIC_GUIDES: Guide[] = [
           },
           {
             kind: "p",
-            text: "The result is deliberately simple: the title and the message, with no per-agent icon or click-to-focus, and the default Windows sound: sound names have no effect, but an audio file set as `toastSound` (1.8.0 and later) plays instead. Each attempt has 7 seconds. A failure is logged to `~/.anotifier/errors.log` as `toast:wsl`; when none of the four works, the entry lists each one it tried.",
+            text:
+              "The result is deliberately simple: the title and the message, with no per-agent icon or click-to-focus, and " +
+              WSL_TOAST_SOUND +
+              ". Each attempt has 7 seconds. A failure is logged to `~/.anotifier/errors.log` as `toast:wsl`; when none of the four works, the entry lists each one it tried.",
           },
           {
             kind: "ul",

@@ -1,5 +1,5 @@
-import type { Block } from "./docs";
-import { json } from "./claude-guides";
+import type { Dated, Heading, HtmlFaq, PageSection } from "./content-types";
+import { json } from "./content-utils";
 
 /**
  * The per-agent product pages (/claude-code/ etc.). They answer "what does
@@ -17,35 +17,13 @@ interface AgentHook {
   how: string;
 }
 
-interface AgentFaq {
-  q: string;
-  /** Inner HTML of the answer container (simple inline tags: <p>, <code>, <a>). */
-  aHtml: string;
-}
-
-interface AgentH1 {
-  pre: string;
-  em: string;
-  post: string;
-}
-
-interface AgentSection {
-  id: string;
-  kicker: string;
-  title: string;
-  blocks: Block[];
-}
-
-export interface Agent {
+export interface Agent extends Dated {
   slug: string;
-  /** Last significant edit of this page's content (YYYY-MM-DD): the
-      sitemap <lastmod>. Bump it when you change the entry, not on every build. */
-  updated: string;
   /** Display name used in breadcrumb, headings, and cross-links (e.g. "Claude Code"). */
   name: string;
   title: string;
   description: string;
-  h1: AgentH1;
+  h1: Heading;
   sub: string;
   /** Inline markdown callout under the hero, for news that decides whether
       the page applies to the reader at all. */
@@ -56,8 +34,8 @@ export interface Agent {
   /** Extra install line, rendered as HTML below the install command (claude-code only). */
   extraInstall?: string;
   /** Agent-specific sections after the hook list: what setup writes, limits. */
-  sections: AgentSection[];
-  faqs: AgentFaq[];
+  sections: PageSection[];
+  faqs: HtmlFaq[];
   /** Anchor text for the guides' link to this page; defaults to "<name> overview". */
   linkText?: string;
   /** Public path to the agent icon. */

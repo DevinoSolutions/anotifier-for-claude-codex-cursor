@@ -5,37 +5,13 @@
  * lib/site.ts. The same tree renders to HTML (app/docs) AND to plain markdown
  * (app/llms-full.txt) so humans and language models read one identical text.
  *
- * Inline markup allowed inside strings: `code` and [text](url). Nothing else.
+ * Inline markup allowed inside strings: `code`, **bold** and [text](url).
+ * Nothing else (components/docs/Inline.tsx renders exactly these three).
  */
+import type { DocFaq, DocSection } from "./content-types";
 
-export type Block =
-  | { kind: "p"; text: string }
-  | { kind: "code"; lang: string; code: string }
-  | { kind: "ul"; items: string[] }
-  | { kind: "ol"; items: string[] }
-  | { kind: "table"; head: string[]; rows: string[][] }
-  | { kind: "note"; text: string };
-
-export interface DocSection {
-  id: string;
-  /** H2 text. Phrased as the question or task a reader (or an LLM) has. */
-  title: string;
-  /** One-sentence direct answer that opens the section. */
-  lead: string;
-  blocks: Block[];
-  children?: DocSubsection[];
-}
-
-interface DocSubsection {
-  id: string;
-  title: string;
-  blocks: Block[];
-}
-
-export interface DocFaq {
-  q: string;
-  a: string;
-}
+// Components import `Block` from here.
+export type { Block } from "./content-types";
 
 export const DOCS_TITLE = "anotifier documentation";
 export const DOCS_DESCRIPTION =

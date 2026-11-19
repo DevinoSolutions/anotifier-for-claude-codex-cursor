@@ -1,4 +1,5 @@
-import type { Guide } from "./guides";
+import type { Guide } from "./content-types";
+import { WINDOWS_SOUND, json } from "./content-utils";
 
 /**
  * Claude Code deep dives: permission prompts and sounds. Claude Code facts
@@ -20,8 +21,6 @@ const asyncHook = (command: string, matcher?: string) => ({
   hooks: [{ type: "command", command, async: true }],
 });
 
-export const json = (value: unknown) => JSON.stringify(value, null, 2);
-
 const NEEDS_YOU_SCRIPT = `#!/bin/sh
 input=$(cat)
 type=$(printf '%s' "$input" | jq -r '.notification_type')
@@ -32,9 +31,6 @@ case "$type" in
   idle_prompt)
     notify-send -- 'Claude Code is waiting' "$msg" ;;
 esac`;
-
-export const WINDOWS_SOUND = (file: string) =>
-  `powershell.exe -NoProfile -Command "(New-Object Media.SoundPlayer 'C:\\Windows\\Media\\${file}').PlaySync()"`;
 
 export const CLAUDE_GUIDES: Guide[] = [
   {
@@ -242,7 +238,7 @@ export const CLAUDE_GUIDES: Guide[] = [
             items: [
               "**In a terminal**, `permission_prompt` waits about six seconds after the prompt appears, so a prompt you answer right away never pings you. Each keystroke pushes that timer back.",
               "**In Claude Desktop and the VS Code extension**, which answer permission requests through the Agent SDK, it fires about six seconds after the request and typing does not delay it. Before v2.1.233 it did not fire there at all. Set `CLAUDE_CODE_DISABLE_PERMISSION_PROMPT_NOTIFY_HOOKS=1` to turn it off in those hosts.",
-              "**`idle_prompt`** comes about 60 seconds after Claude finishes, and only if you haven't typed. It is not sent while Claude waits for a usage limit to reset.",
+              "**idle_prompt** comes about 60 seconds after Claude finishes, and only if you haven't typed. It is not sent while Claude waits for a usage limit to reset.",
               "**For an alert the moment Claude finishes**, use the `Stop` hook, not `idle_prompt`. See the [Claude Code notifications guide](/guides/claude-code-notifications/).",
               "**For a signal the instant Claude asks for permission**, use a `PermissionRequest` hook. It runs before the prompt is shown and can return a decision (`allow` or `deny`); in an interactive session, a hook that returns no decision leaves the normal prompt in place.",
             ],
@@ -284,7 +280,7 @@ export const CLAUDE_GUIDES: Guide[] = [
           {
             kind: "ol",
             items: [
-              "**The type is `idle_prompt`.** It only runs about 60 seconds after Claude finishes, and only if you haven't typed since and no background agent, such as a background subagent, is still running. It is not sent while Claude waits for a usage limit to reset.",
+              "**The type is idle_prompt.** It only runs about 60 seconds after Claude finishes, and only if you haven't typed since and no background agent, such as a background subagent, is still running. It is not sent while Claude waits for a usage limit to reset.",
               '**Test the command by itself.** In a POSIX shell (WSL on Windows), pipe a sample event into it: `echo \'{"notification_type":"permission_prompt","message":"test"}\' | sh ~/.claude/hooks/needs-you.sh`. If no banner appears, the problem is the command (a missing `jq`, `notify-send` or Script Editor permission), not Claude Code.',
               "**Confirm the hook is registered.** Type `/hooks` in Claude Code and select `Notification`. The matcher must be one of the [types above](#types), spelled exactly.",
               "**You answered too fast.** `permission_prompt` only runs after the prompt has waited about six seconds, and an answer from you before that cancels it (in Claude Desktop and VS Code, an answer from a `PermissionRequest` hook does too). In a terminal, each keystroke while the prompt is open pushes the timer back again.",
@@ -1049,7 +1045,7 @@ if (typeof win?.used_percentage !== "number") {
       },
       {
         q: "Will I get a warning from every chat I have open?",
-        a: "No. Usage is account-wide, so anotifier warns once per threshold per window across all chats on the machine. The first chat to see the crossing sends it, and the notification names that chat, as `name (project) [id]` when the session has a different name from its folder, otherwise `project [id]`.",
+        a: 'No. Usage is account-wide, so anotifier warns once per threshold per window across all chats on the machine. The first chat to see the crossing sends it, and the notification names that chat, as "name (project) [id]" when the session has a different name from its folder, otherwise "project [id]".',
       },
       {
         q: "Will it replace my existing statusline?",
@@ -1450,7 +1446,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
               "**Some settings are invisible to a statusline.** The `--autocompact` command-line flag and managed (enterprise) settings never reach it, so with either in play the warning can come late or not at all.",
               "**An idle chat is not checked.** The statusline runs on Claude Code's own events, so a chat you leave alone does not warn until it next refreshes, unless you set `refreshInterval` on `statusLine`.",
               "**One warning, not a countdown.** After the warning a chat is never warned again, even if you keep working past it.",
-              "**`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` is not read.** If you set it to compact earlier, anotifier still measures against the full auto-compact window, so the warning can come after the chat has already compacted. Lower `contextAlerts.threshold` to match, for example 40 for an override of 50.",
+              "**CLAUDE_AUTOCOMPACT_PCT_OVERRIDE is not read.** If you set it to compact earlier, anotifier still measures against the full auto-compact window, so the warning can come after the chat has already compacted. Lower `contextAlerts.threshold` to match, for example 40 for an override of 50.",
             ],
           },
         ],
@@ -1466,7 +1462,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
           {
             kind: "ul",
             items: [
-              "Claude Code: [`autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled), [set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window), [default auto-compact thresholds](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds), [environment variables](https://code.claude.com/docs/en/env-vars)",
+              "Claude Code: [autoCompactEnabled](https://code.claude.com/docs/en/settings-reference#autocompactenabled), [set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window), [default auto-compact thresholds](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds), [environment variables](https://code.claude.com/docs/en/env-vars)",
               "Claude Code: [commands](https://code.claude.com/docs/en/commands), [what survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction), [best practices](https://code.claude.com/docs/en/best-practices), [context exceeds the token limit](https://code.claude.com/docs/en/errors#context-exceeds-the-token-limit)",
             ],
           },
@@ -1854,7 +1850,7 @@ if (!(tokens > 0) || !(full > 0) || !input.session_id) {
           {
             kind: "ul",
             items: [
-              "Claude Code: [hooks reference](https://code.claude.com/docs/en/hooks), [permissions and workspace trust](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder), [`allowManagedHooksOnly` and `disableAllHooks`](https://code.claude.com/docs/en/settings-reference#allowmanagedhooksonly), [managed settings](https://code.claude.com/docs/en/managed-settings)",
+              "Claude Code: [hooks reference](https://code.claude.com/docs/en/hooks), [permissions and workspace trust](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder), [allowManagedHooksOnly and disableAllHooks](https://code.claude.com/docs/en/settings-reference#allowmanagedhooksonly), [managed settings](https://code.claude.com/docs/en/managed-settings)",
               "Claude Agent SDK: [hooks](https://code.claude.com/docs/en/agent-sdk/hooks)",
               "Codex CLI: [hooks](https://learn.chatgpt.com/docs/hooks)",
               "Gemini CLI: [hooks](https://geminicli.com/docs/hooks/)",

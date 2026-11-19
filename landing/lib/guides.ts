@@ -1,5 +1,6 @@
-import type { Block, DocFaq } from "./docs";
-import { CLAUDE_GUIDES, json } from "./claude-guides";
+import type { Block, Guide } from "./content-types";
+import { json, winToastParamScript } from "./content-utils";
+import { CLAUDE_GUIDES } from "./claude-guides";
 import { ANTIGRAVITY_GUIDES } from "./antigravity-guides";
 import { CODEX_GUIDES } from "./codex-guides";
 import { TOPIC_GUIDES } from "./topic-guides";
@@ -13,49 +14,9 @@ import { TOPIC_GUIDES } from "./topic-guides";
  * kept to what their public docs state; anotifier facts mirror lib/docs.ts.
  */
 
-interface GuideSection {
-  id: string;
-  title: string;
-  blocks: Block[];
-}
-
-export interface Guide {
-  slug: string;
-  /** Last significant edit of this page's content (YYYY-MM-DD): the
-      sitemap <lastmod>. Bump it when you change the entry, not on every build. */
-  updated: string;
-  /** "agent": how to get notified by one agent. "topic": a platform or
-      feature (Windows, hooks, ntfy, troubleshooting) across every agent. */
-  kind: "agent" | "topic";
-  /** Agent slug on this site, for cross-links (/claude-code/ etc.). */
-  agentSlug?: string;
-  /** Short label for the kicker, cards, and breadcrumb. */
-  name: string;
-  icon?: string;
-  title: string;
-  description: string;
-  h1: string;
-  intro: string;
-  sections: GuideSection[];
-  faqs: DocFaq[];
-}
-
-// The WinRT toast call from lib/topic-guides.ts (anotifier's own WSL toast,
+// The WinRT toast call from lib/content-utils.ts (anotifier's own WSL toast,
 // assets/windows/toast-wsl.ps1): no module, runs on Windows PowerShell 5.1.
-const CODEX_WIN_TOAST_PS1 = `param(
-  [string]$Title = 'Codex',
-  [string]$Message = 'Done'
-)
-$ErrorActionPreference = 'Stop'
-$null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
-$null = [Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime]
-$AppId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe'
-$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
-$texts = $xml.GetElementsByTagName('text')
-$null = $texts.Item(0).AppendChild($xml.CreateTextNode($Title))
-$null = $texts.Item(1).AppendChild($xml.CreateTextNode($Message))
-$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($AppId).Show($toast)`;
+const CODEX_WIN_TOAST_PS1 = winToastParamScript("Codex");
 
 const codexWindowsToast = (message: string) =>
   `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\\.codex\\win-toast.ps1" -Title Codex -Message "${message}"`;
@@ -975,7 +936,7 @@ const AGENT_GUIDES: Guide[] = [
               "**Project name from 1.8.0.** Cursor's docs list `workspace_roots` in the hook input, and anotifier 1.8.0 and later names the project from the first one. Before 1.8.0 every Cursor alert looked the same and the hand-written script above was the way to name the project.",
               "**Status from 1.8.0.** anotifier 1.8.0 and later reads `status`: a run that ended in an error says `Task failed`, and a run you aborted sends no alert. Before 1.8.0 both said `Task complete`.",
               "**Click-to-focus on Windows from 1.8.0.** The Windows toast jumps to a window by project folder, which a Cursor alert now has. Before 1.8.0 it had none, so there was no click action.",
-              '**Only `stop`.** There is no alert for "waiting for approval". Leave Cursor\'s own OS notification on for that.',
+              '**Only the stop hook.** There is no alert for "waiting for approval". Leave Cursor\'s own OS notification on for that.',
               "**Not driven by a live Cursor.** CI checks that setup writes and removes the hook correctly; it doesn't run a real Cursor agent end to end.",
             ],
           },

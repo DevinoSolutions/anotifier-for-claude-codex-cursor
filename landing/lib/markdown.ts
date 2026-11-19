@@ -1,4 +1,5 @@
-import type { Block, DocFaq, DocSection } from "./docs";
+import type { Block, DocFaq, DocSection } from "./content-types";
+import { SITE_URL } from "./site";
 
 /**
  * Renders the same block tree the pages render, as plain markdown. This is what
@@ -53,4 +54,23 @@ export function sectionsToMarkdown(sections: DocSection[]): string {
 
 export function faqToMarkdown(faq: DocFaq[]): string {
   return faq.map((f) => `### ${f.q}\n\n${f.a}`).join("\n\n");
+}
+
+/**
+ * Makes every root-relative link absolute, for the plain-text mirror: a model
+ * that reads /llms-full.txt out of context has no host to resolve "/docs/"
+ * against. The HTML pages keep the relative links, so this runs only on the
+ * generated text. Fenced code is left alone, since a link in a code sample is
+ * sample text and not a link.
+ */
+export function absoluteLinks(md: string): string {
+  let fenced = false;
+  return md
+    .split("\n")
+    .map((line) => {
+      if (line.startsWith("```")) fenced = !fenced;
+      else if (!fenced) return line.replace(/\]\(\/(?!\/)/g, `](${SITE_URL}/`);
+      return line;
+    })
+    .join("\n");
 }

@@ -1,15 +1,27 @@
+import { AGENTS } from "@/lib/agents";
+import { CHANNELS } from "@/lib/channels";
 import { DOCS, DOCS_DESCRIPTION, DOCS_FAQ } from "@/lib/docs";
 import { GUIDES } from "@/lib/guides";
 import { ALTERNATIVES, COMPARE_INTRO } from "@/lib/alternatives";
 import {
+  absoluteLinks,
   blocksToMarkdown,
   faqToMarkdown,
   sectionsToMarkdown,
 } from "@/lib/markdown";
-import { CONTENT_UPDATED, SITE_URL, VERSION } from "@/lib/site";
+import { PAGE_UPDATED, SITE_URL, VERSION } from "@/lib/site";
 
 // Static export: rendered once at build time into out/llms-full.txt.
 export const dynamic = "force-static";
+
+/** The newest content edit anywhere on the site: the latest `updated` of any
+    page, so nobody has to bump a second date by hand. ISO dates sort as text. */
+const CONTENT_UPDATED = [
+  ...Object.values(PAGE_UPDATED),
+  ...GUIDES.map((g) => g.updated),
+  ...AGENTS.map((a) => a.updated),
+  ...CHANNELS.map((c) => c.updated),
+].reduce((newest, date) => (date > newest ? date : newest));
 
 export function GET() {
   const parts: string[] = [
@@ -60,7 +72,7 @@ export function GET() {
       ].join("\n"),
     ),
   ];
-  return new Response(parts.join("\n"), {
+  return new Response(absoluteLinks(parts.join("\n")), {
     headers: { "content-type": "text/plain; charset=utf-8" },
   });
 }
