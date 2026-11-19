@@ -117,21 +117,58 @@ export const AGENT_GUIDES = {
   "/gemini-cli/": "/guides/gemini-cli-notifications/",
 };
 
-// The visible FAQ questions and the FAQPage JSON-LD questions of a rendered
-// page, so a test can check that the two stay in step.
-export function faqQuestions(body) {
-  const ld = [
+// Every JSON-LD node of a rendered page, with arrays and @graph unpacked.
+function ldNodes(body) {
+  const flat = (d) =>
+    Array.isArray(d) ? d.flatMap(flat) : d["@graph"] ? flat(d["@graph"]) : [d];
+  return [
     ...body.matchAll(
       /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g,
     ),
-  ].flatMap((m) => JSON.parse(m[1]));
-  const schemaQs = ld
+  ].flatMap((m) => flat(JSON.parse(m[1])));
+}
+
+// Question and answer of every FAQPage entry in a page's JSON-LD.
+export const schemaFaqs = (body) =>
+  ldNodes(body)
     .filter((d) => d["@type"] === "FAQPage")
-    .flatMap((d) => d.mainEntity.map((q) => q.name));
+    .flatMap((d) =>
+      d.mainEntity.map((e) => ({ q: e.name, a: e.acceptedAnswer.text })),
+    );
+
+// The visible FAQ questions and the FAQPage JSON-LD questions of a rendered
+// page, so a test can check that the two stay in step.
+export function faqQuestions(body) {
+  const schemaQs = schemaFaqs(body).map((f) => f.q);
   const visibleQs = [...body.matchAll(/<summary>([\s\S]*?)<\/summary>/g)].map(
     (m) => decodeEntities(stripTags(m[1])),
   );
   return { schemaQs, visibleQs };
+}
+
+// Text of an HTML fragment as a reader sees it: tags dropped without adding
+// spaces (the way lib/strip-tags.ts builds the JSON-LD answers), entities
+// decoded, white space collapsed.
+export const plainText = (html) =>
+  decodeEntities(stripTags(html)).replace(/\s+/g, " ").trim();
+
+// How a rendered page shows its FAQ. Three markups exist: a <details> per
+// question (guides, agents, channels, docs), a button per question whose answer
+// only renders once opened (home), and an <h3> with the answer in the <div>
+// around it (the guides index). `a` is null where the page has no answer in its HTML.
+export function visibleFaqs(body) {
+  const details = [
+    ...body.matchAll(/<summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/g),
+  ].map((m) => ({ q: plainText(m[1]), a: plainText(m[2]) }));
+  const buttons = [
+    ...body.matchAll(
+      /<button type="button"[^>]*><span[^>]*>\[[+−-]\]<\/span><span[^>]*>([\s\S]*?)<\/span><\/button>/g,
+    ),
+  ].map((m) => ({ q: plainText(m[1]), a: null }));
+  const headings = [
+    ...body.matchAll(/<h3[^>]*>([\s\S]*?)<\/h3>([\s\S]*?)<\/div>/g),
+  ].map((m) => ({ q: plainText(m[1]), a: plainText(m[2]) }));
+  return { details, buttons, headings };
 }
 
 export function meta(html) {

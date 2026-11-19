@@ -7,10 +7,15 @@ import {
   AGENT_GUIDES,
   BASE_URL,
   SITE_URL,
+  decodeEntities,
   get,
   meta,
+  plainText,
   retried,
+  schemaFaqs,
   sitemapPaths,
+  stripTags,
+  visibleFaqs,
 } from "./site-helpers.mjs";
 
 const paths = await sitemapPaths();
@@ -391,5 +396,131 @@ test("every guide offers the install command before its first section", () => {
       `${p}: install command only appears after the first section`,
     );
     assert.match(beforeH2, /<button/, `${p}: no copy button by the command`);
+  }
+});
+
+// A FAQPage is only worth its markup if the questions and answers a visitor
+// reads are the ones the JSON-LD hands to search engines.
+test("every page with a FAQPage shows the same questions and answers", () => {
+  let checked = 0;
+  for (const [p, { body }] of pages) {
+    const schema = schemaFaqs(body);
+    const { details, buttons, headings } = visibleFaqs(body);
+    if (schema.length === 0) {
+      assert.equal(
+        details.length + buttons.length,
+        0,
+        `${p} shows FAQ questions but has no FAQPage JSON-LD`,
+      );
+      continue;
+    }
+    checked++;
+    const schemaQs = schema.map((f) => f.q);
+    // The guides index prints each question as an <h3> among other headings,
+    // so there the questions are looked up rather than listed.
+    const shown = details.length
+      ? details
+      : buttons.length
+        ? buttons
+        : schemaQs.map((q) => headings.find((h) => h.q === q) ?? { q: null });
+    assert.deepEqual(
+      shown.map((f) => f.q),
+      schemaQs,
+      `${p}: visible FAQ questions differ from the JSON-LD`,
+    );
+    // The home answers only render once a question is opened, so they are not
+    // in the static HTML; every other page prints them.
+    for (const [i, f] of shown.entries()) {
+      if (f.a === null) continue;
+      assert.equal(
+        f.a,
+        plainText(schema[i].a),
+        `${p}: the answer to "${f.q}" differs from the JSON-LD`,
+      );
+    }
+  }
+  assert.ok(checked >= 20, `only ${checked} pages carry a FAQPage`);
+  assert.ok(
+    visibleFaqs(pages.get("/").body).buttons.length >= 5,
+    "home FAQ questions were not found: did the markup change?",
+  );
+});
+
+// The text a visitor reads, minus code (which may legitimately hold backticks,
+// asterisks and brackets) and minus scripts and styles.
+const readableText = (body) =>
+  decodeEntities(
+    stripTags(
+      body
+        .replace(/<(script|style)\b[\s\S]*?<\/\1>/g, " ")
+        .replace(/<pre\b[\s\S]*?<\/pre>/g, " ")
+        .replace(/<code\b[\s\S]*?<\/code>/g, " "),
+      " ",
+    ),
+  );
+
+test("no page prints raw markdown: backticks, ** or ](", () => {
+  const leaks = [];
+  for (const [p, { body, title, description }] of pages) {
+    const shown = {
+      text: readableText(body),
+      title: title ?? "",
+      description: description ?? "",
+    };
+    for (const [where, text] of Object.entries(shown)) {
+      for (const m of text.matchAll(/`|\*\*|\]\(/g)) {
+        const at = m.index;
+        leaks.push(
+          `${p} ${where}: ...${text.slice(Math.max(0, at - 30), at + 30).replace(/\s+/g, " ")}...`,
+        );
+      }
+    }
+  }
+  assert.deepEqual(leaks, []);
+});
+
+test("FAQPage JSON-LD answers are plain text: no HTML entity or backtick", () => {
+  const leaks = [];
+  for (const [p, { body }] of pages) {
+    for (const { q, a } of schemaFaqs(body)) {
+      for (const [where, text] of [
+        ["question", q],
+        ["answer", a],
+      ]) {
+        for (const m of text.matchAll(/&(?:[a-z]+|#\d+|#x[0-9a-f]+);|`/gi)) {
+          leaks.push(
+            `${p} ${where} of "${q}": ...${text.slice(Math.max(0, m.index - 30), m.index + 30)}...`,
+          );
+        }
+      }
+    }
+  }
+  assert.deepEqual(leaks, []);
+});
+
+// llms.txt is a hand-written index for language models. Every page has to be
+// in it, and nothing in it may point at a page the site does not have.
+// URLs on the site that are deliberately not pages in the sitemap:
+const LLMS_NON_PAGES = ["/llms-full.txt"];
+
+test("llms.txt lists every sitemap page and only pages the sitemap has", async () => {
+  const { status, body } = await get("/llms.txt");
+  assert.equal(status, 200, `/llms.txt returned ${status}`);
+  const listed = new Set(
+    [...body.matchAll(/https:\/\/anotifier\.io(\/[^\s)>\]"'`]*)?/g)].map(
+      // A fragment, a query or a closing full stop is not part of the page.
+      (m) => (m[1] ?? "/").replace(/[#?].*$/, "").replace(/[.,;:]+$/, ""),
+    ),
+  );
+  assert.ok(listed.size > 20, `only ${listed.size} URLs found in llms.txt`);
+  const missing = paths.filter((p) => !listed.has(p));
+  assert.deepEqual(missing, [], "sitemap pages missing from llms.txt");
+  const unknown = [...listed].filter(
+    (p) => !paths.includes(p) && !LLMS_NON_PAGES.includes(p),
+  );
+  assert.deepEqual(unknown, [], "llms.txt URLs that are not sitemap pages");
+  for (const p of LLMS_NON_PAGES) {
+    assert.ok(!paths.includes(p), `${p} is a page now: drop it from the list`);
+    assert.equal((await get(p)).status, 200, `${p} does not answer 200`);
   }
 });
