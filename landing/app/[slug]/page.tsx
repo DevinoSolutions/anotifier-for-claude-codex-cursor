@@ -6,13 +6,19 @@ import { GUIDES } from "@/lib/guides";
 import Blocks from "@/components/docs/Blocks";
 import CodeBlock from "@/components/docs/CodeBlock";
 import Inline from "@/components/docs/Inline";
-import LogoMark from "@/components/LogoMark";
+import FaqSection from "@/components/FaqSection";
+import JsonLd from "@/components/JsonLd";
+import PageNav from "@/components/PageNav";
 import SiteFooter from "@/components/SiteFooter";
-import StarButton from "@/components/StarButton";
-import DiscordIcon from "@/components/DiscordIcon";
 import CopyButton from "@/components/home/CopyButton";
-import { COMMUNITY_URL, INSTALL_CMD } from "@/lib/site";
+import { INSTALL_CMD, SITE_URL } from "@/lib/site";
+import {
+  breadcrumbListLd,
+  faqPageLd,
+  softwareApplicationLd,
+} from "@/lib/jsonld";
 import { stripTags } from "@/lib/strip-tags";
+import { pageMetadata } from "@/lib/page-metadata";
 import "./agent-page.css";
 import "../docs/docs.css";
 
@@ -51,24 +57,13 @@ export async function generateMetadata({
   const agent = getAgent(slug);
   if (!agent) return {};
 
-  const url = `https://anotifier.io/${agent.slug}/`;
-  return {
+  const url = `${SITE_URL}/${agent.slug}/`;
+  return pageMetadata({
+    url,
     title: agent.title,
     description: agent.description,
-    alternates: { canonical: url },
-    openGraph: {
-      type: "website",
-      siteName: "anotifier",
-      url,
-      title: agent.title,
-      description: agent.description,
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: agent.title,
-      description: agent.description,
-    },
-  };
+    ogType: "website",
+  });
 }
 
 export default async function AgentPage({
@@ -80,101 +75,44 @@ export default async function AgentPage({
   const agent = getAgent(slug);
   if (!agent) notFound();
 
-  const url = `https://anotifier.io/${agent.slug}/`;
+  const url = `${SITE_URL}/${agent.slug}/`;
   const others = AGENTS.filter((a) => a.slug !== agent.slug);
   const agentGuides = GUIDES.filter((g) => g.agentSlug === agent.slug);
   const guide = agentGuides[0];
   const readMore = [
     ...agentGuides,
-    ...SHARED_GUIDES.map((s) => GUIDES.find((g) => g.slug === s)).filter(
-      (g) => g !== undefined,
-    ),
+    // A listed slug with no guide must fail the build, not vanish from the page.
+    ...SHARED_GUIDES.map((s) => {
+      const shared = GUIDES.find((g) => g.slug === s);
+      if (!shared)
+        throw new Error(
+          `SHARED_GUIDES lists "${s}" but no guide has that slug`,
+        );
+      return shared;
+    }),
   ];
 
   const jsonLd = [
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      name: "anotifier",
-      operatingSystem: "macOS, Windows, Linux",
-      applicationCategory: "DeveloperApplication",
-      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-      url: "https://anotifier.io/",
-      sameAs: [
-        "https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor",
-        "https://www.npmjs.com/package/anotifier",
-      ],
-      description: agent.description,
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: agent.faqs.map((f) => ({
-        "@type": "Question",
-        name: f.q,
-        acceptedAnswer: { "@type": "Answer", text: stripTags(f.aHtml) },
-      })),
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "anotifier",
-          item: "https://anotifier.io/",
-        },
-        { "@type": "ListItem", position: 2, name: agent.name, item: url },
-      ],
-    },
+    softwareApplicationLd(agent.description),
+    faqPageLd(agent.faqs.map((f) => ({ q: f.q, a: stripTags(f.aHtml) }))),
+    breadcrumbListLd([
+      { name: "anotifier", url: `${SITE_URL}/` },
+      { name: agent.name, url },
+    ]),
   ];
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
 
-      <nav>
-        <div className="wrap">
-          <Link
-            href="/"
-            aria-label="anotifier home"
-            style={{ display: "inline-flex" }}
-          >
-            <LogoMark size={28} />
-          </Link>
-          <Link href="/" className="brand">
-            anotifier
-          </Link>
-          <div className="links">
-            <Link href="/">Home</Link>
-            <a href="https://www.npmjs.com/package/anotifier">npm</a>
-            <StarButton variant="nav" />
-            <a
-              href={COMMUNITY_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="navDiscord"
-              aria-label="Join our Discord"
-              title="Join our Discord"
-              style={{ display: "inline-flex" }}
-            >
-              <DiscordIcon size={18} />
-            </a>
-          </div>
-        </div>
-      </nav>
+      <PageNav variant="product" />
 
-      <div className="wrap">
+      <main className="wrap">
         <header>
           <div className="crumb">
             <Link href="/">anotifier</Link> / <span>{agent.slug}</span>
           </div>
           <div className="hero-row">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={agent.icon}
               alt={`${agent.name} logo`}
@@ -301,19 +239,7 @@ export default async function AgentPage({
           </div>
         </section>
 
-        <section>
-          <div className="kicker">[ FAQ ]</div>
-          <h2>{agent.name} questions, answered.</h2>
-          {agent.faqs.map((faq, i) => (
-            <details key={i}>
-              <summary>{faq.q}</summary>
-              <div
-                className="a"
-                dangerouslySetInnerHTML={{ __html: faq.aHtml }}
-              />
-            </details>
-          ))}
-        </section>
+        <FaqSection name={agent.name} faqs={agent.faqs} />
 
         {readMore.length > 0 && (
           <section id="guides">
@@ -336,7 +262,6 @@ export default async function AgentPage({
           <div className="others">
             {others.map((other) => (
               <Link href={`/${other.slug}/`} key={other.slug}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={other.icon} alt="" width={20} height={20} />
                 {other.name}
               </Link>
@@ -363,7 +288,7 @@ export default async function AgentPage({
             .
           </p>
         </section>
-      </div>
+      </main>
 
       <SiteFooter />
     </>

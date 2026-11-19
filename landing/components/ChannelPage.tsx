@@ -4,123 +4,56 @@ import { notFound } from "next/navigation";
 import { AGENTS } from "@/lib/agents";
 import { CHANNELS, getChannel } from "@/lib/channels";
 import Blocks from "@/components/docs/Blocks";
-import LogoMark from "@/components/LogoMark";
+import FaqSection from "@/components/FaqSection";
+import JsonLd from "@/components/JsonLd";
+import PageNav from "@/components/PageNav";
 import SiteFooter from "@/components/SiteFooter";
-import StarButton from "@/components/StarButton";
-import DiscordIcon from "@/components/DiscordIcon";
 import CopyButton from "@/components/home/CopyButton";
-import { COMMUNITY_URL, INSTALL_CMD } from "@/lib/site";
+import { INSTALL_CMD, SITE_URL } from "@/lib/site";
+import {
+  breadcrumbListLd,
+  faqPageLd,
+  softwareApplicationLd,
+} from "@/lib/jsonld";
 import { stripTags } from "@/lib/strip-tags";
+import { pageMetadata } from "@/lib/page-metadata";
 
 export function buildChannelMetadata(slug: string): Metadata {
   const channel = getChannel(slug);
   if (!channel) return {};
 
-  const url = `https://anotifier.io/${channel.slug}/`;
-  return {
+  const url = `${SITE_URL}/${channel.slug}/`;
+  return pageMetadata({
+    url,
     title: channel.title,
     description: channel.description,
-    alternates: { canonical: url },
-    openGraph: {
-      type: "website",
-      siteName: "anotifier",
-      url,
-      title: channel.title,
-      description: channel.description,
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: channel.title,
-      description: channel.description,
-    },
-  };
+    ogType: "website",
+  });
 }
 
 export default function ChannelPage({ slug }: { slug: string }) {
   const channel = getChannel(slug);
   if (!channel) notFound();
 
-  const url = `https://anotifier.io/${channel.slug}/`;
+  const url = `${SITE_URL}/${channel.slug}/`;
   const others = CHANNELS.filter((c) => c.slug !== channel.slug);
 
   const jsonLd = [
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      name: "anotifier",
-      operatingSystem: "macOS, Windows, Linux",
-      applicationCategory: "DeveloperApplication",
-      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-      url: "https://anotifier.io/",
-      sameAs: [
-        "https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor",
-        "https://www.npmjs.com/package/anotifier",
-      ],
-      description: channel.description,
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: channel.faqs.map((f) => ({
-        "@type": "Question",
-        name: f.q,
-        acceptedAnswer: { "@type": "Answer", text: stripTags(f.aHtml) },
-      })),
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "anotifier",
-          item: "https://anotifier.io/",
-        },
-        { "@type": "ListItem", position: 2, name: channel.name, item: url },
-      ],
-    },
+    softwareApplicationLd(channel.description),
+    faqPageLd(channel.faqs.map((f) => ({ q: f.q, a: stripTags(f.aHtml) }))),
+    breadcrumbListLd([
+      { name: "anotifier", url: `${SITE_URL}/` },
+      { name: channel.name, url },
+    ]),
   ];
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
 
-      <nav>
-        <div className="wrap">
-          <Link
-            href="/"
-            aria-label="anotifier home"
-            style={{ display: "inline-flex" }}
-          >
-            <LogoMark size={28} />
-          </Link>
-          <Link href="/" className="brand">
-            anotifier
-          </Link>
-          <div className="links">
-            <Link href="/">Home</Link>
-            <a href="https://www.npmjs.com/package/anotifier">npm</a>
-            <StarButton variant="nav" />
-            <a
-              href={COMMUNITY_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="navDiscord"
-              aria-label="Join our Discord"
-              title="Join our Discord"
-              style={{ display: "inline-flex" }}
-            >
-              <DiscordIcon size={18} />
-            </a>
-          </div>
-        </div>
-      </nav>
+      <PageNav variant="product" />
 
-      <div className="wrap">
+      <main className="wrap">
         <header>
           <div className="crumb">
             <Link href="/">anotifier</Link> / <span>{channel.slug}</span>
@@ -128,7 +61,6 @@ export default function ChannelPage({ slug }: { slug: string }) {
           <div className="hero-row">
             {channel.icon && (
               // The headline names the service, so the logo is decorative.
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={channel.icon} alt="" width={56} height={56} />
             )}
             <h1>
@@ -278,19 +210,7 @@ export default function ChannelPage({ slug }: { slug: string }) {
           </section>
         )}
 
-        <section>
-          <div className="kicker">[ FAQ ]</div>
-          <h2>{channel.name} questions, answered.</h2>
-          {channel.faqs.map((faq, i) => (
-            <details key={i}>
-              <summary>{faq.q}</summary>
-              <div
-                className="a"
-                dangerouslySetInnerHTML={{ __html: faq.aHtml }}
-              />
-            </details>
-          ))}
-        </section>
+        <FaqSection name={channel.name} faqs={channel.faqs} />
 
         <section>
           <div className="kicker">[ WORKS WITH EVERY AGENT ]</div>
@@ -302,7 +222,6 @@ export default function ChannelPage({ slug }: { slug: string }) {
           <div className="others">
             {AGENTS.map((agent) => (
               <Link href={`/${agent.slug}/`} key={agent.slug}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={agent.icon} alt="" width={20} height={20} />
                 {agent.name} notifications
               </Link>
@@ -349,7 +268,7 @@ export default function ChannelPage({ slug }: { slug: string }) {
             .
           </p>
         </section>
-      </div>
+      </main>
 
       <SiteFooter />
     </>

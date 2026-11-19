@@ -1,9 +1,11 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import DocShell from "@/components/docs/DocShell";
+import JsonLd from "@/components/JsonLd";
+import { breadcrumbListLd, faqPageLd } from "@/lib/jsonld";
 import { GUIDES, GUIDES_DESCRIPTION, GUIDES_TITLE } from "@/lib/guides";
 import { CHANNELS } from "@/lib/channels";
 import { SITE_URL } from "@/lib/site";
+import { pageMetadata } from "@/lib/page-metadata";
 import "../[slug]/agent-page.css";
 import "../docs/docs.css";
 
@@ -11,23 +13,12 @@ const URL = `${SITE_URL}/guides/`;
 const TITLE = GUIDES_TITLE;
 const DESCRIPTION = GUIDES_DESCRIPTION;
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
+  url: URL,
   title: TITLE,
   description: DESCRIPTION,
-  alternates: { canonical: URL },
-  openGraph: {
-    type: "website",
-    siteName: "anotifier",
-    url: URL,
-    title: TITLE,
-    description: DESCRIPTION,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: TITLE,
-    description: DESCRIPTION,
-  },
-};
+  ogType: "website",
+});
 
 type Part = string | { href: string; text: string };
 
@@ -136,10 +127,26 @@ const FAQ: { q: string; a: Part[] }[] = [
   },
 ];
 
+// The FAQ links are hand-written paths: a guide link to a slug that does not
+// exist must fail the build too.
+for (const part of FAQ.flatMap((f) => f.a)) {
+  const slug =
+    typeof part === "string"
+      ? undefined
+      : part.href.match(/^\/guides\/([^/#]+)\//)?.[1];
+  if (slug && !GUIDES.some((g) => g.slug === slug))
+    throw new Error(`Guides FAQ links to "${slug}" but no guide has that slug`);
+}
+
 function GuideList({ slugs }: { slugs: string[] }) {
-  const guides = slugs
-    .map((s) => GUIDES.find((g) => g.slug === s))
-    .filter((g): g is (typeof GUIDES)[number] => Boolean(g));
+  // A slug with no guide must fail the build: dropping it silently would
+  // hide a renamed or removed guide from the index.
+  const guides = slugs.map((s) => {
+    const guide = GUIDES.find((g) => g.slug === s);
+    if (!guide)
+      throw new Error(`Guides index lists "${s}" but no guide has that slug`);
+    return guide;
+  });
   return (
     <ul>
       {guides.map((g) => (
@@ -177,39 +184,21 @@ export default function GuidesIndex() {
         url: `${SITE_URL}/guides/${g.slug}/`,
       })),
     },
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: FAQ.map((f) => ({
-        "@type": "Question",
-        name: f.q,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: f.a.map((x) => (typeof x === "string" ? x : x.text)).join(""),
-        },
+    faqPageLd(
+      FAQ.map((f) => ({
+        q: f.q,
+        a: f.a.map((x) => (typeof x === "string" ? x : x.text)).join(""),
       })),
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "anotifier",
-          item: `${SITE_URL}/`,
-        },
-        { "@type": "ListItem", position: 2, name: "Guides", item: URL },
-      ],
-    },
+    ),
+    breadcrumbListLd([
+      { name: "anotifier", url: `${SITE_URL}/` },
+      { name: "Guides", url: URL },
+    ]),
   ];
 
   return (
     <DocShell crumb="guides">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
       <header style={{ paddingTop: "28px" }}>
         <div className="kicker">[ GUIDES ]</div>
         <h1>

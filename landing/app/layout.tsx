@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import PostHog from "@/components/PostHog";
 import SentryReplay from "@/components/SentryReplay";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const inter = localFont({
@@ -20,7 +21,7 @@ const jetbrainsMono = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://anotifier.io"),
+  metadataBase: new URL(SITE_URL),
   title: "anotifier: Claude Code, Codex, Cursor & Gemini Notifications",
   description:
     "Desktop toasts, phone push, and Slack, Discord or Telegram alerts when Claude Code, Codex CLI, Cursor, or Gemini CLI finishes or needs input. Free, one command.",
@@ -45,7 +46,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "anotifier",
-    url: "https://anotifier.io/",
+    url: `${SITE_URL}/`,
     title: "anotifier: Claude Code, Codex, Cursor & Gemini Notifications",
     description:
       "Desktop toasts, phone push, and webhooks for Claude Code, Codex, Cursor, and Gemini CLI. One tool, one config — stop staring at your terminal.",

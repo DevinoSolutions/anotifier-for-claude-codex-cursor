@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import CodeBlock from "@/components/docs/CodeBlock";
 import DocShell from "@/components/docs/DocShell";
 import Inline from "@/components/docs/Inline";
+import JsonLd from "@/components/JsonLd";
 import {
   ALTERNATIVES,
   COMPARE_COLUMNS,
@@ -10,7 +10,9 @@ import {
   COMPARE_INTRO,
   COMPARE_TITLE,
 } from "@/lib/alternatives";
+import { breadcrumbListLd, techArticleLd } from "@/lib/jsonld";
 import { GITHUB_URL, INSTALL_CMD, PAGE_UPDATED, SITE_URL } from "@/lib/site";
+import { pageMetadata } from "@/lib/page-metadata";
 import "../[slug]/agent-page.css";
 import "../docs/docs.css";
 
@@ -18,41 +20,21 @@ const URL = `${SITE_URL}/compare/`;
 const TITLE = COMPARE_TITLE;
 const DESCRIPTION = COMPARE_DESCRIPTION;
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
+  url: URL,
   title: TITLE,
   description: DESCRIPTION,
-  alternates: { canonical: URL },
-  openGraph: {
-    type: "article",
-    siteName: "anotifier",
-    url: URL,
-    title: TITLE,
-    description: DESCRIPTION,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: TITLE,
-    description: DESCRIPTION,
-  },
-};
+  ogType: "article",
+});
 
 export default function ComparePage() {
   const jsonLd = [
-    {
-      "@context": "https://schema.org",
-      "@type": "TechArticle",
+    techArticleLd({
       headline: "AI coding agent notification tools compared",
       description: DESCRIPTION,
       url: URL,
       dateModified: PAGE_UPDATED.compare,
-      inLanguage: "en",
-      author: {
-        "@type": "Organization",
-        name: "DevinoSolutions",
-        url: "https://github.com/DevinoSolutions",
-      },
-      publisher: { "@id": `${SITE_URL}/#org` },
-    },
+    }),
     {
       "@context": "https://schema.org",
       "@type": "ItemList",
@@ -63,27 +45,15 @@ export default function ComparePage() {
         url: a.url.startsWith("/") ? `${SITE_URL}${a.url}` : a.url,
       })),
     },
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: "anotifier",
-          item: `${SITE_URL}/`,
-        },
-        { "@type": "ListItem", position: 2, name: "Compare", item: URL },
-      ],
-    },
+    breadcrumbListLd([
+      { name: "anotifier", url: `${SITE_URL}/` },
+      { name: "Compare", url: URL },
+    ]),
   ];
 
   return (
     <DocShell crumb="compare">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
       <header style={{ paddingTop: "28px" }}>
         <div className="kicker">[ COMPARE ]</div>
         <h1>
