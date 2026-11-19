@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
-import { httpRequest } from '../src/http.mjs';
+import { httpRequest, MAX_COLLECTED_BODY_BYTES } from '../src/http.mjs';
 
 // A loopback port that was just free: bind port 0, note it, close it.
 function closedPort() {
@@ -295,6 +295,149 @@ describe('httpRequest failures', () => {
       assert.equal(res.error.code, 'ECONNRESET');
     } finally {
       await srv.close();
+    }
+  });
+});
+
+// collectBody: the body comes back as a string, and only then. Every other mode's
+// result keeps exactly its four keys (the deepEqual assertions above pin that).
+describe('httpRequest collectBody', () => {
+  let server;
+  let base;
+  let reply = { status: 200, body: 'ok' };
+
+  before(async () => {
+    server = http.createServer((req, res) => {
+      req.resume();
+      req.on('end', () => { res.writeHead(reply.status); res.end(reply.body); });
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    base = `http://127.0.0.1:${server.address().port}`;
+  });
+  after(() => new Promise((r) => { server.closeAllConnections?.(); server.close(r); }));
+
+  it('returns the body as a string next to the status', async () => {
+    reply = { status: 200, body: JSON.stringify({ version: '1.9.0' }) };
+    assert.deepEqual(await httpRequest(base, { timeoutMs: 2000, collectBody: true }), {
+      status: 200, timedOut: false, error: null, setupError: false, body: '{"version":"1.9.0"}',
+    });
+  });
+
+  it('returns the body of a non-2xx answer too, and an empty one as an empty string', async () => {
+    reply = { status: 404, body: 'nope' };
+    const missing = await httpRequest(base, { timeoutMs: 2000, collectBody: true });
+    assert.equal(missing.status, 404);
+    assert.equal(missing.body, 'nope');
+    reply = { status: 204, body: '' };
+    const empty = await httpRequest(base, { timeoutMs: 2000, collectBody: true });
+    assert.equal(empty.status, 204);
+    assert.equal(empty.body, '');
+  });
+
+  it('decodes a multi-byte character that arrives split across chunks', async () => {
+    const bytes = Buffer.from('caf\u00e9 \u2014 ok', 'utf8');
+    const srv = await rawServer((sock) => {
+      sock.write(`${OK_HEAD}Content-Length: ${bytes.length}\r\n\r\n`);
+      // Cut inside the two-byte e-acute and inside the three-byte dash.
+      sock.write(bytes.subarray(0, 4));
+      setTimeout(() => sock.write(bytes.subarray(4, 8)), 30);
+      setTimeout(() => sock.end(bytes.subarray(8)), 60);
+    });
+    try {
+      const res = await httpRequest(srv.url, { timeoutMs: 2000, collectBody: true });
+      assert.equal(res.status, 200);
+      assert.equal(res.body, 'caf\u00e9 \u2014 ok');
+    } finally {
+      await srv.close();
+    }
+  });
+
+  it('is implied to wait for the body: a slow body is returned whole, not cut at the headers', async () => {
+    const srv = await rawServer((sock) => {
+      sock.write(`${OK_HEAD}Content-Length: 6\r\n\r\nabc`);
+      setTimeout(() => sock.end('def'), 80);
+    });
+    try {
+      const res = await httpRequest(srv.url, { timeoutMs: 2000, collectBody: true });
+      assert.equal(res.body, 'abcdef');
+    } finally {
+      await srv.close();
+    }
+  });
+
+  it('a body over the cap resolves status 0 with an error and destroys the socket', async () => {
+    const chunk = Buffer.alloc(64 * 1024, 0x78);
+    const srv = await rawServer((sock) => {
+      sock.write(`${OK_HEAD}Transfer-Encoding: chunked\r\n\r\n`);
+      const t = setInterval(() => {
+        sock.write(`${chunk.length.toString(16)}\r\n`);
+        sock.write(chunk);
+        sock.write('\r\n');
+      }, 5);
+      sock.on('close', () => clearInterval(t));
+    });
+    try {
+      const started = Date.now();
+      const res = await httpRequest(srv.url, { timeoutMs: 10000, collectBody: true });
+      assert.equal(res.status, 0);
+      assert.equal(res.timedOut, false);
+      assert.ok(res.error instanceof Error);
+      assert.equal('body' in res, false, 'no partial body is handed out');
+      assert.ok(Date.now() - started < 5000, 'refused as soon as the cap was crossed, not at the deadline');
+      assert.ok(MAX_COLLECTED_BODY_BYTES >= 64 * 1024);
+      await waitForSockets(srv, 0);
+      assert.equal(srv.sockets.size, 0);
+    } finally {
+      await srv.close();
+    }
+  });
+
+  it('a body exactly at the cap is still returned', async () => {
+    reply = { status: 200, body: 'y'.repeat(MAX_COLLECTED_BODY_BYTES) };
+    const res = await httpRequest(base, { timeoutMs: 5000, collectBody: true });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.length, MAX_COLLECTED_BODY_BYTES);
+  });
+
+  it('deadline during a dripped body: timedOut, no body, socket destroyed', async () => {
+    const srv = await rawServer((sock) => {
+      sock.write(`${OK_HEAD}Transfer-Encoding: chunked\r\n\r\n`);
+      const t = setInterval(() => sock.write('1\r\nx\r\n'), 20);
+      sock.on('close', () => clearInterval(t));
+    });
+    try {
+      const started = Date.now();
+      const res = await httpRequest(srv.url, { timeoutMs: 200, collectBody: true });
+      assert.deepEqual(res, { status: 0, timedOut: true, error: null, setupError: false });
+      assert.ok(Date.now() - started < 2500);
+      await waitForSockets(srv, 0);
+      assert.equal(srv.sockets.size, 0);
+    } finally {
+      await srv.close();
+    }
+  });
+
+  it('a reset mid-body is status 0 with an error and no body', async () => {
+    const srv = await rawServer((sock) => {
+      sock.write(`${OK_HEAD}Content-Length: 30\r\n\r\nabc`);
+      setTimeout(() => sock.destroy(), 40);
+    });
+    try {
+      const res = await httpRequest(srv.url, { timeoutMs: 2000, collectBody: true });
+      assert.equal(res.status, 0);
+      assert.equal(res.timedOut, false);
+      assert.ok(res.error instanceof Error);
+      assert.equal('body' in res, false);
+    } finally {
+      await srv.close();
+    }
+  });
+
+  it('without collectBody the result has no body key, in either mode', async () => {
+    reply = { status: 200, body: 'ok' };
+    for (const waitForBody of [false, true]) {
+      const res = await httpRequest(base, { timeoutMs: 2000, waitForBody });
+      assert.deepEqual(Object.keys(res).sort(), ['error', 'setupError', 'status', 'timedOut']);
     }
   });
 });

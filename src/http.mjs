@@ -18,6 +18,11 @@ import https from 'node:https';
 import http from 'node:http';
 
 const DEFAULT_TIMEOUT_MS = 5000;
+// The most body `collectBody` will hold. The one caller (the npm registry's
+// `latest` manifest) is a few KB; a server sending more than this is not
+// answering that question, and the deadline alone would let it fill memory for
+// the whole timeout first.
+export const MAX_COLLECTED_BODY_BYTES = 1024 * 1024;
 
 // Send one request. Resolves, never rejects, with:
 //   status      the HTTP status; 0 when no complete response was obtained
@@ -38,12 +43,19 @@ const DEFAULT_TIMEOUT_MS = 5000;
 // With `waitForBody: true` it resolves when the body has been fully read, and
 // a body that ends early (connection reset mid-body) resolves status 0.
 //
+// `collectBody: true` (which implies `waitForBody`) also returns the body as a
+// UTF-8 string in `body`, up to MAX_COLLECTED_BODY_BYTES: a larger body resolves
+// status 0 with an error and destroys the response. The `body` key exists only
+// in this mode, so every other caller's result is unchanged.
+//
 // On the deadline the request and the response are both destroyed, so no
 // socket lingers. The timer is deliberately ref'd, and is cleared when the
 // request ends (when the response closes in the default mode, even though the
 // promise has already resolved at the headers); node <= 22 drains the event
 // loop if only unref'd timers remain.
-export function httpRequest(target, { method = 'GET', headers, body, timeoutMs = DEFAULT_TIMEOUT_MS, waitForBody = false } = {}) {
+export function httpRequest(target, {
+  method = 'GET', headers, body, timeoutMs = DEFAULT_TIMEOUT_MS, waitForBody = false, collectBody = false,
+} = {}) {
   return new Promise((resolve) => {
     let settled = false;
     let timer;
@@ -71,7 +83,7 @@ export function httpRequest(target, { method = 'GET', headers, body, timeoutMs =
       req = transport.request(url, { method, agent: false, headers }, (response) => {
         res = response;
         const status = response.statusCode || 0;
-        if (!waitForBody) {
+        if (!waitForBody && !collectBody) {
           settle(status);
           // The deadline stays armed until the drained response closes, so a
           // body that never ends is still cut at the deadline.
@@ -80,7 +92,25 @@ export function httpRequest(target, { method = 'GET', headers, body, timeoutMs =
           response.resume();
           return;
         }
-        response.on('end', () => { stop(); settle(status); });
+        const chunks = [];
+        let size = 0;
+        if (collectBody) {
+          response.on('data', (chunk) => {
+            if (settled) return;
+            size += chunk.length;
+            if (size > MAX_COLLECTED_BODY_BYTES) {
+              stop();
+              settle(0, { error: new Error('response body too large') });
+              destroyAll();
+              return;
+            }
+            chunks.push(chunk);
+          });
+        }
+        response.on('end', () => {
+          stop();
+          settle(status, collectBody ? { body: Buffer.concat(chunks).toString('utf8') } : undefined);
+        });
         response.on('error', (error) => { stop(); settle(0, { error }); });
         // A reset mid-body closes the response without 'end' and without an
         // error event when nothing listens for one.

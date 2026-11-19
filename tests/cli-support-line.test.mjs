@@ -12,16 +12,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { makeTmpHome, seedFreshUpdateCache } from './fake-home.mjs';
 import { SUPPORT_URL, DOCS_URL, STAR_URL } from '../src/support.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function runCli(args) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-support-'));
-  const cfgDir = path.join(home, '.anotifier');
-  fs.mkdirSync(cfgDir, { recursive: true });
+  const home = makeTmpHome('aan-support-');
   // Fresh cache → served from disk, no network.
-  fs.writeFileSync(path.join(cfgDir, '.update-check.json'), JSON.stringify({ checkedAt: Date.now(), latest: null }));
+  seedFreshUpdateCache(home);
   const res = spawnSync(process.execPath, ['cli/index.mjs', ...args], {
     cwd: repoRoot,
     env: { ...process.env, HOME: home, USERPROFILE: home, NO_COLOR: '1' },

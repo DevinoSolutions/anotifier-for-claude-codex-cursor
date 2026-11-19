@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { useFakeHome } from './fake-home.mjs';
+import { useFakeHome, makeTmpHome } from './fake-home.mjs';
 useFakeHome();
 
 const { matchesProjectPath, normalizeProjectPath, resolveProjectConfig, loadConfigResult } =
@@ -615,7 +615,7 @@ describe('non-absolute paths never match', () => {
 describe('resolveProjectConfig error path', () => {
   it('logs to errors.log, returns the base config and prints nothing to stdout', () => {
     // Own temp home, so the log is read from (and written to) a throwaway dir.
-    const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'anotifier-proj-test-'));
+    const tmpHome = makeTmpHome('anotifier-proj-test-');
     const logPath = path.join(tmpHome, '.anotifier', 'errors.log');
     const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
     let reads = 0;

@@ -15,10 +15,10 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { makeTmpHome } from './fake-home.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NOTIFY = path.join(repoRoot, 'src', 'notify.mjs');
@@ -52,7 +52,7 @@ describe('notify.mjs: how main() leaves (real subprocess, stdout piped)', () => 
   let home;
   let cfgDir;
   beforeEach(() => {
-    home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-quiet-exit-'));
+    home = makeTmpHome('aan-quiet-exit-');
     cfgDir = path.join(home, '.anotifier');
     fs.mkdirSync(cfgDir, { recursive: true });
   });

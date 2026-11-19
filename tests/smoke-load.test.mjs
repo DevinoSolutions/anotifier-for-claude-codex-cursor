@@ -1,12 +1,12 @@
 // tests/smoke-load.test.mjs — offline unit tests for the smoke-load harness
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { hasConfigError, classifySmoke, PATTERNS } from '../scripts/smoke-load.mjs';
+import { makeTmpHome } from './fake-home.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FAKE = path.join(__dirname, 'fixtures', 'fake-cli.mjs');
@@ -46,7 +46,7 @@ describe('classifySmoke', () => {
 
 describe('end-to-end against the fixture CLI', () => {
   const run = (configBody, env = {}) => {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'smoke-fix-'));
+    const home = makeTmpHome('smoke-fix-');
     const cfg = path.join(home, 'cfg');
     fs.writeFileSync(cfg, configBody);
     const res = spawnSync(process.execPath, [FAKE], {

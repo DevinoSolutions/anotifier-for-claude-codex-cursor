@@ -8,7 +8,7 @@ import {
   contextUsage, evaluateContext, buildContextNotification,
   checkContext, effectiveContextThreshold, STATE_TTL_MS, DEFAULT_CONTEXT_THRESHOLD,
 } from '../src/context-alert.mjs';
-import { useFakeHome } from './fake-home.mjs';
+import { useFakeHome, makeTmpHome } from './fake-home.mjs';
 import { readRecentHookErrors } from '../src/error-log.mjs';
 useFakeHome();
 
@@ -26,7 +26,7 @@ const payload = (tokens, { size = 1000000, id = 'sess-1', ...rest } = {}) => ({
 describe('auto-compact window resolution (via contextUsage)', () => {
   let home, proj;
   beforeEach(() => {
-    home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-ctx-home-'));
+    home = makeTmpHome('aan-ctx-home-');
     proj = path.join(home, 'project');
   });
   afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
@@ -202,7 +202,7 @@ describe('auto-compact window resolution (via contextUsage)', () => {
 describe('auto-compact disabled (via contextUsage)', () => {
   let home, proj;
   beforeEach(() => {
-    home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-ctx-home-'));
+    home = makeTmpHome('aan-ctx-home-');
     proj = path.join(home, 'project');
   });
   afterEach(() => fs.rmSync(home, { recursive: true, force: true }));

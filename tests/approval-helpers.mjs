@@ -4,7 +4,6 @@
 // subprocess runner for src/approve.mjs (async, because the fake server lives
 // in the test process and spawnSync would block it).
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
@@ -13,6 +12,7 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { generateRequestTopic, generateResponsePrefix } from '../src/approval.mjs';
+import { makeTmpHome } from './fake-home.mjs';
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -197,7 +197,7 @@ export function actionByLabel(payload, label) {
 
 // A throwaway HOME with remote approval configured and (by default) away on.
 export function seedHome({ server, token, approval = {}, away = true, awayUntil, config } = {}) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-approve-'));
+  const home = makeTmpHome('aan-approve-');
   const dir = path.join(home, '.anotifier');
   const approvalsDir = path.join(dir, 'approvals');
   fs.mkdirSync(approvalsDir, { recursive: true, mode: 0o700 });

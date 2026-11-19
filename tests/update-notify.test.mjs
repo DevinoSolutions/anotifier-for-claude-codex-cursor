@@ -2,13 +2,17 @@
 // The registry fetch, the clock, and the state file are all dependency-injected
 // so these run fully offline; the channel fan-out is exercised against a real
 // local HTTP server (same no-mocking approach as ntfy-send.test.mjs).
-import { describe, it, beforeEach, afterEach, before, after } from 'node:test';
+import { describe, it, beforeEach, afterEach, before, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
 import { maybeNotifyUpdate, sendUpdateNotification, RELEASES_URL, UPGRADE_COMMAND, UPDATE_TTL_MS } from '../src/update-check.mjs';
+import { useFakeHome } from './fake-home.mjs';
+
+// An unreadable cache is logged to errors.log under the home directory.
+useFakeHome();
 
 const NOW = 1_700_000_000_000;
 // Every maybeNotifyUpdate case injects this recorder as `notify`, so no test can
@@ -171,17 +175,20 @@ describe('maybeNotifyUpdate resilience (a hook must never crash)', () => {
     assert.equal(announced, '1.3.0');
   });
 
-  it('an unreadable/unwritable state path never throws (notification still fires)', async () => {
-    // A DIRECTORY where the state file belongs: both the read and the write fail
-    // with something other than ENOENT.
+  it('an unreadable state path never throws, and the round is skipped (no request, no notice)', async () => {
+    // A DIRECTORY where the state file belongs: the read fails with something
+    // other than ENOENT, so there is no way to tell what was already announced
+    // or to record this announcement. Same policy as the usage warning's state.
     const blocked = path.join(dir, 'blocked.json');
     fs.mkdirSync(blocked);
     const { sent, notify } = recorder();
     const announced = await maybeNotifyUpdate({}, {
-      cachePath: blocked, notify, now: NOW, currentVersion: '1.2.2', fetchImpl: async () => '1.3.0',
+      cachePath: blocked, notify, now: NOW, currentVersion: '1.2.2',
+      fetchImpl: async () => assert.fail('an unreadable cache must not cost a request'),
     });
-    assert.equal(announced, '1.3.0');
-    assert.equal(sent.length, 1);
+    assert.equal(announced, null);
+    assert.equal(sent.length, 0);
+    assert.ok(fs.statSync(blocked).isDirectory(), 'nothing was written over it');
   });
 
   it('a throwing notifier is swallowed rather than failing the hook run', async () => {
@@ -227,6 +234,62 @@ describe('maybeNotifyUpdate resilience (a hook must never crash)', () => {
       await maybeNotifyUpdate({}, { ...hang, notify, now: NOW + 1 });
     });
     assert.equal(attempts, 1, 'the second run must not re-dispatch');
+  });
+});
+
+// The cache file also holds lastNotifiedVersion. A read that fails for a moment
+// (an antivirus scan on Windows) used to count as an empty cache: the next write
+// then dropped the marker and a later hook run announced the same version again.
+describe('maybeNotifyUpdate with a cache that cannot be read for a moment (EBUSY / EACCES / EPERM)', () => {
+  let dir;
+  let cachePath;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-update-busy-'));
+    cachePath = path.join(dir, '.update-check.json');
+  });
+  afterEach(() => { mock.restoreAll(); fs.rmSync(dir, { recursive: true, force: true }); });
+  const failRead = (code) => {
+    const real = fs.readFileSync;
+    mock.method(fs, 'readFileSync', function (p, ...rest) {
+      if (p === cachePath) throw Object.assign(new Error(code), { code });
+      return real.call(fs, p, ...rest);
+    });
+  };
+
+  for (const code of ['EBUSY', 'EACCES', 'EPERM']) {
+    it(`${code}: nothing is announced twice, the file is left alone, and the next readable round carries on`, async () => {
+      // 1.3.0 was announced; the TTL has since expired and 1.4.0 is out.
+      const stored = JSON.stringify({ checkedAt: NOW, latest: '1.3.0', lastNotifiedVersion: '1.3.0' });
+      fs.writeFileSync(cachePath, stored);
+      const { sent, notify } = recorder();
+      const later = NOW + UPDATE_TTL_MS + 1;
+      const run = (at, latest) => maybeNotifyUpdate({}, {
+        cachePath, notify, now: at, currentVersion: '1.2.2', fetchImpl: async () => latest,
+      });
+
+      failRead(code);
+      assert.equal(await run(later, '1.3.0'), null, 'the same version is not announced again on a blind read');
+      assert.equal(await run(later, '1.4.0'), null, 'and a new one waits until the marker can be read and written');
+      mock.restoreAll();
+      assert.equal(fs.readFileSync(cachePath, 'utf8'), stored, 'not overwritten from an empty stand-in');
+      assert.equal(sent.length, 0);
+
+      // Readable again: the stored marker still stops 1.3.0, and 1.4.0 goes out once.
+      assert.equal(await run(later, '1.3.0'), null);
+      assert.equal(await run(later + UPDATE_TTL_MS + 1, '1.4.0'), '1.4.0');
+      assert.equal(await run(later + UPDATE_TTL_MS + 2, '1.4.0'), null);
+      assert.deepEqual(sent.map((s) => s.latest), ['1.4.0']);
+      assert.equal(JSON.parse(fs.readFileSync(cachePath, 'utf8')).lastNotifiedVersion, '1.4.0');
+    });
+  }
+
+  it('a missing or corrupt cache still counts as empty (unchanged)', async () => {
+    const { sent, notify } = recorder();
+    const run = () => maybeNotifyUpdate({}, { cachePath, notify, now: NOW, currentVersion: '1.2.2', fetchImpl: async () => '1.3.0' });
+    assert.equal(await run(), '1.3.0');
+    fs.writeFileSync(cachePath, '[1,');
+    assert.equal(await run(), '1.3.0');
+    assert.equal(sent.length, 2);
   });
 });
 

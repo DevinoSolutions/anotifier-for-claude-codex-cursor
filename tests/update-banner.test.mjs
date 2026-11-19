@@ -9,11 +9,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { makeTmpHome } from './fake-home.mjs';
 
 const require = createRequire(import.meta.url);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -21,7 +21,7 @@ const pkg = require('../package.json');
 
 // Runs the real CLI with a throwaway HOME whose update cache claims `latest`.
 function runCli(args, latest, { configText } = {}) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-banner-'));
+  const home = makeTmpHome('aan-banner-');
   const cfgDir = path.join(home, '.anotifier');
   fs.mkdirSync(cfgDir, { recursive: true });
   fs.writeFileSync(

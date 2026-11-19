@@ -7,13 +7,12 @@
 // share ONE cache file, so the network fetch runs at most once per process and
 // at most once per 24h — a `status` run also satisfies the hook's daily check,
 // and offline/slow networks never repeatedly stall either path.
-import https from 'node:https';
-import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { getConfigDir } from './config-loader.mjs';
-import { readJsonFile } from './state-file.mjs';
+import { readJsonObject, writeJsonAtomic } from './state-file.mjs';
 import { sendToChannels } from './channels.mjs';
+import { httpRequest } from './http.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -23,6 +22,7 @@ export const UPGRADE_COMMAND = 'npm i -g anotifier@latest';
 export const RELEASES_URL = 'https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor/releases/latest';
 
 const CACHE_PATH = path.join(getConfigDir(), '.update-check.json');
+export const REGISTRY_URL = 'https://registry.npmjs.org/anotifier/latest';
 
 // The CLI can afford npm's occasional slow response; the hook cannot. 2s keeps
 // the tail of a hook run well inside the 10s host budget it already shares with
@@ -49,7 +49,7 @@ export function checkForUpdate() {
 // attempt — so an offline machine waits a full TTL before trying again.
 export async function resolveUpdate(cachePath, fetchImpl, now) {
   const cached = readCache(cachePath);
-  if (cached && typeof cached.checkedAt === 'number' && now - cached.checkedAt < UPDATE_TTL_MS) {
+  if (typeof cached?.checkedAt === 'number' && now - cached.checkedAt < UPDATE_TTL_MS) {
     return cached.latest || null;
   }
   let latest = null;
@@ -58,21 +58,29 @@ export async function resolveUpdate(cachePath, fetchImpl, now) {
   return latest || null;
 }
 
-// null for anything but a usable object: a JSON scalar (`null`, `7`, `"x"`)
-// parses fine but would throw on property access, so only an object is state.
+// The cache as an object: {} when there is none yet, or it holds something that
+// is not an object (a JSON scalar such as `null`, `7` or `"x"` parses fine but
+// would throw on property access, so only an object is state), and null when it
+// exists but could not be READ (an antivirus scan holding it on Windows, a
+// permissions problem). That null is not "empty": the file still holds what was
+// already announced, and a caller that wrote back from an empty stand-in would
+// wipe it. A path that stays unreadable is logged (at most hourly) so it shows up
+// in `anotifier status`.
 function readCache(cachePath) {
-  const { status, data } = readJsonFile(cachePath);
-  return status === 'ok' ? data : null;
+  return readJsonObject(cachePath, 'update-check:state');
 }
 
 // MERGES rather than overwrites: `lastNotifiedVersion` shares this file and is
 // owned by the hook path, so a CLI-side check must not wipe it — that would make
-// the hook re-announce a version it already told the user about.
+// the hook re-announce a version it already told the user about. For the same
+// reason an unreadable cache is not written this round (the merge would start
+// from nothing and drop the marker); the next round tries again. Written
+// atomically, so a crash or a reader in another process never sees half a file.
 function writeCache(cachePath, data) {
   try {
-    const prev = readCache(cachePath) || {};
-    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
-    fs.writeFileSync(cachePath, JSON.stringify({ ...prev, ...data }), 'utf8');
+    const prev = readCache(cachePath);
+    if (prev === null) return;
+    writeJsonAtomic(cachePath, { ...prev, ...data });
   } catch { /* cache is best-effort — a write failure just re-checks next run */ }
 }
 
@@ -92,25 +100,17 @@ export function isNewer(a, b) {
 
 // Query npm for the published 'latest' version. Resolves to the version string
 // only when it is strictly newer than ours (an update is available), else null.
-// Never throws.
-export function fetchLatest({ timeoutMs = CLI_FETCH_TIMEOUT_MS, currentVersion = pkg.version } = {}) {
-  return new Promise((resolve) => {
-    const req = https.get('https://registry.npmjs.org/anotifier/latest', {
-      agent: false, // no keep-alive socket may outlive the hook's process.exit() (see sentry.mjs)
-      timeout: timeoutMs,
-    }, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const latest = JSON.parse(data).version;
-          resolve(latest && isNewer(latest, currentVersion) ? latest : null);
-        } catch { resolve(null); }
-      });
-    });
-    req.on('error', () => resolve(null));
-    req.on('timeout', () => { req.destroy(); resolve(null); });
-  });
+// Never throws. `timeoutMs` is one overall deadline for the whole request, body
+// included (the shared helper in http.mjs explains why an idle timeout is not
+// enough): a registry, proxy or captive portal that trickles bytes cannot hold a
+// hook past it. `url` is injectable for tests.
+export async function fetchLatest({ timeoutMs = CLI_FETCH_TIMEOUT_MS, currentVersion = pkg.version, url = REGISTRY_URL } = {}) {
+  try {
+    const { status, body } = await httpRequest(url, { timeoutMs, collectBody: true });
+    if (status < 200 || status >= 300) return null;
+    const latest = JSON.parse(body).version;
+    return latest && isNewer(latest, currentVersion) ? latest : null;
+  } catch { return null; }
 }
 
 // Hook-path entry point, called at the very END of a successful notify run.
@@ -143,14 +143,19 @@ export async function maybeNotifyUpdate(config, {
 }
 
 async function runUpdateCheck({ config, cachePath, fetchImpl, now, notify, currentVersion }) {
+  // The cache also records what was already announced. If it cannot be read
+  // (transient lock, permissions) there is no way to tell, and no way to record
+  // this announcement either, so skip the round: no request, no notice. The next
+  // readable round carries on, and nothing is announced twice.
+  if (readCache(cachePath) === null) return null;
   const latest = await resolveUpdate(cachePath, fetchImpl, now);
   // The cache can hold a hit recorded BEFORE the user upgraded, so re-assert the
   // semver gate rather than trusting it: never announce a version that is already
   // installed (or older than what is installed).
   if (!latest || !isNewer(latest, currentVersion)) return null;
 
-  const state = readCache(cachePath) || {};
-  if (state.lastNotifiedVersion === latest) return null;
+  const state = readCache(cachePath);
+  if (state === null || state.lastNotifiedVersion === latest) return null;
 
   // Marked BEFORE dispatching, deliberately. This guarantees at most ONE attempt
   // per published version: a channel that is slow or down would otherwise leave

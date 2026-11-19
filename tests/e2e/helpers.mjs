@@ -13,6 +13,7 @@ import {
   parseNtfyMessages,
   ntfyPoll,
 } from '../../scripts/lib/live-driver.mjs';
+import { seedFreshUpdateCache } from '../fake-home.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(__dirname, '..', '..');
@@ -33,7 +34,29 @@ export const SCRUB_KEYS = [
   'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'CURSOR_API_KEY', 'NTFY_TOKEN', 'NTFY_PASSWORD',
 ];
 
+// A real 1x1 PNG (signature, IHDR, IDAT and IEND, CRCs checked). setup downloads
+// the app icon from claude.ai when ~/.anotifier/icon.png is missing or is not a
+// PNG, so a home that already holds one never reaches that host.
+const TINY_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+// These tests use the real ntfy.sh on purpose (see the header), but nothing else
+// they spawn may leave the machine: not the update check (registry.npmjs.org, and
+// on a checkout behind npm's latest an extra "update available" push to the very
+// topic the test is polling) and not setup's icon download (claude.ai). Both are
+// skipped by state the product already honours: a fresh update cache and an icon
+// that is already there. Existing files are never overwritten.
+function keepOffline(home) {
+  if (!home) return;
+  seedFreshUpdateCache(home);
+  const icon = path.join(home, '.anotifier', 'icon.png');
+  if (!fs.existsSync(icon)) fs.writeFileSync(icon, TINY_PNG);
+}
+
 function scrubbedEnv(home, extraEnv = {}) {
+  keepOffline(home);
   // Usage stats are off in every spawned process unless a test turns them on
   // (and points ANOTIFIER_TELEMETRY_URL at a local server): a developer's own
   // test run must never reach the real PostHog project.

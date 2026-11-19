@@ -10,6 +10,7 @@ import { readAwayUntil } from './approval.mjs';
 import { loadConfig, resolveProjectConfig } from './config-loader.mjs';
 import { sendNtfy } from './ntfy.mjs';
 import { sendWebhook } from './webhook.mjs';
+import { toastOn, ntfyOn, webhookOn } from './channels.mjs';
 import { deriveRichViews } from './transcript.mjs';
 import { sendBell } from './bell.mjs';
 import { resolveToastBackend } from './platforms/index.mjs';
@@ -409,18 +410,18 @@ export async function main({ focus } = {}) {
     const tasks = [];
 
     // Toast
-    if (config.toast?.enabled !== false && eventConfig.toastEnabled !== false) {
+    if (toastOn(config) && eventConfig.toastEnabled !== false) {
       const sendToast = await resolveToastBackend();
       tasks.push(trackChannel('toast', () => sendToast(views.toast)));
     }
 
     // ntfy
-    if (config.ntfy?.enabled && config.ntfy?.topic && eventConfig.ntfyEnabled !== false) {
+    if (ntfyOn(config) && eventConfig.ntfyEnabled !== false) {
       tasks.push(trackChannel('ntfy', () => sendNtfy(config.ntfy, views.ntfy)));
     }
 
     // webhook
-    if (config.webhook?.enabled && config.webhook?.url && eventConfig.webhookEnabled !== false) {
+    if (webhookOn(config) && eventConfig.webhookEnabled !== false) {
       tasks.push(trackChannel('webhook', () => sendWebhook(config.webhook, views.webhook)));
     }
 

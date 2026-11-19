@@ -272,6 +272,97 @@ describe('writeFileAtomic', () => {
     mock.restoreAll();
     assert.equal(fs.readFileSync(file, 'utf8'), 'old');
   });
+
+  // The rename and the wait are injected, so these neither touch the real
+  // renameSync nor sleep.
+  const flaky = (failures, code, real = fs.renameSync) => {
+    const calls = [];
+    const rename = (from, to) => {
+      calls.push([from, to]);
+      if (calls.length <= failures) throw Object.assign(new Error(code), { code });
+      return real(from, to);
+    };
+    return { rename, calls };
+  };
+  const waits = () => { const ms = []; return { ms, sleep: (n) => ms.push(n) }; };
+
+  it('success path: exactly one rename and no wait', () => {
+    const file = path.join(dir, 's.json');
+    const { rename, calls } = flaky(0, 'EPERM');
+    const { ms, sleep } = waits();
+    writeFileAtomic(file, 'new', { rename, sleep });
+    assert.equal(calls.length, 1);
+    assert.deepEqual(ms, []);
+    assert.equal(fs.readFileSync(file, 'utf8'), 'new');
+  });
+
+  for (const code of ['EPERM', 'EBUSY', 'EACCES']) {
+    it(`${code} twice, then it goes through: waits 75 ms between tries and leaves no temp file`, () => {
+      const file = path.join(dir, 's.json');
+      fs.writeFileSync(file, 'old');
+      const { rename, calls } = flaky(2, code);
+      const { ms, sleep } = waits();
+      writeFileAtomic(file, 'new', { rename, sleep });
+      assert.equal(calls.length, 3);
+      assert.deepEqual(ms, [75, 75]);
+      assert.equal(fs.readFileSync(file, 'utf8'), 'new');
+      assert.deepEqual(fs.readdirSync(dir), ['s.json']);
+    });
+  }
+
+  it('always failing: four renames, three waits (about 225 ms), the temp file removed, the original error thrown, the old file intact', () => {
+    const file = path.join(dir, 's.json');
+    fs.writeFileSync(file, 'old');
+    const failure = Object.assign(new Error('EBUSY'), { code: 'EBUSY' });
+    const calls = [];
+    const { ms, sleep } = waits();
+    assert.throws(
+      () => writeFileAtomic(file, 'new', { rename: (...a) => { calls.push(a); throw failure; }, sleep }),
+      (err) => err === failure,
+    );
+    assert.equal(calls.length, 4);
+    assert.deepEqual(ms, [75, 75, 75]);
+    assert.deepEqual(fs.readdirSync(dir), ['s.json']);
+    assert.equal(fs.readFileSync(file, 'utf8'), 'old');
+  });
+
+  it('an error that is not a lock (ENOENT, EIO) fails at once: one rename, no wait, temp file removed', () => {
+    for (const code of ['ENOENT', 'EIO', 'EXDEV']) {
+      const file = path.join(dir, `${code}.json`);
+      const { rename, calls } = flaky(99, code);
+      const { ms, sleep } = waits();
+      assert.throws(() => writeFileAtomic(file, 'new', { rename, sleep }), { code });
+      assert.equal(calls.length, 1, code);
+      assert.deepEqual(ms, [], code);
+      assert.equal(fs.existsSync(file), false);
+    }
+    assert.deepEqual(fs.readdirSync(dir), []);
+  });
+
+  it('writeJsonAtomic passes the same options through', () => {
+    const file = path.join(dir, 's.json');
+    const { rename, calls } = flaky(1, 'EPERM');
+    const { ms, sleep } = waits();
+    writeJsonAtomic(file, { a: 1 }, { rename, sleep });
+    assert.equal(calls.length, 2);
+    assert.deepEqual(ms, [75]);
+    assert.equal(fs.readFileSync(file, 'utf8'), '{"a":1}');
+  });
+
+  it('a failed write of the temp file itself leaves nothing behind and throws as before', () => {
+    const real = fs.writeFileSync;
+    mock.method(fs, 'writeFileSync', function (p, ...rest) {
+      if (String(p).endsWith('.tmp')) {
+        real.call(fs, p, 'partial');
+        throw Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' });
+      }
+      return real.call(fs, p, ...rest);
+    });
+    const file = path.join(dir, 's.json');
+    assert.throws(() => writeFileAtomic(file, 'new'), { code: 'ENOSPC' });
+    mock.restoreAll();
+    assert.deepEqual(fs.readdirSync(dir), []);
+  });
 });
 
 describe('readJsonObject', () => {

@@ -11,14 +11,11 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { makeTmpHome } from './fake-home.mjs';
+import { runHook as spawnHook } from './hook-runner.mjs';
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SCRUB = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'CURSOR_API_KEY', 'NTFY_TOKEN'];
 const BELL_RESPONSE = { terminalSequence: '\x07' };
 
 const RUNNING_SUBAGENT = {
@@ -65,30 +62,13 @@ describe('notify.mjs background-work gate (real subprocess, real local HTTP serv
   // A throwaway HOME the caller owns and removes — kept alive after the run so a
   // case can read back errors.log or check for a dedup lock file.
   function makeHome() {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-bgwork-'));
-    const cfgDir = path.join(home, '.anotifier');
-    fs.mkdirSync(cfgDir, { recursive: true });
-    fs.writeFileSync(path.join(cfgDir, 'config.json'), JSON.stringify(config()));
-    return home;
+    return makeTmpHome('aan-bgwork-', { config: config() });
   }
 
   // Async spawn, never spawnSync: the local server runs on THIS process's event
   // loop, so a blocking child would never get its ntfy/webhook connection
   // accepted and every control run would read as "sent nothing".
-  function runHook(home, payload, source = 'claude') {
-    const env = { ...process.env, HOME: home, USERPROFILE: home };
-    for (const k of SCRUB) delete env[k];
-    return new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, ['src/notify.mjs', '--source', source], { cwd: repoRoot, env });
-      let stdout = '';
-      let stderr = '';
-      child.stdout.on('data', (d) => { stdout += d; });
-      child.stderr.on('data', (d) => { stderr += d; });
-      child.on('error', reject);
-      child.on('close', (status) => resolve({ status, stdout, stderr }));
-      child.stdin.end(JSON.stringify(payload));
-    });
-  }
+  const runHook = (home, payload, source = 'claude') => spawnHook({ source, payload, home });
 
   // Each case gets a fresh session id: the dedup lock keys on it, so reusing one
   // across cases would silence a later run for the wrong reason.

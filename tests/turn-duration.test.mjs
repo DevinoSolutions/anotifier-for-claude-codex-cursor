@@ -4,12 +4,11 @@
 import { describe, it, before, after, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { useFakeHome } from './fake-home.mjs';
+import { useFakeHome, makeTmpHome } from './fake-home.mjs';
+import { runHook as spawnHook } from './hook-runner.mjs';
 import {
   recordTurnStart, finishTurn, minDurationSeconds, isBelowMinDuration, supportsTurnTiming, removeTurnState,
 } from '../src/turn-timer.mjs';
@@ -26,12 +25,9 @@ import { readErrorLog } from './turn-duration-helpers.mjs';
 useFakeHome();
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const NOTIFY = path.join(repoRoot, 'src', 'notify.mjs');
 const SEC = 1000;
 
-function tmpDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'aan-turn-'));
-}
+const tmpDir = () => makeTmpHome('aan-turn-');
 
 describe('formatDuration', () => {
   it('formats seconds, minutes and hours', () => {
@@ -476,20 +472,9 @@ describe('notify.mjs end to end (real subprocess, real local HTTP server)', () =
     return { home, cfgDir, statePath: path.join(cfgDir, 'turns.json') };
   }
 
-  function runHook(home, payload, { source = 'claude', event, env: extraEnv = {} } = {}) {
-    const env = { ...process.env, HOME: home, USERPROFILE: home, ...extraEnv };
-    for (const k of ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'CURSOR_API_KEY', 'NTFY_TOKEN']) delete env[k];
-    const args = [NOTIFY, '--source', source, ...(event ? ['--event', event] : [])];
-    return new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, args, { cwd: repoRoot, env });
-      let stdout = ''; let stderr = '';
-      child.stdout.on('data', (d) => { stdout += d; });
-      child.stderr.on('data', (d) => { stderr += d; });
-      child.on('error', reject);
-      child.on('close', (status) => resolve({ status, stdout, stderr }));
-      child.stdin.end(JSON.stringify(payload));
-    });
-  }
+  const runHook = (home, payload, { source = 'claude', event, env } = {}) => spawnHook({
+    source, args: event ? ['--event', event] : [], payload, home, env,
+  });
 
   const stop = { hook_event_name: 'Stop', cwd: '/work/app', session_id: SESSION };
   const prompt = { hook_event_name: 'UserPromptSubmit', cwd: '/work/app', session_id: SESSION, prompt: 'do it' };
@@ -601,15 +586,7 @@ describe('notify.mjs end to end (real subprocess, real local HTTP server)', () =
 
   it('the turn-start hook survives garbage on stdin', async () => {
     const { home } = setupHome(baseConfig(30));
-    const env = { ...process.env, HOME: home, USERPROFILE: home };
-    const res = await new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, [NOTIFY, '--source', 'claude'], { cwd: repoRoot, env });
-      let stdout = '';
-      child.stdout.on('data', (d) => { stdout += d; });
-      child.on('error', reject);
-      child.on('close', (status) => resolve({ status, stdout }));
-      child.stdin.end('{ nope');
-    });
+    const res = await spawnHook({ payload: '{ nope', home });
     assert.equal(res.status, 0);
     assert.equal(res.stdout, '{}\n');
   });

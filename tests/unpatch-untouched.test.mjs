@@ -4,9 +4,9 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { TOOL_EVENTS, patchClaude, patchCodex, unpatchAll } from '../setup/patch-config.mjs';
+import { makeTmpHome } from './fake-home.mjs';
 
 const NOTIFY = '/home/user/.npm/anotifier/src/notify.mjs';
 
@@ -27,7 +27,7 @@ const listFiles = (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir) : []);
 describe('unpatchAll with nothing of ours to remove', () => {
   let home, backups;
   beforeEach(() => {
-    home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-unpatch-'));
+    home = makeTmpHome('aan-unpatch-');
     backups = path.join(home, 'backups');
   });
   afterEach(() => fs.rmSync(home, { recursive: true, force: true }));

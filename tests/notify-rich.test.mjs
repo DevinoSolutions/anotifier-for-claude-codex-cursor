@@ -10,13 +10,9 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SCRUB = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'CURSOR_API_KEY', 'NTFY_TOKEN'];
+import { makeTmpHome } from './fake-home.mjs';
+import { runHook } from './hook-runner.mjs';
 
 // A single assistant text line whose sanitized form is byte-identical to the
 // source (single spaces, no newlines), so we can assert the exact ntfy body.
@@ -35,31 +31,14 @@ function writeTranscript(home) {
 }
 
 function mkHome(ntfyConfig) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-rich-'));
-  const cfgDir = path.join(home, '.anotifier');
-  fs.mkdirSync(cfgDir, { recursive: true });
   // Only ntfy is live; toast and bell are off so the run is deterministic.
-  fs.writeFileSync(path.join(cfgDir, 'config.json'), JSON.stringify({
-    toast: { enabled: false },
-    terminalBell: { enabled: false },
-    ntfy: ntfyConfig,
-  }));
-  return home;
-}
-
-function runNotify(home, input) {
-  return new Promise((resolve) => {
-    const env = { ...process.env, HOME: home, USERPROFILE: home };
-    for (const k of SCRUB) delete env[k];
-    const child = spawn(process.execPath, ['src/notify.mjs', '--source', 'claude'], { cwd: repoRoot, env });
-    let stdout = '', stderr = '';
-    child.stdout.on('data', (d) => { stdout += d; });
-    child.stderr.on('data', (d) => { stderr += d; });
-    child.on('close', (code) => resolve({ status: code, stdout, stderr }));
-    child.stdin.write(input);
-    child.stdin.end();
+  return makeTmpHome('aan-notify-rich-', {
+    config: { toast: { enabled: false }, terminalBell: { enabled: false }, ntfy: ntfyConfig },
   });
 }
+
+// Async on purpose: this process serves the child's HTTP request.
+const runNotify = (home, input) => runHook({ home, payload: input });
 
 describe('notify.mjs rich content on the ntfy wire (F3)', () => {
   let server, base, lastBody;

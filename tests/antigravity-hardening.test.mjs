@@ -4,17 +4,15 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { makeTmpHome } from './fake-home.mjs';
+import { runHookSync } from './hook-runner.mjs';
 import { parseInput } from '../src/parse-input.mjs';
 import { route } from '../src/router.mjs';
 import { loadConfig } from '../src/config-loader.mjs';
 import { patchAntigravity, unpatchAll, detectAntigravityEvents } from '../setup/patch-config.mjs';
 import { detectTools } from '../cli/setup.mjs';
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NOTIFY = '/home/user/.npm/anotifier/src/notify.mjs';
 const stopPayload = {
   conversationId: '0b7c1f3e-1111-2222-3333-444455556666',
@@ -25,12 +23,8 @@ const stopPayload = {
 };
 
 function runHook(source, extraArgs, input, config) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-agy-run-'));
-  fs.mkdirSync(path.join(home, '.anotifier'), { recursive: true });
-  fs.writeFileSync(path.join(home, '.anotifier', 'config.json'), JSON.stringify(config));
-  const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', source, ...extraArgs], {
-    cwd: repoRoot, input: JSON.stringify(input), env: { ...process.env, HOME: home, USERPROFILE: home }, encoding: 'utf8', timeout: 30000,
-  });
+  const home = makeTmpHome('aan-agy-run-', { config });
+  const res = runHookSync({ source, args: extraArgs, payload: input, home });
   const files = fs.readdirSync(path.join(home, '.anotifier'));
   fs.rmSync(home, { recursive: true, force: true });
   return { res, files };
@@ -41,7 +35,7 @@ describe('antigravity hooks.json hardening', () => {
   let geminiDir;
   let hooksPath;
   beforeEach(() => {
-    home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-agy-hard-'));
+    home = makeTmpHome('aan-agy-hard-');
     geminiDir = path.join(home, '.gemini');
     hooksPath = path.join(geminiDir, 'config', 'hooks.json');
     fs.mkdirSync(path.dirname(hooksPath), { recursive: true });
@@ -137,7 +131,7 @@ describe('antigravity Stop payload semantics', () => {
 
 describe('Gemini CLI vs Antigravity detection', () => {
   let home;
-  beforeEach(() => { home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-agy-detect-')); });
+  beforeEach(() => { home = makeTmpHome('aan-agy-detect-'); });
   afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
   const names = () => detectTools(home).map((t) => t.name);
   const mk = (...p) => fs.mkdirSync(path.join(home, '.gemini', ...p), { recursive: true });
