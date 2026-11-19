@@ -975,7 +975,7 @@ const AGENT_GUIDES: Guide[] = [
               "**Project name from 1.8.0.** Cursor's docs list `workspace_roots` in the hook input, and anotifier 1.8.0 and later names the project from the first one. Before 1.8.0 every Cursor alert looked the same and the hand-written script above was the way to name the project.",
               "**Status from 1.8.0.** anotifier 1.8.0 and later reads `status`: a run that ended in an error says `Task failed`, and a run you aborted sends no alert. Before 1.8.0 both said `Task complete`.",
               "**Click-to-focus on Windows from 1.8.0.** The Windows toast jumps to a window by project folder, which a Cursor alert now has. Before 1.8.0 it had none, so there was no click action.",
-              '**Only `stop`.** There is no alert for "waiting for approval". Leave Cursor\'s own OS notification on for that.',
+              '**Only stop.** There is no alert for "waiting for approval". Leave Cursor\'s own OS notification on for that.',
               "**Not driven by a live Cursor.** CI checks that setup writes and removes the hook correctly; it doesn't run a real Cursor agent end to end.",
             ],
           },
