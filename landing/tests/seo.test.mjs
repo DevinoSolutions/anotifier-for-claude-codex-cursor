@@ -403,15 +403,13 @@ test("every guide offers the install command before its first section", () => {
 // reads are the ones the JSON-LD hands to search engines.
 test("every page with a FAQPage shows the same questions and answers", () => {
   let checked = 0;
+  const problems = [];
   for (const [p, { body }] of pages) {
     const schema = schemaFaqs(body);
     const { details, buttons, headings } = visibleFaqs(body);
     if (schema.length === 0) {
-      assert.equal(
-        details.length + buttons.length,
-        0,
-        `${p} shows FAQ questions but has no FAQPage JSON-LD`,
-      );
+      if (details.length + buttons.length > 0)
+        problems.push(`${p} shows FAQ questions but has no FAQPage JSON-LD`);
       continue;
     }
     checked++;
@@ -423,22 +421,23 @@ test("every page with a FAQPage shows the same questions and answers", () => {
       : buttons.length
         ? buttons
         : schemaQs.map((q) => headings.find((h) => h.q === q) ?? { q: null });
-    assert.deepEqual(
-      shown.map((f) => f.q),
-      schemaQs,
-      `${p}: visible FAQ questions differ from the JSON-LD`,
-    );
+    const shownQs = shown.map((f) => f.q);
+    if (JSON.stringify(shownQs) !== JSON.stringify(schemaQs)) {
+      problems.push(
+        `${p}: visible FAQ questions differ from the JSON-LD. Shown: ${JSON.stringify(shownQs)} JSON-LD: ${JSON.stringify(schemaQs)}`,
+      );
+      continue;
+    }
     // The home answers only render once a question is opened, so they are not
     // in the static HTML; every other page prints them.
     for (const [i, f] of shown.entries()) {
-      if (f.a === null) continue;
-      assert.equal(
-        f.a,
-        plainText(schema[i].a),
-        `${p}: the answer to "${f.q}" differs from the JSON-LD`,
-      );
+      if (f.a !== null && f.a !== plainText(schema[i].a))
+        problems.push(
+          `${p}: the answer to "${f.q}" differs from the JSON-LD. Shown: ${JSON.stringify(f.a)} JSON-LD: ${JSON.stringify(plainText(schema[i].a))}`,
+        );
     }
   }
+  assert.deepEqual(problems, []);
   assert.ok(checked >= 20, `only ${checked} pages carry a FAQPage`);
   assert.ok(
     visibleFaqs(pages.get("/").body).buttons.length >= 5,

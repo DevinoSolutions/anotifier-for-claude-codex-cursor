@@ -62,9 +62,18 @@ test("no content string wraps code in bold or link text", () => {
   const hits = [];
   for (const { file, text } of code) {
     for (const [i, line] of text.split("\n").entries()) {
-      // Comments may talk about the syntax.
-      if (/^\s*(\/\/|\/?\*)/.test(line)) continue;
-      for (const span of wrappedCode(line))
+      // Comments may talk about the syntax. A template-literal line that
+      // starts with "**" is content, so only "//", "/*", "* " and "*/" count.
+      if (/^\s*(\/\/|\/\*|\*\/|\*(\s|$))/.test(line)) continue;
+      // In a template literal (a backtick-delimited string) a code span is
+      // written \`x\` and the unescaped backticks are the delimiters. Read it
+      // that way too: delimiters out of the way, escapes as the backticks
+      // Inline sees. Plain strings are read as they are.
+      const asTemplate = line.replace(/(?<!\\)`/g, '"').replaceAll("\\`", "`");
+      for (const span of new Set([
+        ...wrappedCode(line),
+        ...wrappedCode(asTemplate),
+      ]))
         hits.push(`${file}:${i + 1} code inside bold or link text: ${span}`);
     }
   }
@@ -76,11 +85,11 @@ test("no content string wraps code in bold or link text", () => {
 // "1.8.0 and later" never goes stale; these do on the next release, and the
 // page keeps saying the old number. They must name the current VERSION.
 const PINNED_TO_CURRENT = [
-  /\bas of (\d+\.\d+\.\d+)/g,
-  /\bthe current (\d+\.\d+\.\d+)/g,
-  /\banotifier (\d+\.\d+\.\d+) only\b/g,
-  /\bsource of anotifier (\d+\.\d+\.\d+)/g,
-  /\banotifier (\d+\.\d+\.\d+): \[/g,
+  /\bas of (\d+\.\d+\.\d+)/gi,
+  /\bthe current (\d+\.\d+\.\d+)/gi,
+  /\banotifier (\d+\.\d+\.\d+) only\b/gi,
+  /\bsource of anotifier (\d+\.\d+\.\d+)/gi,
+  /\banotifier (\d+\.\d+\.\d+): \[/gi,
 ];
 const pinnedVersions = (text) =>
   PINNED_TO_CURRENT.flatMap((re) => [...text.matchAll(re)].map((m) => m[1]));
@@ -92,6 +101,8 @@ test("the release-pinned phrase patterns match what they are meant to catch", ()
     "anotifier 1.2.3 only alerts you",
     "This section follows the source of anotifier 1.2.3: [a](b)",
     "anotifier 1.2.3: [patch-config.mjs](x)",
+    "As of 1.2.3, nothing is sent",
+    "Anotifier 1.2.3 only alerts you",
   ]) {
     assert.deepEqual(pinnedVersions(sample).slice(-1), ["1.2.3"], sample);
   }
@@ -122,5 +133,13 @@ test("every phrase that pins the current release names VERSION", () => {
         if (v !== version)
           stale.push(`${file}:${i + 1} says ${v}, VERSION is ${version}`);
   }
-  assert.deepEqual(stale, []);
+  // lib/antigravity-guides.ts also pins AGY_SRC to a git tag (blob/vX.Y.Z).
+  // That is deliberately not asserted: the tag is pushed after the release-docs
+  // PR merges, so a link to it would 404 while that PR is open.
+  assert.deepEqual(
+    stale,
+    [],
+    "Bump these with VERSION. Also update AGY_SRC in lib/antigravity-guides.ts " +
+      "to the new tag, in the first content PR after the tag exists.",
+  );
 });
