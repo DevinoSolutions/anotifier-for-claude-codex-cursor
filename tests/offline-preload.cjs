@@ -20,7 +20,7 @@ const net = require('node:net');
 const fs = require('node:fs');
 
 const connect = net.Socket.prototype.connect;
-const LOCAL = /^(localhost|127\.|::1|\[::1\]|0\.0\.0\.0)/;
+const { isLoopback } = require('./offline-loopback.cjs');
 
 net.Socket.prototype.connect = function patchedConnect(...args) {
   let target = args[0];
@@ -38,7 +38,7 @@ net.Socket.prototype.connect = function patchedConnect(...args) {
   }
   if (socketPath) return connect.apply(this, args);
   const name = String(host || 'localhost');
-  if (LOCAL.test(name)) return connect.apply(this, args);
+  if (isLoopback(name)) return connect.apply(this, args);
 
   if (process.env.TRAP_LOG) {
     try {
